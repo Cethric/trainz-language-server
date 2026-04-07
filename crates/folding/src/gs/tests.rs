@@ -127,6 +127,97 @@ mod tests {
     }
 
     #[test]
+    fn test_gs_folding_range_end_character() {
+        // We want to verify that the folding range includes the '}' but not the newline.
+        // In this case, the method ends at '}' on line 1, column 21 (0-indexed).
+        // Let's check what the parser/symboliser gives us.
+        let code = "class T {\n    void m() {\n    }\n};\n";
+        let pairs = parse(code).unwrap();
+        let program = process_gs_ast(pairs, code);
+        let ranges = gs_folding_range(&program);
+
+        for range in &ranges {
+            println!(
+                "Found range: {}:{} - {}:{}",
+                range.start_line,
+                range.start_character.unwrap_or(0),
+                range.end_line,
+                range.end_character.unwrap_or(0)
+            );
+        }
+
+        // Method m() starts at line 1, ends at line 2.
+        // Line 2 content is "    }\n"
+        // The '}' is at index 4.
+        // The newline is at index 5.
+        // We want end_character to be 5 (points just after '}').
+        let method_range = ranges
+            .iter()
+            .find(|r| r.start_line == 1)
+            .expect("Method range not found");
+        assert_eq!(method_range.end_line, 2);
+        assert_eq!(method_range.end_character, Some(5));
+
+        // Class T starts at line 0, ends at line 3.
+        // Line 3 content is "};\n"
+        // The '}' is at index 0.
+        // The ';' is at index 1.
+        // The newline is at index 2.
+        // In the previous fix, it might have been adjusted.
+        let code = "class T {\n    void m() {\n    }\n};";
+        let pairs = parse(code).unwrap();
+        let program = process_gs_ast(pairs, code);
+        let ranges = gs_folding_range(&program);
+
+        for range in &ranges {
+            println!(
+                "Found range (no newline): {}:{} - {}:{}",
+                range.start_line,
+                range.start_character.unwrap_or(0),
+                range.end_line,
+                range.end_character.unwrap_or(0)
+            );
+        }
+
+        // Method m() ends on line 2 at '}'. Content: "    }"
+        // '}' is at index 4. end_character should be 5.
+        let method_range_no_nl = ranges
+            .iter()
+            .find(|r| r.start_line == 1)
+            .expect("Method range not found");
+        assert_eq!(method_range_no_nl.end_line, 2);
+        assert_eq!(method_range_no_nl.end_character, Some(5));
+    }
+
+    #[test]
+    fn test_gs_folding_range_statement_block_end_character() {
+        let code = "class T {\n    void m() {\n        if (true) {\n            return;\n        }\n    }\n};";
+        let pairs = parse(code).unwrap();
+        let program = process_gs_ast(pairs, code);
+        let ranges = gs_folding_range(&program);
+
+        for range in &ranges {
+            println!(
+                "Found GS range: {}:{} - {}:{}",
+                range.start_line,
+                range.start_character.unwrap_or(0),
+                range.end_line,
+                range.end_character.unwrap_or(0)
+            );
+        }
+
+        // if block starts at line 2, ends at line 4.
+        // Line 4 content is "        }\n" (8 spaces + '}')
+        // '}' is at index 8. end_character should be 9.
+        let if_range = ranges
+            .iter()
+            .find(|r| r.start_line == 2)
+            .expect("If block range not found");
+        assert_eq!(if_range.end_line, 4);
+        assert_eq!(if_range.end_character, Some(9));
+    }
+
+    #[test]
     fn test_gs_folding_range_includes() {
         let code = "include \"common.gs\"\ninclude \"util.gs\"\ninclude \"lib.gs\"\n\nclass Test {\n    void method() {\n        // ...\n    }\n};\n";
         let pairs = parse(code).unwrap();
