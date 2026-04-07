@@ -24,14 +24,11 @@ async fn bench_process_soup_file(server: &GameScriptLanguageServer, path: PathBu
 
 fn criterion_benchmark(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let (service, _socket) = LspService::new(|client| GameScriptLanguageServer::new(client));
+    let (service, _socket) =
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
     let server = service.inner();
 
     let mut path = std::env::current_dir().unwrap();
-    if path.ends_with("crates/lsp") {
-        path.pop();
-        path.pop();
-    }
     path.push("test_programs");
     path.push("sample.soup");
 

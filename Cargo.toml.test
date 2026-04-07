@@ -1,8 +1,0 @@
-[package]
-name = "test_parse_postfix"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-gs-ast = { path = "crates/ast" }
-gs-parser = { path = "crates/parser" }

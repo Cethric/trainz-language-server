@@ -24,16 +24,13 @@ async fn bench_process_gs_file(server: &GameScriptLanguageServer, path: PathBuf,
 
 fn criterion_benchmark(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let (service, _socket) = LspService::new(|client| GameScriptLanguageServer::new(client));
+    let (service, _socket) =
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
     let server = service.inner();
 
-    let mut path = std::env::current_dir().unwrap();
     // In Cargo, benches run with CWD set to the crate root.
-    // The test_programs are at the project root.
-    if path.ends_with("crates/lsp") {
-        path.pop();
-        path.pop();
-    }
+    // The test_programs are in this crate's test_programs folder.
+    let mut path = std::env::current_dir().unwrap();
     path.push("test_programs");
     path.push("hello_world.gs");
 
