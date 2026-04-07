@@ -1,0 +1,11 @@
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+
+newline = _{ "\r\n" | "\n" | "\r" }
+
+line_comment = ${ ";" ~ (!newline ~ ANY)* }
+block_comment = ${ "/*" ~ (block_comment | !"*/" ~ ANY)* ~ "*/" }
+
+COMMENT = _{ line_comment | block_comment }
+string_literal = ${ "\"" ~ (!("\"" | newline) ~ ANY)* ~ "\"" }
+
+comment_program = { SOI ~ (string_literal | COMMENT | ANY)* ~ EOI }

@@ -1,0 +1,16 @@
+kind "train"
+kuid <kuid:1234:5678>
+username "Sample Train"
+description "A sample train for testing"
+
+extensions {
+    author "Junie"
+    version 1.0
+}
+
+mesh-table {
+    default {
+        mesh "body.lm"
+        auto-create 1
+    }
+}

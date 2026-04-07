@@ -1,0 +1,22 @@
+[package]
+name = "gs-definition"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+shadow-rs = { workspace = true }
+tower-lsp-server = { workspace = true }
+log = { workspace = true }
+rayon = { workspace = true }
+
+gs-ast = { workspace = true }
+gs-diagnostics = { workspace = true }
+dashmap = { version = "6.1", features = ["rayon"] }
+env_logger = { workspace = true }
+
+[build-dependencies]
+shadow-rs = { version = "1.7" }
+
+[dev-dependencies]
+gs-parser = { workspace = true }
+tempfile = "3.10"

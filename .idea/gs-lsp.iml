@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="EMPTY_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/crates/ast/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/common/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/diagnostics/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/formatter-cli/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/formatter/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/lsp/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/parser/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/semantic-tokens/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/completions/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/folding/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/soup-parser/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/symboliser/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/definition/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/hover/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/lsp/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/lsp/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/test-runner/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/util/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/crates/lsp/target" />
+      <excludeFolder url="file://$MODULE_DIR$/crates/parser/target" />
+      <excludeFolder url="file://$MODULE_DIR$/target" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>

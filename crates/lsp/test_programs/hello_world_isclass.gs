@@ -1,0 +1,1 @@
+class Foo isclass Bar { void Bar() { bool b; b = me.isclass(Foo); } };

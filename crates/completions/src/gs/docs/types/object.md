@@ -1,0 +1,1 @@
+- object is a base class which may be used to store references to objects of any class.

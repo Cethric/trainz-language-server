@@ -1,0 +1,13 @@
+thumbnails {
+  preview {
+    image "icon/icon.jpg"
+    width 240
+    height 180
+  }
+  duplicate {
+    image "dup.jpg"
+  }
+  preview {
+    image "error"
+  }
+}

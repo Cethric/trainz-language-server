@@ -1,0 +1,3 @@
+- Syntax: `include "filename.gs"`
+- This statement must appear before any class declarations and will include the contents of the specified script file.
+- It is generally sufficient to include the *.gs filename related to the immediate parent of your script.

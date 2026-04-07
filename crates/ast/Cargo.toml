@@ -1,0 +1,22 @@
+[package]
+name = "gs-ast"
+version = "0.1.0"
+edition.workspace = true
+build = "build.rs"
+
+[dependencies]
+shadow-rs = { workspace = true }
+pest = { workspace = true }
+tower-lsp-server = { workspace = true }
+rayon = { workspace = true }
+serde = { workspace = true }
+bson = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+
+gs-parser = { workspace = true }
+gs-util = { workspace = true }
+log = { workspace = true }
+
+[build-dependencies]
+shadow-rs = { version = "1.7" }

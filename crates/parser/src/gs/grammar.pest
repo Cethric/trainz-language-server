@@ -1,0 +1,557 @@
+/*
+    **********************************************
+    *  WHITESPACE & COMMENTS
+    **********************************************
+*/
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+
+newline = _{ "\r\n" | "\n" | "\r" }
+
+line_comment  = _{ ("//" ~ (!newline ~ ANY)*) }
+block_comment = _{ "/*" ~ (block_comment | !"*/" ~ ANY)* ~ "*/" }
+
+COMMENT = _{ line_comment | block_comment }
+
+/*
+    **********************************************
+    *  PROGRAMS
+    **********************************************
+*/
+
+program = _{ SOI ~ ((include_statement | class_definition)*) ~ EOI }
+
+/*
+    **********************************************
+    *  INCLUDES
+    **********************************************
+*/
+
+include_statement = { keyword_include ~ include_path ~ semicolon? }
+include_path      = { string_value }
+
+/*
+    **********************************************
+    *  CLASSES
+    **********************************************
+*/
+
+class_name      = @{ identifier }
+superclass_name = @{ identifier }
+
+class_modifiers = { (keyword_final | keyword_game | keyword_static | obsolete_statement | keyword_secured)* }
+
+class_inheritance = { (keyword_is_class ~ superclass_name ~ (comma ~ superclass_name)*)? }
+
+class_definition = {
+    (class_modifiers ~ keyword_class ~ #class_name = class_name ~ class_inheritance ~ class_body ~ semicolon)
+}
+class_body       = { brace_open ~ (class_native_method | class_method | class_member)* ~ brace_close }
+
+/*
+    **********************************************
+    *  CLASS MEMBERS
+    **********************************************
+*/
+
+class_member_name       = @{ identifier }
+class_member_type       =  { type_array | types }
+class_member_modifiers  =  { (keyword_static | keyword_public | keyword_define | obsolete_statement)* }
+class_member_names      = _{ class_member_name ~ (comma ~ class_member_name)* }
+class_member_assignment = _{ statement_expression ~ (comma ~ statement_expression)* }
+class_member            =  {
+    class_member_modifiers ~ class_member_type ~ class_member_names ~ (operator_assignment ~ class_member_assignment)? ~ semicolon
+}
+
+/*
+    **********************************************
+    *  METHODS
+    **********************************************
+*/
+
+class_method_base_modifiers   = _{
+    keyword_static
+  | keyword_public
+  | obsolete_statement
+  | keyword_thread
+  | keyword_legacy_compatibility
+  | keyword_mandatory
+}
+class_native_method_modifiers =  {
+    (class_method_base_modifiers | keyword_native)*
+}
+class_method_modifiers        =  {
+    class_method_base_modifiers*
+}
+class_method_identifier       = @{ identifier }
+class_method_parameter_name   = @{ identifier }
+class_method_parameter_type   =  { type_array | types }
+class_method_return_type      =  { type_array | type_void | types }
+class_method_parameter        = _{ class_method_parameter_type ~ class_method_parameter_name }
+class_method_parameter_group  = _{ class_method_parameter ~ (comma ~ class_method_parameter)* }
+class_method_parameters       =  { paren_open ~ (type_void | class_method_parameter_group)? ~ paren_close }
+class_native_method           =  {
+    class_native_method_modifiers ~ class_method_return_type ~ #class_method_identifier = class_method_identifier ~ class_method_parameters ~ semicolon
+}
+class_method                  =  {
+    class_method_modifiers ~ class_method_return_type ~ #class_method_identifier = class_method_identifier ~ class_method_parameters ~ method_body
+}
+
+method_body = { brace_open ~ statements ~ brace_close }
+
+/*
+    **********************************************
+    *  STATEMENTS
+    **********************************************
+*/
+
+label           = @{ identifier }
+statement_label =  { label ~ colon ~ semicolon? }
+
+statement_goto = { keyword_goto ~ label }
+
+statements = {
+    (statement_with_line_end | statement_without_line_end)*
+}
+
+statement_without_line_end = _{
+    statement_if
+  | statement_for
+  | statement_while
+  | statement_switch
+  | statement_wait
+  | statement_on
+  | statement_block
+  | statement_label
+}
+
+statement_with_line_end = _{
+    (statement_declaration | statement_return | statement_break | statement_continue | statement_goto | statement_expression)? ~ semicolon
+}
+
+/*
+    **********************************************
+    *  EXPRESSION SYSTEM
+    **********************************************
+*/
+
+statement_expression = _{ assignment_expr }
+
+assignment_expr = {
+    logical_or_expr ~ (operator_assignment ~ assignment_expr)?
+}
+
+logical_or_expr = {
+    logical_and_expr ~ (operator_logical_or ~ logical_and_expr)*
+}
+
+logical_and_expr = {
+    equality_expr ~ (operator_logical_and ~ equality_expr)*
+}
+
+equality_expr = {
+    comparison_expr ~ (operator_equality ~ comparison_expr)*
+}
+
+comparison_expr = {
+    bitwise_expr ~ (operator_comparison ~ bitwise_expr)*
+}
+
+bitwise_expr = {
+    additive_expr ~ (operator_bitwise ~ additive_expr)*
+}
+
+additive_expr = {
+    multiplicative_expr ~ ((operator_math_add | operator_math_subtract) ~ multiplicative_expr)*
+}
+
+multiplicative_expr = {
+    unary_expr ~ ((operator_math_multiply | operator_math_divide | operator_math_modulo) ~ unary_expr)*
+}
+
+/*
+    **********************************************
+    *  PRIMARYcomma GROUPEDcomma POSTFIXcomma UNARY
+    **********************************************
+*/
+
+variable = @{ #variable = identifier }
+
+primary_expr = _{
+    keyword_me
+  | keyword_is_class
+  | variable
+  | new_array
+  | new_object
+  | statement_method
+  | inherited_method
+  | statement_cast
+  | literal
+  | array_literal
+}
+
+array_literal = {
+    bracket_open ~ (statement_expression ~ (comma ~ statement_expression)*)? ~ bracket_close
+}
+
+grouped_expr = {
+    paren_open ~ statement_expression ~ paren_close
+}
+
+postfix_expr = {
+    (primary_expr | grouped_expr) ~ postfix_op*
+}
+
+postfix_op = _{
+    statement_method_call
+  | array_subscript
+  | deref ~ primary_expr
+  | operator_unary_rhs
+}
+
+unary_expr = {
+    operator_unary_lhs? ~ postfix_expr
+}
+
+/*
+    **********************************************
+    *  CASTS
+    **********************************************
+*/
+
+statement_cast_type = { type_array | types }
+
+static_cast = {
+    keyword_cast ~ angle_open ~ statement_cast_type ~ angle_close ~ ((paren_open ~ unary_expr ~ paren_close) | unary_expr)
+}
+
+dynamic_cast = { paren_open ~ statement_cast_type ~ paren_close ~ unary_expr }
+
+statement_cast = {
+    static_cast
+  | dynamic_cast
+}
+
+/*
+    **********************************************
+    *  DECLARATIONScomma ASSIGNMENTScomma RETURNS
+    **********************************************
+*/
+
+declaration_name = @{ #declaration_name = identifier }
+
+statement_declaration_value = _{ new_array | new_object | statement_expression }
+
+statement_declaration = {
+    (type_array | types) ~ (declaration_name ~ (comma ~ declaration_name)*) ~ (operator_assignment ~ statement_declaration_value ~ (comma ~ statement_declaration_value)*)?
+}
+
+statement_assignment = {
+    postfix_expr ~ operator_assignment ~ (keyword_boolean | new_array | new_object | statement_expression)
+}
+
+statement_return   = { keyword_return ~ (keyword_boolean | new_array | new_object | statement_expression)? }
+statement_break    = { keyword_break }
+statement_continue = { keyword_continue }
+
+/*
+    **********************************************
+    *  CONTROL FLOW
+    **********************************************
+*/
+
+statement_block = { brace_open ~ statements ~ brace_close }
+
+statement_if = {
+    keyword_if ~ paren_open ~ statement_expression ~ paren_close ~ (statement_block | statement_with_line_end | statement_without_line_end) ~ statement_else?
+}
+
+statement_else = { keyword_else ~ (statement_block | statement_with_line_end | statement_without_line_end) }
+
+statement_while = {
+    keyword_while ~ paren_open ~ statement_expression ~ paren_close ~ (semicolon | statement_block | statement_with_line_end | statement_without_line_end)
+}
+
+statement_for = {
+    keyword_for ~ paren_open ~ statement_assignment ~ semicolon ~ statement_expression ~ semicolon ~ statement_expression? ~ paren_close ~ (semicolon | statement_block | statement_with_line_end | statement_without_line_end)
+}
+
+statement_wait_block = { brace_open ~ statements ~ brace_close }
+
+statement_wait = {
+    keyword_wait ~ paren_open ~ paren_close ~ statement_wait_block ~ semicolon?
+}
+
+statement_on  = {
+    keyword_on ~ string_value ~ comma ~ string_value ~ (comma ~ identifier)? ~ (colon ~ on_body | on_body_block)
+}
+on_body_block = { brace_open ~ statements? ~ brace_close }
+on_body       = { statements }
+
+statement_switch_block = { brace_open ~ (statement_case | statement_default)* ~ brace_close }
+
+statement_switch = {
+    keyword_switch ~ paren_open ~ statement_expression ~ paren_close ~ statement_switch_block
+}
+
+statement_case = {
+    keyword_case ~ postfix_expr ~ colon ~ statements
+}
+
+statement_default = {
+    keyword_default ~ colon ~ statements
+}
+
+/*
+    **********************************************
+    *  METHOD CALL ARGUMENTS
+    **********************************************
+*/
+
+statement_method_name      = @{ identifier }
+statement_method_argument  = _{ statement_expression | literal }
+statement_method_arguments =  { statement_method_argument ~ (comma ~ statement_method_argument)* }
+statement_method_call      =  { paren_open ~ statement_method_arguments? ~ paren_close }
+statement_method           =  { statement_method_name ~ statement_method_call }
+inherited_method           =  { keyword_inherited ~ statement_method_call }
+
+/*
+    **********************************************
+    *  NEW OBJECTS / ARRAYS
+    **********************************************
+*/
+
+new_object_argument  = _{ literal | postfix_expr }
+new_object_arguments =  { new_object_argument ~ (comma ~ new_object_argument)* }
+
+new_object = {
+    keyword_new ~ types ~ paren_open ~ new_object_arguments? ~ paren_close
+}
+
+new_array = {
+    keyword_new ~ types ~ bracket_open ~ (integer | postfix_expr) ~ bracket_close
+}
+
+/*
+    **********************************************
+    *  ARRAY INDEX / RANGE
+    **********************************************
+*/
+
+array_subscript = {
+    bracket_open ~ (statement_expression? ~ (comma ~ statement_expression?)+ | statement_expression) ~ bracket_close
+}
+
+/*
+    **********************************************
+    *  LITERALScomma IDENTIFIERScomma TYPES
+    **********************************************
+*/
+
+literal = { string_value | char_value | float | hex | integer | null | boolean }
+
+unary_positive =  { "+" }
+unary_negative =  { "-" }
+unary          = _{ unary_positive | unary_negative }
+
+number  = _{ ASCII_DIGIT+ }
+integer = @{ unary? ~ number }
+
+hex = @{ ("0x" | "0X") ~ ASCII_HEX_DIGIT+ }
+
+float = @{
+    unary? ~ ((number ~ "." ~ number?) | (number? ~ "." ~ number)) ~ ("f" | "F")?
+}
+
+null = @{ keyword_null }
+
+boolean = @{ keyword_boolean }
+
+string_value =  { double_quote ~ string ~ double_quote }
+string       = @{ (!(double_quote | "\\") ~ ANY)* ~ (escape ~ string)? }
+
+escape  = @{ "\\" ~ (double_quote | "\\" | "/" | "b" | "f" | "n" | "r" | "t" | unicode) }
+unicode = @{ "u" ~ ASCII_HEX_DIGIT{4} }
+
+char_value =  { single_quote ~ char ~ single_quote }
+char       = @{ (!(single_quote) ~ ANY) }
+
+identifier = @{ !keywords ~ ((ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")*) ~ !keywords }
+
+/*
+    **********************************************
+    *  SYMBOLS
+    **********************************************
+*/
+
+single_quote = _{ "'" }
+double_quote = _{ "\"" }
+semicolon    = _{ ";" }
+comma        = _{ "," }
+colon        = _{ ":" }
+
+brace_open    = { "{" }
+brace_close   = { "}" }
+bracket_open  = { "[" }
+bracket_close = { "]" }
+paren_open    = { "(" }
+paren_close   = { ")" }
+angle_open    = { "<" }
+angle_close   = { ">" }
+
+/*
+    **********************************************
+    *  KEYWORDS (NO GUARDS)
+    **********************************************
+*/
+
+keyword_break                = @{ "break" ~ !ASCII_ALPHANUMERIC }
+keyword_case                 = @{ "case" ~ !ASCII_ALPHANUMERIC }
+keyword_class                = @{ "class" ~ !ASCII_ALPHANUMERIC }
+keyword_continue             = @{ "continue" ~ !ASCII_ALPHANUMERIC }
+keyword_default              = @{ "default" ~ !ASCII_ALPHANUMERIC }
+keyword_define               = @{ "define" ~ !ASCII_ALPHANUMERIC }
+keyword_else                 = @{ "else" ~ !ASCII_ALPHANUMERIC }
+keyword_false                = @{ "false" ~ !ASCII_ALPHANUMERIC }
+keyword_final                = @{ "final" ~ !ASCII_ALPHANUMERIC }
+keyword_for                  = @{ "for" ~ !ASCII_ALPHANUMERIC }
+keyword_game                 = @{ "game" ~ !ASCII_ALPHANUMERIC }
+keyword_goto                 = @{ "goto" ~ !ASCII_ALPHANUMERIC }
+keyword_if                   = @{ "if" ~ !ASCII_ALPHANUMERIC }
+keyword_include              = @{ "include" ~ !ASCII_ALPHANUMERIC }
+keyword_inherited            = @{ "inherited" ~ !ASCII_ALPHANUMERIC }
+keyword_is_class             = @{ "isclass" ~ !ASCII_ALPHANUMERIC }
+keyword_legacy_compatibility = @{ "legacy_compatibility" ~ !ASCII_ALPHANUMERIC }
+keyword_mandatory            = @{ "mandatory" ~ !ASCII_ALPHANUMERIC }
+keyword_me                   = @{ "me" ~ !ASCII_ALPHANUMERIC }
+keyword_native               = @{ "native" ~ !ASCII_ALPHANUMERIC }
+keyword_null                 = @{ "null" ~ !ASCII_ALPHANUMERIC }
+keyword_obsolete             = @{ "obsolete" ~ !ASCII_ALPHANUMERIC }
+keyword_on                   = @{ "on" ~ !ASCII_ALPHANUMERIC }
+keyword_public               = @{ "public" ~ !ASCII_ALPHANUMERIC }
+keyword_return               = @{ "return" ~ !ASCII_ALPHANUMERIC }
+keyword_static               = @{ "static" ~ !ASCII_ALPHANUMERIC }
+keyword_switch               = @{ "switch" ~ !ASCII_ALPHANUMERIC }
+keyword_thread               = @{ "thread" ~ !ASCII_ALPHANUMERIC }
+keyword_true                 = @{ "true" ~ !ASCII_ALPHANUMERIC }
+keyword_wait                 = @{ "wait" ~ !ASCII_ALPHANUMERIC }
+keyword_while                = @{ "while" ~ !ASCII_ALPHANUMERIC }
+keyword_new                  = @{ "new" ~ !ASCII_ALPHANUMERIC }
+keyword_secured              = @{ "secured" ~ !ASCII_ALPHANUMERIC }
+keyword_cast                 = @{ "cast" ~ !ASCII_ALPHANUMERIC }
+keyword_boolean              = _{ keyword_false | keyword_true }
+keywords                     = _{
+    keyword_break
+  | keyword_case
+  | keyword_class
+  | keyword_continue
+  | keyword_default
+  | keyword_define
+  | keyword_else
+  | keyword_false
+  | keyword_final
+  | keyword_for
+  | keyword_game
+  | keyword_goto
+  | keyword_if
+  | keyword_include
+  | keyword_inherited
+  | keyword_is_class
+  | keyword_legacy_compatibility
+  | keyword_mandatory
+  | keyword_me
+  | keyword_native
+  | keyword_null
+  | keyword_obsolete
+  | keyword_on
+  | keyword_public
+  | keyword_return
+  | keyword_static
+  | keyword_switch
+  | keyword_thread
+  | keyword_true
+  | keyword_wait
+  | keyword_while
+  | keyword_new
+  | keyword_secured
+  | keyword_cast
+}
+
+obsolete_statement = { keyword_obsolete ~ (paren_open ~ integer ~ paren_close)? }
+
+/*
+    **********************************************
+    *  TYPES
+    **********************************************
+*/
+
+type_bool   = @{ "bool" ~ !ASCII_ALPHANUMERIC }
+type_int    = @{ "int" ~ !ASCII_ALPHANUMERIC }
+type_float  = @{ "float" ~ !ASCII_ALPHANUMERIC }
+type_object = @{ "object" ~ !ASCII_ALPHANUMERIC }
+type_string = @{ "string" ~ !ASCII_ALPHANUMERIC }
+type_void   = @{ "void" ~ !ASCII_ALPHANUMERIC }
+
+type_identifier = @{ identifier }
+
+types      = _{ type_float | type_bool | type_int | type_object | type_string | type_identifier }
+type_array =  { types ~ bracket_open ~ bracket_close }
+
+/*
+    **********************************************
+    *  OPERATORS
+    **********************************************
+*/
+
+operator_assignment = @{ "=" }
+
+operator_equality_equal     = @{ "==" }
+operator_equality_not_equal = @{ "!=" }
+operator_equality           = _{ operator_equality_equal | operator_equality_not_equal }
+
+operator_comparison_less_equal    = @{ "<=" }
+operator_comparison_greater_equal = @{ ">=" }
+operator_comparison_less_than     = @{ "<" }
+operator_comparison_greater_than  = @{ ">" }
+operator_comparison               = _{ operator_comparison_less_equal | operator_comparison_greater_equal | operator_comparison_less_than | operator_comparison_greater_than }
+
+operator_logical_and = @{ "and" }
+operator_logical_or  = @{ "or" }
+
+operator_bitwise_shift_left  = @{ "<<" }
+operator_bitwise_shift_right = @{ ">>" }
+operator_bitwise_and         = @{ "&" }
+operator_bitwise_or          = @{ "|" }
+operator_bitwise_xor         = @{ "^" }
+operator_bitwise             = _{ operator_bitwise_shift_left | operator_bitwise_shift_right | operator_bitwise_and | operator_bitwise_or | operator_bitwise_xor }
+
+operator_math_add      = @{ "+" }
+operator_math_subtract = @{ "-" }
+operator_math_multiply = @{ "*" }
+operator_math_divide   = @{ "/" }
+operator_math_modulo   = @{ "%" }
+
+operator_unary_not       = @{ "!" }
+operator_unary_not_not   = @{ "!!" }
+operator_unary_inverse   = @{ "~" }
+operator_unary_positive  = @{ unary_positive }
+operator_unary_negative  = @{ unary_negative }
+operator_unary_increment = @{ "++" }
+operator_unary_decrement = @{ "--" }
+
+operator_unary_lhs = _{
+    operator_unary_not_not
+  | operator_unary_not
+  | operator_unary_inverse
+  | operator_unary_increment
+  | operator_unary_decrement
+  | operator_unary_positive
+  | operator_unary_negative
+}
+
+operator_unary_rhs = _{
+    operator_unary_increment
+  | operator_unary_decrement
+}
+
+deref = { "." }

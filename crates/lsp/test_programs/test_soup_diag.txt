@@ -1,0 +1,2 @@
+category-era "era1;invalid_era"
+category-region "00"

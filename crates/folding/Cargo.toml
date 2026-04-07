@@ -1,0 +1,17 @@
+[package]
+name = "gs-folding"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+shadow-rs = { workspace = true }
+tower-lsp-server = { workspace = true }
+log = { workspace = true }
+gs-ast = { workspace = true }
+
+[build-dependencies]
+shadow-rs = { version = "1.7" }
+
+[dev-dependencies]
+gs-parser = { workspace = true }
+pest = { workspace = true }

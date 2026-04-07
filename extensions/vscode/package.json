@@ -1,0 +1,115 @@
+{
+  "name": "gs-lsp-vscode",
+  "publisher": "gs-lsp",
+  "displayName": "GS Language Server",
+  "description": "Language Server extension for GS",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:game-script",
+    "onLanguage:soup"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "game-script",
+        "aliases": [
+          "GS",
+          "gs",
+          "GameScript"
+        ],
+        "extensions": [
+          ".gs"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "soup",
+        "aliases": [
+          "SOUP",
+          "soup"
+        ],
+        "extensions": [
+          ".txt"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "GS LSP configuration",
+      "properties": {
+        "gs-lsp.serverPath": {
+          "type": "string",
+          "default": "gs-lsp",
+          "description": "Path to the gs-lsp executable"
+        }
+      }
+    },
+    "semanticTokenScopes": [
+      {
+        "language": "game-script",
+        "scopes": {
+          "keyword": [ "keyword.control.gs" ],
+          "class": [ "entity.name.type.class.gs" ],
+          "string": [ "string.quoted.double.gs" ],
+          "type": [ "entity.name.type.gs" ],
+          "method": [ "entity.name.function.gs" ],
+          "operator": [ "keyword.operator.gs" ],
+          "number": [ "constant.numeric.gs" ],
+          "property": [ "variable.other.property.gs" ],
+          "parameter": [ "variable.parameter.gs" ],
+          "modifier": [ "storage.modifier.gs" ],
+          "variable": [ "variable.other.gs" ],
+          "comment": [ "comment.line.double-slash.gs" ]
+        }
+      },
+      {
+        "language": "soup",
+        "scopes": {
+          "keyword": [ "keyword.control.soup" ],
+          "class": [ "entity.name.type.class.soup" ],
+          "string": [ "string.quoted.double.soup" ],
+          "type": [ "entity.name.type.soup" ],
+          "method": [ "entity.name.function.soup" ],
+          "operator": [ "keyword.operator.soup" ],
+          "number": [ "constant.numeric.soup" ],
+          "property": [ "variable.other.property.soup" ],
+          "parameter": [ "variable.parameter.soup" ],
+          "modifier": [ "storage.modifier.soup" ],
+          "variable": [ "variable.other.soup" ],
+          "comment": [ "comment.line.double-slash.soup" ]
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "test": "node ./out/test/runTest.js",
+    "lint": "eslint src --ext ts"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^18.19.130",
+    "@types/vscode": "^1.110.0",
+    "@vscode/test-electron": "^2.3.9",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.1",
+    "@typescript-eslint/parser": "^6.19.1",
+    "glob": "^10.3.10",
+    "mocha": "^10.2.0",
+    "typescript": "^5.9.3"
+  }
+}

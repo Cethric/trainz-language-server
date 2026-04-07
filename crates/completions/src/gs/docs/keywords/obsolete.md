@@ -1,0 +1,4 @@
+- Indicates that the function is obsolete and should not be used, except to support/load legacy saved data.
+- Obsolete functions may not operate and/or may generate errors in certain Compatibility mode settings.
+- Some functions are marked obsolete because their features are not supported, but many will have modern replacements.
+- See also: `legacy_compatibility`

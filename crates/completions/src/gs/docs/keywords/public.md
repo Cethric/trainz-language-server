@@ -1,0 +1,1 @@
+- A specifier indicating that the member or method is accessible by other classes.

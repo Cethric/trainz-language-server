@@ -1,0 +1,1 @@
+- Class specifier reserved for built-in predefined classes.

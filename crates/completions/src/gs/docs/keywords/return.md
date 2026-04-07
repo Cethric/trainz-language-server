@@ -1,0 +1,3 @@
+- Exits immediately from the current method, used when the method return type is `void`.
+- or exit from the current method returning value to the calling routine.
+- Value must match the method return type.
