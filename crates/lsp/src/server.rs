@@ -4,6 +4,7 @@ use crate::state::{GameScriptLanguageServer, ParsedFileType};
 use dashmap::DashMap;
 use log::{debug, error, trace};
 use rayon::prelude::*;
+use std::str::FromStr;
 use tower_lsp_server::jsonrpc::Error;
 use tower_lsp_server::ls_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeActionResponse,
@@ -25,6 +26,8 @@ use tower_lsp_server::ls_types::{
     TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TextEdit,
     UnchangedDocumentDiagnosticReport, Uri, WorkDoneProgressOptions, WorkspaceDiagnosticParams,
     WorkspaceDiagnosticReport, WorkspaceDiagnosticReportResult, WorkspaceEdit,
+    WorkspaceSymbol, WorkspaceSymbolParams, SymbolLocation,
+};
 };
 use tower_lsp_server::LanguageServer;
 use trainz_completions::soup::soup_completions;
@@ -192,6 +195,9 @@ impl LanguageServer for GameScriptLanguageServer {
                     id: None,
                 },
             )),
+            workspace_symbol_provider: Some(OneOf::Right(WorkDoneProgressOptions {
+                work_done_progress: Some(true),
+            })),
             ..Default::default()
         };
 
@@ -1288,5 +1294,75 @@ impl LanguageServer for GameScriptLanguageServer {
         }
 
         Ok(result)
+    }
+
+    async fn workspace_symbol(
+        &self,
+        params: WorkspaceSymbolParams,
+    ) -> tower_lsp_server::jsonrpc::Result<Option<Vec<WorkspaceSymbol>>> {
+        trace!("Workspace Symbol {:?}", params);
+
+        let work_done_token = params.work_done_progress_params.work_done_token.clone();
+        let progress = if let Some(token) = work_done_token {
+            let progress = self
+                .client
+                .progress(token, "Finding workspace symbols")
+                .begin()
+                .await;
+            Some(progress)
+        } else {
+            None
+        };
+
+        let mut symbols = Vec::new();
+        let query = params.query.to_lowercase();
+
+        // Collect symbols from all parsed files
+        for entry in self.parsed_files.iter() {
+            let path = entry.key();
+            let document = entry.value();
+
+            if let Some(document_symbols) = document.document_symbols.get() {
+                for symbol in document_symbols {
+                    // Recursively collect symbols that match the query
+                    collect_matching_symbols(&mut symbols, symbol, &query, path);
+                }
+            }
+        }
+
+        if let Some(progress) = progress {
+            progress.finish().await;
+        }
+
+        Ok(Some(symbols))
+    }
+}
+
+fn collect_matching_symbols(
+    symbols: &mut Vec<WorkspaceSymbol>,
+    symbol: &tower_lsp_server::ls_types::DocumentSymbol,
+    query: &str,
+    file_path: &str,
+) {
+    // Check if this symbol matches the query
+    if query.is_empty() || symbol.name.to_lowercase().contains(query) {
+        let uri = Uri::from_file_path(file_path).unwrap_or_else(|_| Uri::from_str(file_path).unwrap());
+        
+        symbols.push(WorkspaceSymbol {
+            name: symbol.name.clone(),
+            kind: symbol.kind,
+            tags: symbol.tags.clone(),
+            container_name: symbol.detail.clone(),
+            location: Location {
+                uri: uri.clone(),
+                range: symbol.range,
+            },
+            data: None,
+        });
+    }
+
+    // Recursively check children
+    for child in &symbol.children {
+        collect_matching_symbols(symbols, child, query, file_path);
     }
 }
