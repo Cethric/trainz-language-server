@@ -1,11 +1,11 @@
-use crate::gs::process::process_gs_ast;
-use gs_parser::gs::grammar::{GameScriptParser, Rule};
+use crate::gs::process::process_trainz_ast;
 use pest::Parser;
+use trainz_parser::gs::grammar::{GameScriptParser, Rule};
 
 fn parse_gs(src: &str) {
     let pairs = GameScriptParser::parse(Rule::program, src)
         .unwrap_or_else(|e| panic!("Parse failed: {}", e));
-    process_gs_ast(pairs, src);
+    process_trainz_ast(pairs, src);
 }
 
 #[test]

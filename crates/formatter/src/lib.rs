@@ -1,6 +1,7 @@
-use gs_ast::gs::{ClassModifier, Program};
+use trainz_ast::gs::ClassModifier;
 
 use shadow_rs::shadow;
+use trainz_ast::gs::program::Program;
 
 shadow!(build);
 

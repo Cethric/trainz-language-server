@@ -1,7 +1,9 @@
-use gs_ast::soup::{KeyValuePair, Soup, Value};
-use gs_diagnostics::soup::{ContainerValidator, Validators};
 use std::path::Path;
 use tower_lsp_server::ls_types::{Location, Position, Range, Uri};
+use trainz_ast::soup::key_value_pair::KeyValuePair;
+use trainz_ast::soup::soup::Soup;
+use trainz_ast::soup::Value;
+use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validators};
 
 pub fn soup_goto_definition(
     soup: &Soup,
@@ -76,6 +78,23 @@ fn find_definition_recursive(
                                 .find(|v| v.container_name.eq_ignore_ascii_case(type_name));
                         }
                     }
+
+                    if next_validator.is_none() {
+                        if let Some(array_element_type) = &cv.array_element {
+                            let type_name = match array_element_type {
+                                ArrayElementType::Array(s) => Some(s),
+                                ArrayElementType::Tuple(types) => {
+                                    kv.key.parse::<usize>().ok().and_then(|idx| types.get(idx))
+                                }
+                            };
+                            next_validator = type_name.and_then(|tn| {
+                                validators
+                                    .containers
+                                    .iter()
+                                    .find(|v| v.container_name.eq_ignore_ascii_case(tn))
+                            });
+                        }
+                    }
                 } else {
                     // Top-level
                     next_validator = validators
@@ -85,28 +104,25 @@ fn find_definition_recursive(
 
                     // If not a container, check simple validators
                     if next_validator.is_none() {
-                        for sv in &validators.simple {
-                            if sv.key_to_check.eq_ignore_ascii_case(&kv.key) {
-                                // Find rule in corresponding container
-                                let container = validators.containers.iter().find(|c| {
-                                    c.container_name.eq_ignore_ascii_case(&sv.key_to_check)
-                                });
-                                if let Some(c) = container {
-                                    rule = c
+                        if let Some(_) = validators.simple.get(&kv.key) {
+                            rule = validators
+                                .containers
+                                .iter()
+                                .find(|c| c.container_name.eq_ignore_ascii_case(&kv.key))
+                                .and_then(|container| {
+                                    container
                                         .rules
                                         .iter()
-                                        .find(|r| r.key.eq_ignore_ascii_case(&kv.key));
-                                    break;
-                                }
-                            }
+                                        .find(|r| r.key.eq_ignore_ascii_case(&kv.key))
+                                });
                         }
                     }
                 }
 
                 // Check for filepathedit
                 if let Some(r) = rule {
-                    if let Some(type_name) = &r.type_name {
-                        if type_name.eq_ignore_ascii_case("filepathedit") {
+                    if let Some(type_name_str) = &r.type_name {
+                        if type_name_str.eq_ignore_ascii_case("filepathedit") {
                             if let Value::String(path_str, _) = value {
                                 if let Some(base) = base_path {
                                     let full_path = base.join(path_str);
@@ -126,7 +142,7 @@ fn find_definition_recursive(
                 }
 
                 // If it's a container, recurse
-                if let Value::Container(inner_kvs, _) = value {
+                if let Value::Container(inner_kvs, _, _) = value {
                     return find_definition_recursive(
                         inner_kvs,
                         position,
@@ -143,7 +159,7 @@ fn find_definition_recursive(
     None
 }
 
-fn is_in_range(pos: Position, range: &gs_ast::Range) -> bool {
+fn is_in_range(pos: Position, range: &trainz_ast::Range) -> bool {
     if pos.line < range.start.line || pos.line > range.end.line {
         return false;
     }
@@ -156,7 +172,7 @@ fn is_in_range(pos: Position, range: &gs_ast::Range) -> bool {
     true
 }
 
-fn get_value_range(value: &Value) -> gs_ast::Range {
+fn get_value_range(value: &Value) -> trainz_ast::Range {
     value.range()
 }
 
@@ -168,7 +184,7 @@ fn find_all_key_locations(soup: &Soup, target: &str, uri: &Uri, locations: &mut 
                 range: kv.key_range,
             });
         }
-        if let Some(Value::Container(kv_pairs, _)) = &kv.value {
+        if let Some(Value::Container(kv_pairs, _, _)) = &kv.value {
             find_all_key_locations_inner(kv_pairs, target, uri, locations);
         }
     }
@@ -187,7 +203,7 @@ fn find_all_key_locations_inner(
                 range: kv.key_range,
             });
         }
-        if let Some(Value::Container(inner_kv_pairs, _)) = &kv.value {
+        if let Some(Value::Container(inner_kv_pairs, _, _)) = &kv.value {
             find_all_key_locations_inner(inner_kv_pairs, target, uri, locations);
         }
     }
@@ -196,23 +212,18 @@ fn find_all_key_locations_inner(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gs_diagnostics::soup::{ContainerRule, ContainerValidator, Validators};
-    use gs_parser::soup::parse_soup;
     use std::fs::File;
     use std::io::Write;
     use tempfile::tempdir;
+    use trainz_ast::soup::process::process_soup_ast;
+    use trainz_parser::soup::parse_soup;
+    use trainz_soup_validators::{ContainerRule, ContainerValidator, Validators};
 
     #[test]
     fn test_soup_goto_definition_key() {
         let src = "test\n{\n  key1 \"value\"\n  key1 \"value2\"\n}";
         let pairs = parse_soup(src).unwrap();
-        let soup = gs_ast::soup::process::process_soup_ast(
-            pairs,
-            src,
-            &std::path::PathBuf::from("/"),
-            &vec![],
-            &vec![],
-        );
+        let soup = process_soup_ast(pairs, src);
         let uri = Uri::from_file_path("/test.soup").unwrap();
         let validators = Validators::default();
 
@@ -237,8 +248,7 @@ mod tests {
 
         let src = "test\n{\n  config \"target.txt\"\n}";
         let pairs = parse_soup(src).unwrap();
-        let soup =
-            gs_ast::soup::process::process_soup_ast(pairs, src, &soup_file_path, &vec![], &vec![]);
+        let soup = process_soup_ast(pairs, src);
         let uri = Uri::from_file_path(&soup_file_path).unwrap();
 
         let mut validators = Validators::default();

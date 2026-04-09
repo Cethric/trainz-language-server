@@ -1,6 +1,6 @@
 ---
 name: planning
-description: Strategic planning skill for mapping out feature implementation and workspace-wide changes in the gs-lsp project.
+description: Strategic planning skill for mapping out feature implementation and workspace-wide changes in the trainz-lsp project.
 ---
 
 # Planning Skill
@@ -8,7 +8,7 @@ description: Strategic planning skill for mapping out feature implementation and
 Use this skill when preparing for a task, designing features, or mapping out changes across multiple crates.
 
 ## Key Principles
-- **Holistic View**: Consider the impact of changes across the entire `gs-lsp` workspace.
+- **Holistic View**: Consider the impact of changes across the entire `trainz-lsp` workspace.
 - **Incremental Progress**: Break down large tasks into smaller, manageable steps.
 - **Technical Alignment**: Ensure plans align with the project's tech stack (Rust 2024, `tokio`, `pest`).
 

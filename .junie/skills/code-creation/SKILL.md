@@ -1,11 +1,11 @@
 ---
 name: code-creation
-description: Specialized skill for generating high-quality Rust code for the gs-lsp project, following Edition 2024 standards and workspace conventions.
+description: Specialized skill for generating high-quality Rust code for the trainz-lsp project, following Edition 2024 standards and workspace conventions.
 ---
 
 # Code Creation Skill
 
-Use this skill when generating new Rust code, adding features, or modifying existing logic within the `gs-lsp` workspace.
+Use this skill when generating new Rust code, adding features, or modifying existing logic within the `trainz-lsp` workspace.
 
 ## Key Principles
 - **Workspace Consistency**: Ensure changes are reflected across all relevant crates (e.g., `ast`, `parser`, `symboliser`).

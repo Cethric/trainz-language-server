@@ -1,6 +1,7 @@
-use gs_ast::soup::Value;
-use gs_diagnostics::soup::{ContainerValidator, Validators};
+use rayon::prelude::*;
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
+use trainz_ast::soup::Value;
+use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validators};
 
 pub fn collect_value_tokens(
     value: &Value,
@@ -14,21 +15,29 @@ pub fn collect_value_tokens(
             raw_tokens.push((*range, SemanticTokenType::NUMBER, vec![]));
         }
         Value::String(_s, range) => {
+            let start_offset = get_offset(src, range.start);
+            let end_offset = get_offset(src, range.end);
+            let text = &src[start_offset..end_offset];
+
             if range.start.line == range.end.line {
-                raw_tokens.push((*range, SemanticTokenType::STRING, vec![]));
+                let len: u32 = text.chars().map(|c| c.len_utf16() as u32).sum();
+                let r = Range {
+                    start: range.start,
+                    end: tower_lsp_server::ls_types::Position {
+                        line: range.start.line,
+                        character: range.start.character + len,
+                    },
+                };
+                raw_tokens.push((r, SemanticTokenType::STRING, vec![]));
             } else {
                 // Split multi-line string
-                let start_offset = get_offset(src, range.start);
-                let end_offset = get_offset(src, range.end);
-                let text = &src[start_offset..end_offset];
-
                 let mut current_line = range.start.line;
                 let mut current_char = range.start.character;
 
                 let lines = text.split('\n');
                 for (i, line) in lines.enumerate() {
                     let line_trimmed = line.trim_end_matches('\r');
-                    let len = line_trimmed.len() as u32;
+                    let len: u32 = line_trimmed.chars().map(|c| c.len_utf16() as u32).sum();
 
                     if len > 0 || i == 0 {
                         let r = Range {
@@ -56,16 +65,16 @@ pub fn collect_value_tokens(
                 vec![SemanticTokenModifier::READONLY],
             ));
         }
-        Value::Container(kv_pairs, _range) => {
+        Value::Container(kv_pairs, _range, _) => {
             for kv in kv_pairs {
                 let rule = validator.and_then(|v| {
                     v.rules
-                        .iter()
-                        .find(|r| r.key.eq_ignore_ascii_case(&kv.key))
+                        .par_iter()
+                        .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
                         .or_else(|| {
-                            v.subpossibilities
-                                .iter()
-                                .find(|r| r.key.eq_ignore_ascii_case(&kv.key))
+                            v.sub_possibilities
+                                .par_iter()
+                                .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
                         })
                 });
 
@@ -80,18 +89,28 @@ pub fn collect_value_tokens(
                         .and_then(|r| r.type_name.as_ref())
                         .and_then(|type_name| {
                             all_validators.and_then(|vs| {
-                                vs.containers
-                                    .iter()
-                                    .find(|v| v.container_name.eq_ignore_ascii_case(type_name))
+                                vs.containers.par_iter().find_first(|v| {
+                                    v.container_name.eq_ignore_ascii_case(type_name)
+                                })
                             })
                         })
                         .or_else(|| {
                             validator
                                 .and_then(|v| v.array_element.as_ref())
-                                .and_then(|type_name| {
-                                    all_validators.and_then(|vs| {
-                                        vs.containers.iter().find(|v| {
-                                            v.container_name.eq_ignore_ascii_case(type_name)
+                                .and_then(|ae| {
+                                    let tn = match ae {
+                                        ArrayElementType::Array(s) => Some(s),
+                                        ArrayElementType::Tuple(types) => kv
+                                            .key
+                                            .parse::<usize>()
+                                            .ok()
+                                            .and_then(|idx| types.get(idx)),
+                                    };
+                                    tn.and_then(|tn| {
+                                        all_validators.and_then(|vs| {
+                                            vs.containers.par_iter().find_first(|v| {
+                                                v.container_name.eq_ignore_ascii_case(tn)
+                                            })
                                         })
                                     })
                                 })
@@ -111,12 +130,68 @@ pub fn collect_value_tokens(
 }
 
 fn get_offset(src: &str, pos: tower_lsp_server::ls_types::Position) -> usize {
-    let mut offset = 0;
-    for (i, line) in src.lines().enumerate() {
-        if i == pos.line as usize {
-            return offset + pos.character as usize;
+    let mut line = 0;
+    let mut character = 0;
+
+    for (offset, c) in src.char_indices() {
+        if line == pos.line as usize && character == pos.character as usize {
+            return offset;
         }
-        offset += line.len() + 1; // +1 for \n
+
+        if c == '\n' {
+            line += 1;
+            character = 0;
+        } else {
+            character += c.len_utf16() as usize;
+        }
     }
-    offset
+    src.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tower_lsp_server::ls_types::{Position, Range};
+    use trainz_ast::soup::Value;
+
+    #[test]
+    fn test_collect_value_tokens_utf8_panic() {
+        let src = "multi-line\nstring with é and е:\nsecond line";
+        let range = Range {
+            start: Position {
+                line: 0,
+                character: 0,
+            },
+            end: Position {
+                line: 2,
+                character: 5,
+            },
+        };
+        let value = Value::String(
+            "multi-line\nstring with é and е:\nsecond line".to_string(),
+            range,
+        );
+        let mut raw_tokens = Vec::new();
+
+        // This should not panic
+        println!(
+            "Start offset: {}, End offset: {}",
+            get_offset(src, range.start),
+            get_offset(src, range.end)
+        );
+        collect_value_tokens(&value, &mut raw_tokens, None, None, src);
+    }
+
+    #[test]
+    fn test_get_offset_with_surrogate_pair() {
+        let src = "💩a";
+        // '💩' is U+1F4A9, which takes 2 UTF-16 units.
+        // 'a' is at UTF-16 offset 2.
+        let pos = Position {
+            line: 0,
+            character: 2,
+        };
+        let offset = get_offset(src, pos);
+        assert_eq!(offset, 4); // '💩' is 4 bytes in UTF-8
+    }
 }

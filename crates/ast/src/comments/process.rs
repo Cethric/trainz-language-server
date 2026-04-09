@@ -47,10 +47,8 @@ where
                 let col_idx = sp.1 - 1;
 
                 let mut is_standalone = false;
-                if let Some(line_str) = lines.get(line_idx)
-                    && col_idx <= line_str.len()
-                {
-                    let prefix = &line_str[..col_idx];
+                if let Some(line_str) = lines.get(line_idx) {
+                    let prefix: String = line_str.chars().take(col_idx).collect();
                     if prefix.trim().is_empty() {
                         is_standalone = true;
                     }
@@ -117,9 +115,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gs_parser::comments::grammar::gs::{GsCommentsParser, Rule as GsRule};
-    use gs_parser::comments::grammar::soup::{Rule as SoupRule, SoupCommentsParser};
     use pest::Parser;
+    use trainz_parser::comments::grammar::gs::{GsCommentsParser, Rule as GsRule};
+    use trainz_parser::comments::grammar::soup::{Rule as SoupRule, SoupCommentsParser};
 
     #[test]
     fn test_group_comments() {

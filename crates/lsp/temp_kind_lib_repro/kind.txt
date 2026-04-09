@@ -1,0 +1,12 @@
+
+library
+{
+  kind "library"
+  top-level 1
+  description "A library asset"
+}
+
+kind
+{
+  kind "library"
+}

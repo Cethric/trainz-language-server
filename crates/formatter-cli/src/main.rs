@@ -1,12 +1,12 @@
 use clap::Parser;
 use clio::*;
-use gs_ast::gs::process::process_gs_ast;
-use gs_common::setup_logger;
-use gs_formatter::format_program;
-use gs_parser::gs::parse;
 use log::{debug, error};
 use std::io::{Read, Write};
 use tokio::main;
+use trainz_ast::gs::process::process_trainz_ast;
+use trainz_common::logging::setup_logger;
+use trainz_formatter::format_program;
+use trainz_parser::gs::parse;
 
 use crate::build::CLAP_LONG_VERSION;
 use shadow_rs::shadow;
@@ -38,7 +38,7 @@ async fn main() {
     assert_eq!(source.len(), read);
     let pairs = parse(source.as_str());
     if let Ok(pairs) = pairs {
-        let ast = process_gs_ast(pairs, source.as_str());
+        let ast = process_trainz_ast(pairs, source.as_str());
         // debug!("Processed AST: {:#?}", ast);
 
         let formatted = format_program(&ast);

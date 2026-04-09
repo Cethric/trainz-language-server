@@ -1,9 +1,10 @@
-use crate::Position;
-use crate::find::{HasRange, position_in_range};
+use crate::find::{position_in_range, HasRange};
+use crate::gs::program::Program;
 use crate::gs::{
     Block, ClassDef, Expr, FieldDef, Identifier, LoopBody, MethodDef, NativeMethodDef, PostfixOp,
-    Program, Stmt, Type,
+    Stmt, Type,
 };
+use crate::Position;
 use log::trace;
 use rayon::prelude::*;
 
@@ -592,7 +593,7 @@ fn find_in_type(ty: &Type, pos: Position) -> Option<&Identifier> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gs::process::process_gs_ast;
+    use crate::gs::process::process_trainz_ast;
 
     #[test]
     fn test_find_in_stmt_edge_cases() {
@@ -612,8 +613,8 @@ mod tests {
                 }
             }
         };"#;
-        let pairs = gs_parser::gs::parse(code).unwrap();
-        let program = process_gs_ast(pairs, code);
+        let pairs = trainz_parser::gs::parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
 
         let find_pos = |name: &str| -> Position {
             for (i, line) in code.lines().enumerate() {

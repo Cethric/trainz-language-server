@@ -1,11 +1,11 @@
 ---
 name: code-review
-description: Guidelines for conducting high-quality code reviews in the gs-lsp workspace, focusing on safety, performance, and workspace consistency.
+description: Guidelines for conducting high-quality code reviews in the trainz-lsp workspace, focusing on safety, performance, and workspace consistency.
 ---
 
 # Code Review Skill
 
-Use this skill when reviewing changes to the `gs-lsp` codebase.
+Use this skill when reviewing changes to the `trainz-lsp` codebase.
 
 ## Key Principles
 - **Workspace Health**: Ensure reviews check for consistency across all workspace crates.

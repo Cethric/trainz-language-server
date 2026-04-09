@@ -1,0 +1,30 @@
+
+my-tuple
+{
+  kind "container"
+  array-element
+  {
+    container-type0 "string-elem"
+    container-type1 "int-elem"
+  }
+}
+
+string-elem
+{
+  kind "container"
+  value_str
+  {
+    type "string"
+    compulsory 1.0
+  }
+}
+
+int-elem
+{
+  kind "container"
+  value_int
+  {
+    type "int"
+    compulsory 1.0
+  }
+}

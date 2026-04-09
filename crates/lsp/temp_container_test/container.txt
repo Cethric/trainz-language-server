@@ -1,0 +1,13 @@
+
+my-container
+{
+  key1
+  {
+    type "string"
+    validation "v1,v2"
+  }
+  key2
+  {
+    type "numeric"
+  }
+}

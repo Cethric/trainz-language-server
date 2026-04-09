@@ -1,454 +1,45 @@
-use async_recursion::async_recursion;
-use dashmap::{DashMap, DashSet};
-use gs_ast::cache::AstCache;
-use gs_ast::gs::process::process_gs_ast;
-use gs_ast::gs::{Include, Program};
-use gs_ast::soup::Soup;
-use gs_ast::soup::process::process_soup_ast;
-use gs_completions::gs::gs_completions;
-use gs_completions::soup::soup_completions;
-use gs_definition::gs::definitions::gs_goto_definition;
-use gs_definition::gs::references::gs_find_references;
-use gs_definition::soup::definitions::soup_goto_definition;
-use gs_diagnostics::gs::gs_diagnostics;
-use gs_diagnostics::soup::soup_diagnostics;
-use gs_folding::gs::gs_folding_range;
-use gs_folding::soup::soup_folding_range;
-use gs_hover::soup::soup_hover;
-use gs_parser::gs::parse;
-use gs_parser::soup::parse_soup;
-use gs_semantic_tokens::gs::semantic_tokens;
-use gs_semantic_tokens::soup::soup_semantic_tokens;
-use gs_symboliser::gs::gs_symboliser;
-use gs_symboliser::soup::soup_symboliser;
-use log::{error, trace};
+use crate::process::gs::ProcessGS;
+use crate::process::soup::ProcessSoup;
+use crate::state::{GameScriptLanguageServer, ParsedFileType};
+use dashmap::DashMap;
+use log::{debug, error, trace};
 use rayon::prelude::*;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
 use tower_lsp_server::jsonrpc::Error;
 use tower_lsp_server::ls_types::{
+    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeActionResponse,
     CompletionOptions, CompletionOptionsCompletionItem, CompletionParams, CompletionResponse,
     DefinitionOptions, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
-    DocumentLink, DocumentLinkOptions, DocumentLinkParams, DocumentSymbol, DocumentSymbolOptions,
+    DocumentLink, DocumentLinkOptions, DocumentLinkParams, DocumentSymbolOptions,
     DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
     FoldingRangeProviderCapability, FullDocumentDiagnosticReport, GotoDefinitionParams,
     GotoDefinitionResponse, Hover, HoverOptions, HoverParams, HoverProviderCapability,
-    InitializeParams, InitializeResult, InitializedParams, Location, MessageType, OneOf,
-    PositionEncodingKind, ProgressToken, ReferenceOptions, ReferenceParams,
+    InitializeParams, InitializeResult, InitializedParams, InlineCompletionOptions, Location,
+    MessageType, OneOf, PositionEncodingKind, ProgressToken, ReferenceOptions, ReferenceParams,
     RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport, SaveOptions,
-    SemanticToken, SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensParams, SemanticTokensResult,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
-    SignatureHelpOptions, SignatureHelpParams, StaticTextDocumentColorProviderOptions,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextDocumentSyncSaveOptions, UnchangedDocumentDiagnosticReport, Uri, WorkDoneProgressOptions,
-    WorkspaceDiagnosticParams, WorkspaceDiagnosticReport, WorkspaceDiagnosticReportResult,
+    SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
+    SemanticTokensParams, SemanticTokensResult, SemanticTokensServerCapabilities,
+    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
+    StaticTextDocumentColorProviderOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TextEdit,
+    UnchangedDocumentDiagnosticReport, Uri, WorkDoneProgressOptions, WorkspaceDiagnosticParams,
+    WorkspaceDiagnosticReport, WorkspaceDiagnosticReportResult, WorkspaceEdit,
 };
-use tower_lsp_server::{Bounded, Client, LanguageServer, NotCancellable, OngoingProgress};
-
-fn find_include_path(
-    include: &str,
-    base_path: &Path,
-    workspace_folders: &Vec<PathBuf>,
-    search_paths: &Vec<PathBuf>,
-) -> Option<PathBuf> {
-    let mut paths: Vec<PathBuf> = search_paths
-        .par_iter()
-        .map(|search| search.join(include))
-        .collect();
-
-    let workspace_paths: Vec<PathBuf> = workspace_folders
-        .par_iter()
-        .map(|folder| folder.join(include))
-        .collect();
-
-    paths.extend(workspace_paths);
-    paths.push(base_path.join(include));
-
-    paths
-        .into_par_iter()
-        .filter(|path| path.exists())
-        .map(|path| path.to_path_buf())
-        .collect::<Vec<_>>()
-        .into_iter()
-        .next()
-}
-
-#[derive(Debug, Clone)]
-pub(crate) enum ParsedFileType {
-    Soup(Arc<Soup>),
-    GameScript(Arc<Program>),
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct ParsedFile {
-    pub count: usize,
-    pub parsed: ParsedFileType,
-    pub comments: Arc<gs_ast::comments::CommentProgram>,
-    pub semantic_tokens: Arc<OnceLock<Vec<SemanticToken>>>,
-    pub document_symbols: Arc<OnceLock<Vec<DocumentSymbol>>>,
-    pub diagnostics: Arc<OnceLock<Vec<Diagnostic>>>,
-    pub folding_ranges: Arc<OnceLock<Vec<FoldingRange>>>,
-}
-
-#[derive(Debug)]
-pub struct GameScriptLanguageServer {
-    pub client: Client,
-    search_paths: Vec<PathBuf>,
-    validation_path: Option<PathBuf>,
-    validators: Arc<OnceLock<gs_diagnostics::soup::Validators>>,
-    parsed_files: DashMap<String, ParsedFile>,
-    currently_processing: DashSet<String>,
-    ast_cache: AstCache,
-}
-
-impl GameScriptLanguageServer {
-    async fn workspace_folders(&self) -> Vec<PathBuf> {
-        if let Some(workspace_folders) = self.client.workspace_folders().await.ok() {
-            if let Some(workspace_folders) = workspace_folders {
-                workspace_folders
-                    .par_iter()
-                    .map(|folder| folder.uri.to_file_path())
-                    .filter_map(|path| path)
-                    .map(|path| path.to_path_buf())
-                    .collect::<Vec<PathBuf>>()
-            } else {
-                vec![]
-            }
-        } else {
-            vec![]
-        }
-    }
-}
-
-impl GameScriptLanguageServer {
-    #[async_recursion]
-    async fn process_gs_include(
-        &self,
-        include: Include,
-        workspace_folders: &Vec<PathBuf>,
-        progress: &OngoingProgress<Bounded, NotCancellable>,
-    ) {
-        if let Some(path) = include.path {
-            let path_str = path.to_string_lossy().to_string();
-            if self.parsed_files.contains_key(&path_str) {
-                trace!("Include already processed {:?}", path);
-                return;
-            }
-
-            // Try load from cache
-            if let Some(program) = self.ast_cache.load(&path) {
-                trace!("Found include in cache {:?}", path);
-                // We still need content for comments and other processing,
-                // but the task says "try and load from cache and then try and parse the file"
-                // which implies we might avoid parsing.
-                // However, the current ParsedFile structure needs comments too.
-                // Let's see if we can read the file and if it's unchanged, use the cached AST.
-                // For now, I'll follow the instruction to try load and then try parse if failed.
-
-                if let Ok(document) = fs::read(path.clone()) {
-                    let source = String::from_utf8_lossy(&document);
-
-                    let comments =
-                        if let Ok(pairs) = gs_parser::comments::parse_gs_comments(&source) {
-                            Arc::new(gs_ast::comments::process::process_comments(
-                                pairs.into_iter().next().unwrap(),
-                                &source,
-                            ))
-                        } else {
-                            Arc::new(gs_ast::comments::CommentProgram {
-                                comments: vec![],
-                                range: Default::default(),
-                            })
-                        };
-
-                    self.parsed_files.insert(
-                        path_str,
-                        ParsedFile {
-                            count: 0,
-                            parsed: ParsedFileType::GameScript(Arc::new(program)),
-                            comments,
-                            semantic_tokens: Arc::new(OnceLock::new()),
-                            document_symbols: Arc::new(OnceLock::new()),
-                            diagnostics: Arc::new(OnceLock::new()),
-                            folding_ranges: Arc::new(OnceLock::new()),
-                        },
-                    );
-                    return;
-                }
-            }
-
-            trace!("Processing include file {:?}", path);
-
-            let document = fs::read(path.clone());
-            if let Ok(document) = document {
-                let source = String::from_utf8_lossy(&document);
-
-                self.process_gs_file(path.as_path(), &source, workspace_folders, false, progress)
-                    .await;
-            }
-        }
-    }
-}
-
-struct ProcessingGuard<'a> {
-    set: &'a DashSet<String>,
-    path: String,
-}
-
-impl<'a> ProcessingGuard<'a> {
-    fn new(set: &'a DashSet<String>, path: String) -> Option<Self> {
-        if set.insert(path.clone()) {
-            Some(Self { set, path })
-        } else {
-            None
-        }
-    }
-}
-
-impl Drop for ProcessingGuard<'_> {
-    fn drop(&mut self) {
-        self.set.remove(&self.path);
-    }
-}
-
-impl GameScriptLanguageServer {
-    pub async fn process_gs_file(
-        &self,
-        path: &Path,
-        content: &str,
-        workspace_folders: &Vec<PathBuf>,
-        changed: bool,
-        progress: &OngoingProgress<Bounded, NotCancellable>,
-    ) {
-        let _guard = if let Some(path_str) = path.to_str() {
-            match ProcessingGuard::new(&self.currently_processing, path_str.to_string()) {
-                Some(g) => Some(g),
-                None => {
-                    trace!("File is already being processed {:?}", path);
-                    return;
-                }
-            }
-        } else {
-            None
-        };
-
-        self.process_gs_file_inner(path, content, workspace_folders, changed, progress)
-            .await;
-    }
-
-    #[async_recursion]
-    async fn process_gs_file_inner(
-        &self,
-        path: &Path,
-        content: &str,
-        workspace_folders: &Vec<PathBuf>,
-        changed: bool,
-        progress: &OngoingProgress<Bounded, NotCancellable>,
-    ) {
-        let mut includes: Vec<Include> = vec![];
-
-        if let Some(path_str) = path.to_str() {
-            let base_path = path.parent().unwrap();
-
-            if self.parsed_files.contains_key(path_str) && !changed {
-                trace!("File already processed {:?}", path);
-                return;
-            }
-            trace!("Processing file {:?}", path);
-
-            let pairs = parse(content);
-            if let Ok(pairs) = pairs {
-                trace!("File parsed {:?}", path);
-
-                let mut parsed = process_gs_ast(pairs, content);
-
-                // Save to cache
-                let _ = self.ast_cache.save(path, &parsed);
-
-                // Resolve include paths
-                for include in &mut parsed.includes {
-                    include.path = find_include_path(
-                        &include.name,
-                        base_path,
-                        workspace_folders,
-                        &self.search_paths,
-                    );
-                }
-
-                let mut counter = 1;
-                let mut early_exit = false;
-                if let Some(orig) = self.parsed_files.get(path_str) {
-                    counter = orig.value().count;
-                    early_exit = true;
-                }
-
-                let parsed_arc = Arc::new(parsed);
-
-                let comments_arc = match gs_parser::comments::parse_gs_comments(content) {
-                    Ok(mut pairs) => {
-                        if let Some(pair) = pairs.next() {
-                            Arc::new(gs_ast::comments::process::process_comments(pair, content))
-                        } else {
-                            Arc::new(gs_ast::comments::CommentProgram {
-                                comments: vec![],
-                                range: Default::default(),
-                            })
-                        }
-                    }
-                    Err(_) => Arc::new(gs_ast::comments::CommentProgram {
-                        comments: vec![],
-                        range: Default::default(),
-                    }),
-                };
-
-                self.parsed_files.insert(
-                    path_str.to_string(),
-                    ParsedFile {
-                        count: counter,
-                        parsed: ParsedFileType::GameScript(parsed_arc.clone()),
-                        comments: comments_arc,
-                        semantic_tokens: Arc::new(OnceLock::new()),
-                        document_symbols: Arc::new(OnceLock::new()),
-                        diagnostics: Arc::new(OnceLock::new()),
-                        folding_ranges: Arc::new(OnceLock::new()),
-                    },
-                );
-
-                if early_exit {
-                    trace!("Early exit");
-                    return;
-                }
-
-                includes.extend(parsed_arc.includes.clone());
-            } else if let Err(e) = pairs {
-                error!("Failed to parse file: {:?}", e)
-            }
-        } else {
-            unreachable!("path is not a string");
-        }
-
-        let total = includes.len();
-        for (i, include) in includes.into_iter().enumerate() {
-            let remaining = total - i;
-            let percentage = if total > 0 {
-                (i as u32 * 90) / total as u32
-            } else {
-                90
-            };
-            progress
-                .report_with_message(
-                    &format!("Updating {} ({} remaining)", include.name, remaining),
-                    10 + percentage,
-                )
-                .await;
-            self.process_gs_include(include, workspace_folders, progress)
-                .await;
-        }
-    }
-
-    pub async fn process_soup_file(
-        &self,
-        path: &Path,
-        content: &str,
-        workspace_folders: &Vec<PathBuf>,
-        changed: bool,
-        progress: &OngoingProgress<Bounded, NotCancellable>,
-    ) {
-        let _guard = if let Some(path_str) = path.to_str() {
-            match ProcessingGuard::new(&self.currently_processing, path_str.to_string()) {
-                Some(g) => Some(g),
-                None => {
-                    trace!("File is already being processed {:?}", path);
-                    return;
-                }
-            }
-        } else {
-            None
-        };
-
-        self.process_soup_file_inner(path, content, workspace_folders, changed, progress)
-            .await;
-    }
-
-    async fn process_soup_file_inner(
-        &self,
-        path: &Path,
-        content: &str,
-        workspace_folders: &Vec<PathBuf>,
-        changed: bool,
-        progress: &OngoingProgress<Bounded, NotCancellable>,
-    ) {
-        if let Some(path_str) = path.to_str() {
-            let base_path = path.parent().unwrap();
-
-            if self.parsed_files.contains_key(path_str) && !changed {
-                trace!("File already processed {:?}", path);
-                return;
-            }
-            trace!("Processing file {:?}", path);
-
-            let pairs = parse_soup(content);
-            if let Ok(pairs) = pairs {
-                trace!("File parsed {:?}", path);
-
-                let parsed = process_soup_ast(
-                    pairs,
-                    content,
-                    base_path,
-                    workspace_folders,
-                    &self.search_paths,
-                );
-
-                let mut counter = 1;
-                if let Some(orig) = self.parsed_files.get(path_str) {
-                    counter = orig.value().count;
-                }
-
-                let parsed_arc = Arc::new(parsed);
-
-                let comments_arc = match gs_parser::comments::parse_soup_comments(content) {
-                    Ok(mut pairs) => {
-                        if let Some(pair) = pairs.next() {
-                            Arc::new(gs_ast::comments::process::process_comments(pair, content))
-                        } else {
-                            Arc::new(gs_ast::comments::CommentProgram {
-                                comments: vec![],
-                                range: Default::default(),
-                            })
-                        }
-                    }
-                    Err(_) => Arc::new(gs_ast::comments::CommentProgram {
-                        comments: vec![],
-                        range: Default::default(),
-                    }),
-                };
-
-                self.parsed_files.insert(
-                    path_str.to_string(),
-                    ParsedFile {
-                        count: counter,
-                        parsed: ParsedFileType::Soup(parsed_arc),
-                        comments: comments_arc,
-                        semantic_tokens: Arc::new(OnceLock::new()),
-                        document_symbols: Arc::new(OnceLock::new()),
-                        diagnostics: Arc::new(OnceLock::new()),
-                        folding_ranges: Arc::new(OnceLock::new()),
-                    },
-                );
-            } else if let Err(e) = pairs {
-                error!("Failed to parse file: {:?}", e)
-            }
-        } else {
-            unreachable!("path is not a string");
-        }
-
-        progress.report_with_message("Processed file", 100).await;
-    }
-}
+use tower_lsp_server::LanguageServer;
+use trainz_completions::soup::soup_completions;
+use trainz_definition::gs::definitions::gs_goto_definition;
+use trainz_definition::gs::references::gs_find_references;
+use trainz_definition::soup::definitions::soup_goto_definition;
+use trainz_diagnostics::gs;
+use trainz_diagnostics::soup::soup_diagnostics;
+use trainz_folding::gs::trainz_folding_range;
+use trainz_folding::soup::soup_folding_range;
+use trainz_hover::soup::soup_hover;
+use trainz_semantic_tokens::gs::semantic_tokens;
+use trainz_semantic_tokens::soup::soup_semantic_tokens;
+use trainz_soup_validators::load_validators;
+use trainz_symboliser::soup::soup_symboliser;
 
 const GAME_SCRIPT_LANGUAGE_ID: &str = "game-script";
 const SOUP_LANGUAGE_ID: &str = "soup";
@@ -458,7 +49,29 @@ impl LanguageServer for GameScriptLanguageServer {
         &self,
         params: InitializeParams,
     ) -> tower_lsp_server::jsonrpc::Result<InitializeResult> {
+        let work_done_token = params.work_done_progress_params.work_done_token.clone();
+        let progress = if let Some(token) = work_done_token {
+            let progress = self
+                .client
+                .progress(token, "Initializing")
+                .with_percentage(0)
+                .begin()
+                .await;
+            Some(progress)
+        } else {
+            None
+        };
+
         trace!("Initializing {:?}", params);
+
+        debug!(
+            "Initializing GameScript Language Server {:?}",
+            params
+                .capabilities
+                .general
+                .as_ref()
+                .and_then(|g| g.position_encodings.as_ref())
+        );
 
         self.client
             .log_message(
@@ -467,8 +80,23 @@ impl LanguageServer for GameScriptLanguageServer {
             )
             .await;
 
+        let encoding = if let Some(encs) = params
+            .capabilities
+            .general
+            .as_ref()
+            .and_then(|g| g.position_encodings.as_ref())
+        {
+            if encs.contains(&PositionEncodingKind::UTF16) {
+                PositionEncodingKind::UTF16
+            } else {
+                PositionEncodingKind::UTF8
+            }
+        } else {
+            PositionEncodingKind::UTF16
+        };
+
         let capabilities = ServerCapabilities {
-            position_encoding: Some(PositionEncodingKind::UTF16),
+            position_encoding: Some(encoding),
             text_document_sync: Some(TextDocumentSyncCapability::Options(
                 TextDocumentSyncOptions {
                     open_close: Some(true),
@@ -497,7 +125,7 @@ impl LanguageServer for GameScriptLanguageServer {
                     range: None,
                     legend: {
                         let (token_types, token_modifiers) =
-                            gs_semantic_tokens::legend::get_legend();
+                            trainz_semantic_tokens::legend::get_legend();
                         SemanticTokensLegend {
                             token_modifiers,
                             token_types,
@@ -528,6 +156,11 @@ impl LanguageServer for GameScriptLanguageServer {
                     label_details_support: Some(true),
                 }),
             }),
+            inline_completion_provider: Some(OneOf::Right(InlineCompletionOptions {
+                work_done_progress_options: WorkDoneProgressOptions {
+                    work_done_progress: Some(true),
+                },
+            })),
             signature_help_provider: Some(SignatureHelpOptions {
                 trigger_characters: None,
                 retrigger_characters: None,
@@ -545,6 +178,9 @@ impl LanguageServer for GameScriptLanguageServer {
                     work_done_progress: Some(true),
                 },
             })),
+            code_action_provider: Some(
+                tower_lsp_server::ls_types::CodeActionProviderCapability::Simple(true),
+            ),
             references_provider: Some(OneOf::Right(ReferenceOptions {
                 work_done_progress_options: WorkDoneProgressOptions {
                     work_done_progress: Some(true),
@@ -559,11 +195,27 @@ impl LanguageServer for GameScriptLanguageServer {
             ..Default::default()
         };
 
+        if let Some(validation_path) = &self.validation_path {
+            if let Some(progress) = &progress {
+                progress.report_with_message("Loading validators", 50).await;
+            }
+            let validators = load_validators(validation_path);
+            if let Some(progress) = &progress {
+                progress.report_with_message("Loaded validators", 75).await;
+            }
+            let _ = self.validators.set(validators);
+        }
+
+        if let Some(progress) = progress {
+            progress.finish().await;
+        }
+
         Ok(InitializeResult {
             capabilities,
+            offset_encoding: None,
             server_info: Some(ServerInfo {
-                name: String::from("GameScript LSP"),
-                version: Some("0.1.0".to_string()),
+                name: String::from("Trainz LSP"),
+                version: Some(self.version.clone()),
             }),
             ..Default::default()
         })
@@ -571,11 +223,6 @@ impl LanguageServer for GameScriptLanguageServer {
 
     async fn initialized(&self, _: InitializedParams) {
         trace!("gs lsp initialised");
-
-        if let Some(validation_path) = &self.validation_path {
-            let validators = gs_diagnostics::soup::load_validators(validation_path);
-            let _ = self.validators.set(validators);
-        }
 
         self.client
             .log_message(MessageType::INFO, "gs lsp initialised")
@@ -624,14 +271,8 @@ impl LanguageServer for GameScriptLanguageServer {
                 )
                 .await;
             } else if params.text_document.language_id == SOUP_LANGUAGE_ID {
-                self.process_soup_file(
-                    &document_path,
-                    &params.text_document.text,
-                    &workspace_folders,
-                    true,
-                    &progress,
-                )
-                .await;
+                self.process_soup_file(&document_path, &params.text_document.text, true, &progress)
+                    .await;
             }
             trace!("did_open: {:?}", document_path);
             progress.finish().await;
@@ -686,14 +327,8 @@ impl LanguageServer for GameScriptLanguageServer {
                 };
                 if let Some(file_type) = file_type {
                     if let ParsedFileType::Soup(_soup) = file_type {
-                        self.process_soup_file(
-                            &document_path,
-                            text,
-                            &workspace_folders,
-                            true,
-                            &progress,
-                        )
-                        .await;
+                        self.process_soup_file(&document_path, text, true, &progress)
+                            .await;
                     } else if let ParsedFileType::GameScript(_program) = file_type {
                         self.process_gs_file(
                             &document_path,
@@ -778,13 +413,13 @@ impl LanguageServer for GameScriptLanguageServer {
             }
 
             let diagnostics = diagnostics_lock.get_or_init(|| match &parsed_file_type {
-                ParsedFileType::GameScript(program) => gs_diagnostics(program),
+                ParsedFileType::GameScript(program) => gs::trainz_diagnostics(program),
                 ParsedFileType::Soup(soup) => {
                     if let Some(validators) = self.validators.get() {
                         soup_diagnostics(soup, validators, Some(&document_path))
                     } else if let Some(validation_path) = &self.validation_path {
                         // Fallback if not yet initialized or failed to load
-                        let validators = gs_diagnostics::soup::load_validators(validation_path);
+                        let validators = load_validators(validation_path);
                         soup_diagnostics(soup, &validators, Some(&document_path))
                     } else {
                         vec![]
@@ -888,9 +523,9 @@ impl LanguageServer for GameScriptLanguageServer {
                     ParsedFileType::Soup(soup) => soup_semantic_tokens(soup, validators.as_ref()),
                 };
                 let mut comment_tokens =
-                    gs_semantic_tokens::comments::comments_semantic_tokens(&comments);
+                    trainz_semantic_tokens::comments::comments_semantic_tokens(&comments);
                 raw_tokens.append(&mut comment_tokens);
-                gs_semantic_tokens::process_raw_tokens(raw_tokens)
+                trainz_semantic_tokens::process_raw_tokens(raw_tokens)
             })
             .await
             .map_err(|e| {
@@ -970,7 +605,9 @@ impl LanguageServer for GameScriptLanguageServer {
         if document_symbols_lock.get().is_none() {
             let validators = self.validators.get().cloned();
             let symbols = tokio::task::spawn_blocking(move || match &parsed_file_type {
-                ParsedFileType::GameScript(program) => gs_symboliser(program),
+                ParsedFileType::GameScript(program) => {
+                    trainz_symboliser::gs::trainz_symboliser(program)
+                }
                 ParsedFileType::Soup(soup) => soup_symboliser(soup, validators.as_ref()),
             })
             .await
@@ -1122,13 +759,27 @@ impl LanguageServer for GameScriptLanguageServer {
         let mut result = None;
         if let Some(file_info) = self.parsed_files.get(&path) {
             if let ParsedFileType::Soup(_soup) = &file_info.parsed {
-                result = Some(CompletionResponse::Array(soup_completions(
-                    _soup,
-                    params,
-                    self.validation_path.clone(),
-                )));
+                let validators = if let Some(v) = self.validators.get() {
+                    Some(v.clone())
+                } else if let Some(vp) = &self.validation_path {
+                    let v = load_validators(vp);
+                    self.validators.set(v.clone()).ok();
+                    Some(v)
+                } else {
+                    None
+                };
+
+                if let Some(validators) = validators {
+                    result = Some(CompletionResponse::Array(soup_completions(
+                        _soup,
+                        params,
+                        &validators,
+                    )));
+                }
             } else if let ParsedFileType::GameScript(_program) = &file_info.parsed {
-                result = Some(CompletionResponse::Array(gs_completions(_program, params)));
+                result = Some(CompletionResponse::Array(
+                    trainz_completions::gs::trainz_completions(_program, params),
+                ));
             }
         }
 
@@ -1376,7 +1027,7 @@ impl LanguageServer for GameScriptLanguageServer {
                     if let Some(validators) = self.validators.get() {
                         hover_result = soup_hover(soup, params.clone(), validators);
                     } else if let Some(validation_path) = &self.validation_path {
-                        let validators = gs_diagnostics::soup::load_validators(validation_path);
+                        let validators = load_validators(validation_path);
                         hover_result = soup_hover(soup, params.clone(), &validators);
                     }
                 }
@@ -1429,7 +1080,7 @@ impl LanguageServer for GameScriptLanguageServer {
                 if let Some(target_path) = target_uri.to_file_path() {
                     let path_str = target_path.to_string_lossy().to_string();
                     if let Some(document) = self.parsed_files.get(&path_str) {
-                        use gs_ast::find::HasRange;
+                        use trainz_ast::find::HasRange;
                         let comments = &document.comments;
                         let definition_line = target_range.start.line;
 
@@ -1461,9 +1112,11 @@ impl LanguageServer for GameScriptLanguageServer {
                                 || definition_line.saturating_sub(range.end.line) <= 2
                             {
                                 let raw_text = match comment {
-                                    gs_ast::comments::Comment::LineComment(c) => c.text.clone(),
-                                    gs_ast::comments::Comment::BlockComment(c) => c.text.clone(),
-                                    gs_ast::comments::Comment::GroupComment(c) => c
+                                    trainz_ast::comments::Comment::LineComment(c) => c.text.clone(),
+                                    trainz_ast::comments::Comment::BlockComment(c) => {
+                                        c.text.clone()
+                                    }
+                                    trainz_ast::comments::Comment::GroupComment(c) => c
                                         .comments
                                         .iter()
                                         .map(|lc| lc.text.as_str())
@@ -1519,6 +1172,47 @@ impl LanguageServer for GameScriptLanguageServer {
         }
 
         Ok(hover_result)
+    }
+
+    async fn code_action(
+        &self,
+        params: CodeActionParams,
+    ) -> tower_lsp_server::jsonrpc::Result<Option<CodeActionResponse>> {
+        let mut actions = vec![];
+
+        for diagnostic in &params.context.diagnostics {
+            if let Some(tower_lsp_server::ls_types::NumberOrString::String(code)) = &diagnostic.code
+            {
+                if code == "invalid-kind-lib" {
+                    let mut changes = std::collections::HashMap::new();
+                    changes.insert(
+                        params.text_document.uri.clone(),
+                        vec![TextEdit {
+                            range: diagnostic.range,
+                            new_text: "\"library\"".to_string(),
+                        }],
+                    );
+
+                    actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                        title: "Change \"lib\" to \"library\"".to_string(),
+                        kind: Some(CodeActionKind::QUICKFIX),
+                        diagnostics: Some(vec![diagnostic.clone()]),
+                        edit: Some(WorkspaceEdit {
+                            changes: Some(changes),
+                            ..Default::default()
+                        }),
+                        is_preferred: Some(true),
+                        ..Default::default()
+                    }));
+                }
+            }
+        }
+
+        if actions.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(actions))
+        }
     }
 
     async fn folding_range(
@@ -1580,10 +1274,10 @@ impl LanguageServer for GameScriptLanguageServer {
 
         let ranges = folding_ranges_lock.get_or_init(|| {
             let mut ranges = match &parsed_file_type {
-                ParsedFileType::GameScript(program) => gs_folding_range(program),
+                ParsedFileType::GameScript(program) => trainz_folding_range(program),
                 ParsedFileType::Soup(soup) => soup_folding_range(soup),
             };
-            ranges.extend(gs_folding::comments::comments_folding_range(&comments));
+            ranges.extend(trainz_folding::comments::comments_folding_range(&comments));
             ranges
         });
 
@@ -1594,27 +1288,5 @@ impl LanguageServer for GameScriptLanguageServer {
         }
 
         Ok(result)
-    }
-}
-
-impl GameScriptLanguageServer {
-    pub fn new(
-        client: Client,
-        validation_path: Option<PathBuf>,
-        search_paths: Vec<PathBuf>,
-    ) -> Self {
-        trace!("Create GameScriptLanguageServer");
-
-        trace!("Search paths {:?}", search_paths);
-
-        Self {
-            client,
-            search_paths,
-            validation_path,
-            validators: Arc::new(OnceLock::new()),
-            parsed_files: DashMap::new(),
-            currently_processing: DashSet::new(),
-            ast_cache: AstCache::new(),
-        }
     }
 }

@@ -1,5 +1,6 @@
-use gs_ast::gs::{Block, Stmt};
 use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind};
+use trainz_ast::gs::{Block, Stmt};
+use trainz_common::range::clamp_range;
 
 use super::expr::process_expr;
 
@@ -29,7 +30,7 @@ pub(crate) fn process_block(body: &Block) -> Vec<DocumentSymbol> {
                         tags: None,
                         deprecated: None,
                         range: decl.range,
-                        selection_range: name.range,
+                        selection_range: clamp_range(&decl.range, name.range),
                         children: None,
                     });
                     symbols.extend(process_expr(value));
@@ -44,7 +45,7 @@ pub(crate) fn process_block(body: &Block) -> Vec<DocumentSymbol> {
                             tags: None,
                             deprecated: None,
                             range: decl.range,
-                            selection_range: name.range,
+                            selection_range: clamp_range(&decl.range, name.range),
                             children: None,
                         });
                     }
@@ -75,8 +76,8 @@ pub(crate) fn process_block(body: &Block) -> Vec<DocumentSymbol> {
             Stmt::While(while_stmt) => {
                 let mut children = process_expr(&while_stmt.cond);
                 match &while_stmt.body {
-                    gs_ast::gs::LoopBody::Empty(_) => {}
-                    gs_ast::gs::LoopBody::Block(block) => children.extend(process_block(block)),
+                    trainz_ast::gs::LoopBody::Empty(_) => {}
+                    trainz_ast::gs::LoopBody::Block(block) => children.extend(process_block(block)),
                 };
                 symbols.push(DocumentSymbol {
                     name: "while".to_string(),
@@ -101,8 +102,8 @@ pub(crate) fn process_block(body: &Block) -> Vec<DocumentSymbol> {
                     children.extend(process_expr(step));
                 }
                 match &for_stmt.body {
-                    gs_ast::gs::LoopBody::Empty(_) => {}
-                    gs_ast::gs::LoopBody::Block(block) => children.extend(process_block(block)),
+                    trainz_ast::gs::LoopBody::Empty(_) => {}
+                    trainz_ast::gs::LoopBody::Block(block) => children.extend(process_block(block)),
                 };
                 symbols.push(DocumentSymbol {
                     name: "for".to_string(),

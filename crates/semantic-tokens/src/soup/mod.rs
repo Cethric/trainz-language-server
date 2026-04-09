@@ -4,10 +4,11 @@ pub mod value;
 mod tests;
 
 use crate::soup::value::collect_value_tokens;
-use gs_ast::soup::Soup;
-use gs_ast::soup::Value;
-use gs_diagnostics::soup::Validators;
+use rayon::prelude::*;
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
+use trainz_ast::soup::soup::Soup;
+use trainz_ast::soup::Value;
+use trainz_soup_validators::{ArrayElementType, Validators};
 
 pub fn soup_semantic_tokens(
     soup: &Soup,
@@ -17,13 +18,13 @@ pub fn soup_semantic_tokens(
 
     let kind_kv = soup
         .key_value_pairs
-        .iter()
-        .find(|kv| kv.key.eq_ignore_ascii_case("kind"));
+        .par_iter()
+        .find_first(|kv| kv.key.eq_ignore_ascii_case("kind"));
     let validator = kind_kv.and_then(|kv| match &kv.value {
         Some(Value::String(s, _)) | Some(Value::Variable(s, _)) => validators.and_then(|vs| {
             vs.containers
-                .iter()
-                .find(|v| v.container_name.eq_ignore_ascii_case(s))
+                .par_iter()
+                .find_first(|v| v.container_name.eq_ignore_ascii_case(s))
         }),
         _ => None,
     });
@@ -31,12 +32,12 @@ pub fn soup_semantic_tokens(
     for kv in &soup.key_value_pairs {
         let rule = validator.and_then(|v| {
             v.rules
-                .iter()
-                .find(|r| r.key.eq_ignore_ascii_case(&kv.key))
+                .par_iter()
+                .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
                 .or_else(|| {
-                    v.subpossibilities
-                        .iter()
-                        .find(|r| r.key.eq_ignore_ascii_case(&kv.key))
+                    v.sub_possibilities
+                        .par_iter()
+                        .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
                 })
         });
         let mut modifiers = vec![];
@@ -51,18 +52,26 @@ pub fn soup_semantic_tokens(
                 .and_then(|type_name| {
                     validators.and_then(|vs| {
                         vs.containers
-                            .iter()
-                            .find(|v| v.container_name.eq_ignore_ascii_case(type_name))
+                            .par_iter()
+                            .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name))
                     })
                 })
                 .or_else(|| {
                     validator
                         .and_then(|v| v.array_element.as_ref())
-                        .and_then(|type_name| {
-                            validators.and_then(|vs| {
-                                vs.containers
-                                    .iter()
-                                    .find(|v| v.container_name.eq_ignore_ascii_case(type_name))
+                        .and_then(|ae| {
+                            let tn = match ae {
+                                ArrayElementType::Array(s) => Some(s),
+                                ArrayElementType::Tuple(types) => {
+                                    kv.key.parse::<usize>().ok().and_then(|idx| types.get(idx))
+                                }
+                            };
+                            tn.and_then(|tn| {
+                                validators.and_then(|vs| {
+                                    vs.containers
+                                        .par_iter()
+                                        .find_first(|v| v.container_name.eq_ignore_ascii_case(tn))
+                                })
                             })
                         })
                 });

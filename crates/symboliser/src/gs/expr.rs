@@ -1,7 +1,7 @@
-use gs_ast::find::HasRange;
-use gs_ast::gs::{Expr, Literal, PostfixOp};
 use log::trace;
 use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind};
+use trainz_ast::find::HasRange;
+use trainz_ast::gs::{Expr, Literal, PostfixOp};
 
 #[allow(deprecated)]
 pub(crate) fn process_expr(expr: &Expr) -> Vec<DocumentSymbol> {
@@ -38,7 +38,7 @@ pub(crate) fn process_expr(expr: &Expr) -> Vec<DocumentSymbol> {
             op, expr, range, ..
         } => {
             match (op, &**expr) {
-                (gs_ast::gs::UnaryPrefixOp::Minus, Expr::Literal(Literal::Float(v, _))) => {
+                (trainz_ast::gs::UnaryPrefixOp::Minus, Expr::Literal(Literal::Float(v, _))) => {
                     let mut name = format!("-{}", v);
                     if !name.contains('.') {
                         name.push_str(".0");
@@ -54,7 +54,7 @@ pub(crate) fn process_expr(expr: &Expr) -> Vec<DocumentSymbol> {
                         children: None,
                     });
                 }
-                (gs_ast::gs::UnaryPrefixOp::Minus, Expr::Literal(Literal::Int(v, _))) => {
+                (trainz_ast::gs::UnaryPrefixOp::Minus, Expr::Literal(Literal::Int(v, _))) => {
                     symbols.push(DocumentSymbol {
                         name: format!("-{}", v),
                         detail: Some(format!("{:?}", Literal::Int(-*v, *range))),

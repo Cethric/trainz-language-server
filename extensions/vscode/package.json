@@ -1,9 +1,10 @@
 {
-  "name": "gs-lsp-vscode",
-  "publisher": "gs-lsp",
-  "displayName": "GS Language Server",
-  "description": "Language Server extension for GS",
+  "name": "trainz-lsp-vscode",
+  "publisher": "trainz-lsp",
+  "displayName": "Trainz GS Language Server",
+  "description": "Language Server extension for Trainz GS",
   "version": "0.1.0",
+  "type": "module",
   "engines": {
     "vscode": "^1.82.0"
   },
@@ -43,12 +44,12 @@
     ],
     "configuration": {
       "type": "object",
-      "title": "GS LSP configuration",
+      "title": "Trainz GS LSP configuration",
       "properties": {
-        "gs-lsp.serverPath": {
+        "trainz-lsp.serverPath": {
           "type": "string",
-          "default": "gs-lsp",
-          "description": "Path to the gs-lsp executable"
+          "default": "trainz-lsp",
+          "description": "Path to the trainz-lsp executable"
         }
       }
     },
@@ -56,60 +57,112 @@
       {
         "language": "game-script",
         "scopes": {
-          "keyword": [ "keyword.control.gs" ],
-          "class": [ "entity.name.type.class.gs" ],
-          "string": [ "string.quoted.double.gs" ],
-          "type": [ "entity.name.type.gs" ],
-          "method": [ "entity.name.function.gs" ],
-          "operator": [ "keyword.operator.gs" ],
-          "number": [ "constant.numeric.gs" ],
-          "property": [ "variable.other.property.gs" ],
-          "parameter": [ "variable.parameter.gs" ],
-          "modifier": [ "storage.modifier.gs" ],
-          "variable": [ "variable.other.gs" ],
-          "comment": [ "comment.line.double-slash.gs" ]
+          "keyword": [
+            "keyword.control.gs"
+          ],
+          "class": [
+            "entity.name.type.class.gs"
+          ],
+          "string": [
+            "string.quoted.double.gs"
+          ],
+          "type": [
+            "entity.name.type.gs"
+          ],
+          "method": [
+            "entity.name.function.gs"
+          ],
+          "operator": [
+            "keyword.operator.gs"
+          ],
+          "number": [
+            "constant.numeric.gs"
+          ],
+          "property": [
+            "variable.other.property.gs"
+          ],
+          "parameter": [
+            "variable.parameter.gs"
+          ],
+          "modifier": [
+            "storage.modifier.gs"
+          ],
+          "variable": [
+            "variable.other.gs"
+          ],
+          "comment": [
+            "comment.line.double-slash.gs"
+          ]
         }
       },
       {
         "language": "soup",
         "scopes": {
-          "keyword": [ "keyword.control.soup" ],
-          "class": [ "entity.name.type.class.soup" ],
-          "string": [ "string.quoted.double.soup" ],
-          "type": [ "entity.name.type.soup" ],
-          "method": [ "entity.name.function.soup" ],
-          "operator": [ "keyword.operator.soup" ],
-          "number": [ "constant.numeric.soup" ],
-          "property": [ "variable.other.property.soup" ],
-          "parameter": [ "variable.parameter.soup" ],
-          "modifier": [ "storage.modifier.soup" ],
-          "variable": [ "variable.other.soup" ],
-          "comment": [ "comment.line.double-slash.soup" ]
+          "keyword": [
+            "keyword.control.soup"
+          ],
+          "class": [
+            "entity.name.type.class.soup"
+          ],
+          "string": [
+            "string.quoted.double.soup"
+          ],
+          "type": [
+            "entity.name.type.soup"
+          ],
+          "method": [
+            "entity.name.function.soup"
+          ],
+          "operator": [
+            "keyword.operator.soup"
+          ],
+          "number": [
+            "constant.numeric.soup"
+          ],
+          "property": [
+            "variable.other.property.soup"
+          ],
+          "parameter": [
+            "variable.parameter.soup"
+          ],
+          "modifier": [
+            "storage.modifier.soup"
+          ],
+          "variable": [
+            "variable.other.soup"
+          ],
+          "comment": [
+            "comment.line.double-slash.soup"
+          ]
         }
       }
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "pnpm compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
+    "pretest": "pnpm compile && pnpm lint",
     "test": "node ./out/test/runTest.js",
     "lint": "eslint src --ext ts"
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "10.0.0-next.21"
   },
   "devDependencies": {
-    "@types/mocha": "^10.0.6",
-    "@types/node": "^18.19.130",
-    "@types/vscode": "^1.110.0",
-    "@vscode/test-electron": "^2.3.9",
-    "eslint": "^8.56.0",
-    "@typescript-eslint/eslint-plugin": "^6.19.1",
-    "@typescript-eslint/parser": "^6.19.1",
-    "glob": "^10.3.10",
-    "mocha": "^10.2.0",
-    "typescript": "^5.9.3"
+    "@eslint/js": "^10.0.1",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.19.39",
+    "@types/sinon": "^21.0.1",
+    "@types/vscode": "^1.115.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.1",
+    "@typescript-eslint/parser": "^8.58.1",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^10.2.0",
+    "glob": "^13.0.6",
+    "globals": "^17.4.0",
+    "mocha": "^11.7.5",
+    "sinon": "^21.0.3",
+    "typescript": "^6.0.2"
   }
 }

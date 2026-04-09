@@ -1,9 +1,9 @@
-use gs_ast::gs::Program;
 use tower_lsp_server::ls_types::{
     CompletionItem, CompletionItemKind, CompletionParams, Documentation, MarkupContent, MarkupKind,
 };
+use trainz_ast::gs::program::Program;
 
-pub fn gs_completions(_program: &Program, _params: CompletionParams) -> Vec<CompletionItem> {
+pub fn trainz_completions(_program: &Program, _params: CompletionParams) -> Vec<CompletionItem> {
     vec![
         CompletionItem {
             label: String::from("break"),

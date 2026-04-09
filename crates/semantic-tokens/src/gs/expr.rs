@@ -1,6 +1,6 @@
 use crate::gs::types::collect_type_tokens;
-use gs_ast::gs::{Expr, PostfixOp};
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
+use trainz_ast::gs::{Expr, PostfixOp};
 
 pub fn collect_expr_tokens(
     expr: &Expr,
@@ -138,15 +138,15 @@ pub fn collect_expr_tokens(
             collect_expr_tokens(size, raw_tokens, known_classes);
         }
         Expr::Literal(lit) => {
-            let range = gs_ast::find::HasRange::range(lit);
+            let range = trainz_ast::find::HasRange::range(lit);
             let (token_type, modifiers) = match lit {
-                gs_ast::gs::Literal::String(_) | gs_ast::gs::Literal::Char(_, _) => {
+                trainz_ast::gs::Literal::String(_) | trainz_ast::gs::Literal::Char(_, _) => {
                     (SemanticTokenType::STRING, vec![])
                 }
-                gs_ast::gs::Literal::Float(_, _)
-                | gs_ast::gs::Literal::Int(_, _)
-                | gs_ast::gs::Literal::Hex(_, _) => (SemanticTokenType::NUMBER, vec![]),
-                gs_ast::gs::Literal::Bool(_, _) | gs_ast::gs::Literal::Null(_) => {
+                trainz_ast::gs::Literal::Float(_, _)
+                | trainz_ast::gs::Literal::Int(_, _)
+                | trainz_ast::gs::Literal::Hex(_, _) => (SemanticTokenType::NUMBER, vec![]),
+                trainz_ast::gs::Literal::Bool(_, _) | trainz_ast::gs::Literal::Null(_) => {
                     (SemanticTokenType::KEYWORD, vec![])
                 }
             };

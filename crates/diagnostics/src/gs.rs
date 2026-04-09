@@ -1,4 +1,3 @@
-use gs_ast::gs::Program;
 use log::debug;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
@@ -6,8 +5,9 @@ use std::str::FromStr;
 use tower_lsp_server::ls_types::{
     CodeDescription, Diagnostic, DiagnosticSeverity, NumberOrString, Uri,
 };
+use trainz_ast::gs::program::Program;
 
-pub fn gs_diagnostics(program: &Program) -> Vec<Diagnostic> {
+pub fn trainz_diagnostics(program: &Program) -> Vec<Diagnostic> {
     debug!("Include paths: {:?}", program.includes);
     program
         .includes

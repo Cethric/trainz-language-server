@@ -1,8 +1,8 @@
-use gs_lsp::server::GameScriptLanguageServer;
 use std::fs;
 use std::path::PathBuf;
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{LanguageServer, LspService};
+use trainz_lsp::state::GameScriptLanguageServer;
 
 fn setup_temp_workspace(test_name: &str) -> (PathBuf, Uri) {
     let temp_dir = std::env::current_dir()
@@ -30,8 +30,9 @@ fn setup_temp_workspace(test_name: &str) -> (PathBuf, Uri) {
 
 #[tokio::test]
 async fn test_include_document_symbols() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+    });
     let (temp_dir, main_uri) = setup_temp_workspace("test_include_document_symbols");
 
     // Initialize server with workspace folder
@@ -95,8 +96,9 @@ async fn test_include_document_symbols() {
 
 #[tokio::test]
 async fn test_include_goto_definition() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+    });
     let (temp_dir, main_uri) = setup_temp_workspace("test_include_goto_definition");
     let helper_uri = Uri::from_file_path(temp_dir.join("Helper.gs")).unwrap();
 
@@ -257,8 +259,9 @@ async fn test_include_goto_definition() {
 
 #[tokio::test]
 async fn test_include_document_links() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+    });
     let (temp_dir, main_uri) = setup_temp_workspace("test_include_document_links");
     let helper_uri = Uri::from_file_path(temp_dir.join("Helper.gs")).unwrap();
 

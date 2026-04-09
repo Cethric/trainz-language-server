@@ -5,11 +5,11 @@ use crate::gs::{
     Block, ClassDef, ClassModifier, FieldDef, FieldModifier, Identifier, MethodDef, MethodModifier,
     NativeMethodDef, Param,
 };
-use gs_parser::gs::grammar::Rule;
-use gs_util::range::pair_to_range;
 use log::trace;
 use pest::iterators::Pair;
 use tower_lsp_server::ls_types::Range;
+use trainz_common::range::pair_to_range;
+use trainz_parser::gs::grammar::Rule;
 
 pub fn process_class_definition(class_definition: Pair<Rule>) -> Option<ClassDef> {
     let range = pair_to_range(&class_definition);
@@ -298,12 +298,12 @@ fn process_params(pair: Pair<Rule>) -> Vec<Param> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gs_parser::gs::grammar::Rule;
+    use trainz_parser::gs::grammar::Rule;
 
     #[test]
     fn test_obsolete_modifiers() {
         let code = "obsolete class OldClass {\n    obsolete(123) int oldField;\n    obsolete void oldMethod() {}\n};\n";
-        let pairs = gs_parser::gs::parse(code).unwrap();
+        let pairs = trainz_parser::gs::parse(code).unwrap();
 
         let class_pair = pairs
             .into_iter()

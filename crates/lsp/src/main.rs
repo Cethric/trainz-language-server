@@ -1,14 +1,17 @@
 use clap::Parser;
-use gs_common::setup_logger;
-use gs_lsp::server::GameScriptLanguageServer;
 use log::debug;
 use shadow_rs::shadow;
 use std::env;
 use std::path::PathBuf;
 use tokio::main;
 use tower_lsp_server::{LspService, Server};
+use trainz_common::logging::setup_logger;
+use trainz_lsp::state::GameScriptLanguageServer;
 
-use crate::build::CLAP_LONG_VERSION;
+pub mod process;
+pub mod state;
+
+use crate::build::{CLAP_LONG_VERSION, PKG_VERSION};
 
 shadow!(build);
 
@@ -20,7 +23,7 @@ struct Args {
     verbosity: clap_verbosity_flag::Verbosity,
 
     /// Path to the directory containing soup validators
-    #[arg(short, long, env = "GS_LSP_SOUP_VALIDATION_PATH")]
+    #[arg(short = 'p', long, env = "TRAINZ_LSP_SOUP_VALIDATION_PATH")]
     validation_path: Option<PathBuf>,
 
     /// Paths to search for Trainz scripts (separated by ;)
@@ -28,7 +31,7 @@ struct Args {
         short,
         long,
         value_delimiter = ';',
-        env = "GS_LSP_TRAINZ_SCRIPT_SEARCH_PATHS"
+        env = "TRAINZ_LSP_SCRIPT_SEARCH_PATHS"
     )]
     search_paths: Vec<PathBuf>,
 }
@@ -39,7 +42,7 @@ async fn main() {
 
     let args = Args::parse();
     let validation_path = args.validation_path.or_else(|| {
-        env::var("GS_LSP_SOUP_VALIDATION_PATH")
+        env::var("TRAINZ_LSP_SOUP_VALIDATION_PATH")
             .ok()
             .map(PathBuf::from)
     });
@@ -50,7 +53,7 @@ async fn main() {
     let stdout = tokio::io::stdout();
 
     let (service, socket) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, validation_path, search_paths.clone())
+        GameScriptLanguageServer::new(client, validation_path, search_paths.clone(), PKG_VERSION)
     });
 
     debug!("Starting LSP server");

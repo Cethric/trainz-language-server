@@ -1,7 +1,7 @@
 use crate::gs::expr::collect_expr_tokens;
 use crate::gs::types::collect_type_tokens;
-use gs_ast::gs::{LoopBody, Stmt};
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
+use trainz_ast::gs::{LoopBody, Stmt};
 
 pub fn collect_stmt_tokens(
     stmt: &Stmt,

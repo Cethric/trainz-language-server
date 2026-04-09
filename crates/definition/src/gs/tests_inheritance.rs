@@ -1,9 +1,9 @@
 use crate::gs::definitions::gs_goto_definition;
 use dashmap::DashMap;
-use gs_parser::parse;
 use std::str::FromStr;
 use std::sync::Arc;
 use tower_lsp_server::ls_types::{GotoDefinitionResponse, Position, Uri};
+use trainz_parser::parse;
 
 #[test]
 fn test_gs_goto_definition_chained_method_inheritance() {
@@ -25,7 +25,7 @@ fn test_gs_goto_definition_chained_method_inheritance() {
         };
     "#;
     let pairs = parse(source).unwrap();
-    let program = Arc::new(gs_ast::gs::process::process_gs_ast(pairs, source));
+    let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
     let uri = Uri::from_str("file:///test.gs").unwrap();
     // 012345678901234567890123456789012345678901234567890123456789
     //                 GetAsset().GetConfigSoup().GetNamedSoup("mesh-table");

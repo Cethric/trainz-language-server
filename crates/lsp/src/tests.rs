@@ -1,12 +1,12 @@
-use crate::server::GameScriptLanguageServer;
-use tokio::time::{Duration, timeout};
+use crate::state::GameScriptLanguageServer;
+use tokio::time::{timeout, Duration};
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{LanguageServer, LspService};
 
 #[tokio::test]
 async fn test_did_change_deadlock() {
     let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
 
     let uri = Uri::from_file_path(
         std::env::current_dir()
@@ -60,7 +60,7 @@ async fn test_did_change_deadlock() {
 #[tokio::test]
 async fn test_semantic_tokens_initial() {
     let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
     let uri = Uri::from_file_path(
         std::env::current_dir()
             .unwrap()
@@ -140,7 +140,7 @@ async fn test_semantic_tokens_initial() {
 #[tokio::test]
 async fn test_semantic_tokens_statements_literals() {
     let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
     let uri = Uri::from_file_path(
         std::env::current_dir()
             .unwrap()
@@ -230,8 +230,9 @@ async fn test_semantic_tokens_statements_literals() {
 
 #[tokio::test]
 async fn test_semantic_tokens_update() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+    });
     let uri = Uri::from_file_path(
         std::env::current_dir()
             .unwrap()
@@ -316,7 +317,7 @@ async fn test_semantic_tokens_update() {
 #[tokio::test]
 async fn test_semantic_tokens_soup() {
     let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
     let uri = Uri::from_file_path(
         std::env::current_dir()
             .unwrap()
@@ -380,7 +381,7 @@ async fn test_semantic_tokens_soup() {
 #[tokio::test]
 async fn test_semantic_tokens_isclass() {
     let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
     let uri = Uri::from_file_path(
         std::env::current_dir()
             .unwrap()
@@ -450,7 +451,7 @@ async fn test_semantic_tokens_isclass() {
 #[tokio::test]
 async fn test_semantic_tokens_include() {
     let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
     let uri = Uri::from_file_path(
         std::env::current_dir()
             .unwrap()
@@ -557,7 +558,7 @@ my_container {
     std::fs::write(&container_path, container_rules).unwrap();
 
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![])
+        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![], "")
     });
 
     service.inner().initialized(InitializedParams {}).await;
@@ -753,7 +754,7 @@ thumbnails-element
     std::fs::write(temp_dir.join("container.txt"), container_content).unwrap();
 
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![])
+        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![], "")
     });
 
     service.inner().initialized(InitializedParams {}).await;
@@ -814,7 +815,7 @@ thumbnails-element
                 // Should find type error for 'width' (expected numeric, found string)
                 let has_type_error = items.iter().any(|diag| {
                     diag.message
-                        .contains("Invalid type for key 'width' in container 'thumbnails-element'")
+                        .contains("Invalid type for key 'thumbnails-element' in container 'width'. Expected 'numeric', found 'string', kind 'None'")
                         && diag.severity == Some(DiagnosticSeverity::ERROR)
                 });
                 assert!(
@@ -948,7 +949,7 @@ thumbnails-element
     std::fs::write(temp_dir.join("container.txt"), container_content).unwrap();
 
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![])
+        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![], "")
     });
 
     service.inner().initialized(InitializedParams {}).await;
@@ -1081,7 +1082,7 @@ era2 "Era 2 Description"
     std::fs::write(temp_dir.join("category-era.txt"), era_content).unwrap();
 
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![])
+        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![], "")
     });
 
     service.inner().initialized(InitializedParams {}).await;

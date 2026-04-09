@@ -4,9 +4,9 @@ use crate::gs::{
     AssignStmt, Block, Case, Decl, ForStmt, IfStmt, LoopBody, OnStmt, Stmt, SwitchStmt, WaitStmt,
     WhileStmt,
 };
-use gs_parser::gs::grammar::Rule;
-use gs_util::range::pair_to_range;
 use pest::iterators::Pair;
+use trainz_common::range::pair_to_range;
+use trainz_parser::gs::grammar::Rule;
 
 pub fn process_statements(pair: Pair<Rule>) -> Vec<Stmt> {
     let mut statements = vec![];

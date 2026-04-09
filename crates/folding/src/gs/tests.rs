@@ -1,15 +1,15 @@
 #[cfg(test)]
 mod tests {
-    use crate::gs::gs_folding_range;
-    use gs_ast::gs::process::process_gs_ast;
-    use gs_parser::gs::parse;
+    use crate::gs::trainz_folding_range;
+    use trainz_ast::gs::process::process_trainz_ast;
+    use trainz_parser::gs::parse;
 
     #[test]
-    fn test_gs_folding_range_minimal() {
+    fn test_trainz_folding_range_minimal() {
         let code = "class Test {\n    void method() {\n        return;\n    }\n};\n";
         let pairs = parse(code).unwrap();
-        let program = process_gs_ast(pairs, code);
-        let ranges = gs_folding_range(&program);
+        let program = process_trainz_ast(pairs, code);
+        let ranges = trainz_folding_range(&program);
 
         // Expect:
         // 1. Class body (lines 0-4)
@@ -29,7 +29,7 @@ mod tests {
     }
 
     #[test]
-    fn test_gs_folding_range_complex() {
+    fn test_trainz_folding_range_complex() {
         let code = r#"class Test {
     void method() {
         if (true) {
@@ -59,8 +59,8 @@ mod tests {
 };
 "#;
         let pairs = parse(code).unwrap();
-        let program = process_gs_ast(pairs, code);
-        let ranges = gs_folding_range(&program);
+        let program = process_trainz_ast(pairs, code);
+        let ranges = trainz_folding_range(&program);
 
         assert!(ranges.len() >= 1);
 
@@ -69,7 +69,7 @@ mod tests {
     }
 
     #[test]
-    fn test_gs_folding_range_stmt_blocks() {
+    fn test_trainz_folding_range_stmt_blocks() {
         let code = r#"class Test {
     void method() {
         if (true) {
@@ -89,8 +89,8 @@ mod tests {
 };
 "#;
         let pairs = parse(code).unwrap();
-        let program = process_gs_ast(pairs, code);
-        let ranges = gs_folding_range(&program);
+        let program = process_trainz_ast(pairs, code);
+        let ranges = trainz_folding_range(&program);
 
         for range in &ranges {
             println!(
@@ -127,14 +127,14 @@ mod tests {
     }
 
     #[test]
-    fn test_gs_folding_range_end_character() {
+    fn test_trainz_folding_range_end_character() {
         // We want to verify that the folding range includes the '}' but not the newline.
         // In this case, the method ends at '}' on line 1, column 21 (0-indexed).
         // Let's check what the parser/symboliser gives us.
         let code = "class T {\n    void m() {\n    }\n};\n";
         let pairs = parse(code).unwrap();
-        let program = process_gs_ast(pairs, code);
-        let ranges = gs_folding_range(&program);
+        let program = process_trainz_ast(pairs, code);
+        let ranges = trainz_folding_range(&program);
 
         for range in &ranges {
             println!(
@@ -166,8 +166,8 @@ mod tests {
         // In the previous fix, it might have been adjusted.
         let code = "class T {\n    void m() {\n    }\n};";
         let pairs = parse(code).unwrap();
-        let program = process_gs_ast(pairs, code);
-        let ranges = gs_folding_range(&program);
+        let program = process_trainz_ast(pairs, code);
+        let ranges = trainz_folding_range(&program);
 
         for range in &ranges {
             println!(
@@ -190,11 +190,11 @@ mod tests {
     }
 
     #[test]
-    fn test_gs_folding_range_statement_block_end_character() {
+    fn test_trainz_folding_range_statement_block_end_character() {
         let code = "class T {\n    void m() {\n        if (true) {\n            return;\n        }\n    }\n};";
         let pairs = parse(code).unwrap();
-        let program = process_gs_ast(pairs, code);
-        let ranges = gs_folding_range(&program);
+        let program = process_trainz_ast(pairs, code);
+        let ranges = trainz_folding_range(&program);
 
         for range in &ranges {
             println!(
@@ -218,11 +218,11 @@ mod tests {
     }
 
     #[test]
-    fn test_gs_folding_range_includes() {
+    fn test_trainz_folding_range_includes() {
         let code = "include \"common.gs\"\ninclude \"util.gs\"\ninclude \"lib.gs\"\n\nclass Test {\n    void method() {\n        // ...\n    }\n};\n";
         let pairs = parse(code).unwrap();
-        let program = process_gs_ast(pairs, code);
-        let ranges = gs_folding_range(&program);
+        let program = process_trainz_ast(pairs, code);
+        let ranges = trainz_folding_range(&program);
 
         for range in &ranges {
             println!(
@@ -245,7 +245,7 @@ mod tests {
     }
 
     #[test]
-    fn test_gs_folding_range_class_body_explicit() {
+    fn test_trainz_folding_range_class_body_explicit() {
         let code = r#"
 class FirstClass {
     void first_method() {
@@ -260,8 +260,8 @@ class SecondClass {
 };
 "#;
         let pairs = parse(code).unwrap();
-        let program = process_gs_ast(pairs, code);
-        let ranges = gs_folding_range(&program);
+        let program = process_trainz_ast(pairs, code);
+        let ranges = trainz_folding_range(&program);
 
         for range in &ranges {
             println!(

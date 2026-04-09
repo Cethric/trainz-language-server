@@ -1,15 +1,15 @@
 use dashmap::DashMap;
-use gs_ast::find::position_in_range;
-use gs_ast::gs::Program;
-use gs_ast::gs::class::MethodDef;
-use gs_ast::gs::find::{
-    find_id_at_position, find_local_var_type_in_method, find_postfix_at_position,
-};
-use gs_ast::gs::{Expr, PostfixOp, Type};
 use log::trace;
 use rayon::prelude::*;
 use std::sync::Arc;
 use tower_lsp_server::ls_types::{GotoDefinitionResponse, Location, LocationLink, Position, Uri};
+use trainz_ast::find::position_in_range;
+use trainz_ast::gs::class::MethodDef;
+use trainz_ast::gs::find::{
+    find_id_at_position, find_local_var_type_in_method, find_postfix_at_position,
+};
+use trainz_ast::gs::program::Program;
+use trainz_ast::gs::{Expr, PostfixOp, Type};
 
 fn parse_uri_or_path(s: &str) -> Option<Uri> {
     if let Ok(uri) = s.parse::<Uri>() {
@@ -69,7 +69,9 @@ fn find_member_type(
             // Check methods
             for m in &cls.methods {
                 if m.name.name == member_name {
-                    if let gs_ast::gs::types::TypeOrVoid::Type(Type::Named(tid)) = &m.return_type {
+                    if let trainz_ast::gs::types::TypeOrVoid::Type(Type::Named(tid)) =
+                        &m.return_type
+                    {
                         return Some(tid.name.clone());
                     }
                 }
@@ -77,7 +79,9 @@ fn find_member_type(
             // Check native methods
             for m in &cls.native_methods {
                 if m.name.name == member_name {
-                    if let gs_ast::gs::types::TypeOrVoid::Type(Type::Named(tid)) = &m.return_type {
+                    if let trainz_ast::gs::types::TypeOrVoid::Type(Type::Named(tid)) =
+                        &m.return_type
+                    {
                         return Some(tid.name.clone());
                     }
                 }
@@ -722,17 +726,17 @@ pub fn gs_goto_definition(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gs_parser::gs::parse;
     use std::path::PathBuf;
     use std::str::FromStr;
     use tower_lsp_server::ls_types::Range;
+    use trainz_parser::gs::parse;
 
     #[test]
     fn test_gs_goto_definition() {
         let _ = env_logger::builder().is_test(true).try_init();
         let source = "class MyClass { void MyMethod() { MyMethod(); } };";
         let pairs = parse(source).unwrap();
-        let program = Arc::new(gs_ast::gs::process::process_gs_ast(pairs, source));
+        let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
         let uri = Uri::from_str("file:///test.gs").unwrap();
         let position = Position {
             line: 0,
@@ -757,7 +761,7 @@ mod tests {
 
         let super_source = "class SuperClass { void MyMethod() {} };";
         let super_pairs = parse(super_source).unwrap();
-        let super_program = Arc::new(gs_ast::gs::process::process_gs_ast(
+        let super_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
             super_pairs,
             super_source,
         ));
@@ -765,7 +769,9 @@ mod tests {
         let sub_source =
             "class SubClass isclass SuperClass { void AnotherMethod() { MyMethod(); } };";
         let sub_pairs = parse(sub_source).unwrap();
-        let sub_program = Arc::new(gs_ast::gs::process::process_gs_ast(sub_pairs, sub_source));
+        let sub_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            sub_pairs, sub_source,
+        ));
 
         let parsed_files = DashMap::new();
         parsed_files.insert(super_uri.to_string(), super_program);
@@ -800,15 +806,21 @@ mod tests {
 
         let gp_source = "class GrandParent { void GPMethod() {} };";
         let gp_pairs = parse(gp_source).unwrap();
-        let gp_program = Arc::new(gs_ast::gs::process::process_gs_ast(gp_pairs, gp_source));
+        let gp_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            gp_pairs, gp_source,
+        ));
 
         let p_source = "class Parent isclass GrandParent { };";
         let p_pairs = parse(p_source).unwrap();
-        let p_program = Arc::new(gs_ast::gs::process::process_gs_ast(p_pairs, p_source));
+        let p_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            p_pairs, p_source,
+        ));
 
         let c_source = "class Child isclass Parent { void ChildMethod() { GPMethod(); } };";
         let c_pairs = parse(c_source).unwrap();
-        let c_program = Arc::new(gs_ast::gs::process::process_gs_ast(c_pairs, c_source));
+        let c_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            c_pairs, c_source,
+        ));
 
         let parsed_files = DashMap::new();
         parsed_files.insert(gp_uri.to_string(), gp_program);
@@ -844,15 +856,21 @@ mod tests {
 
         let gp_source = "class GrandParent { int gp_member; };";
         let gp_pairs = parse(gp_source).unwrap();
-        let gp_program = Arc::new(gs_ast::gs::process::process_gs_ast(gp_pairs, gp_source));
+        let gp_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            gp_pairs, gp_source,
+        ));
 
         let p_source = "class Parent isclass GrandParent { };";
         let p_pairs = parse(p_source).unwrap();
-        let p_program = Arc::new(gs_ast::gs::process::process_gs_ast(p_pairs, p_source));
+        let p_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            p_pairs, p_source,
+        ));
 
         let c_source = "class Child isclass Parent { void ChildMethod() { gp_member = 1; } };";
         let c_pairs = parse(c_source).unwrap();
-        let c_program = Arc::new(gs_ast::gs::process::process_gs_ast(c_pairs, c_source));
+        let c_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            c_pairs, c_source,
+        ));
 
         let parsed_files = DashMap::new();
         parsed_files.insert(gp_uri.to_string(), gp_program);
@@ -884,7 +902,7 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
         let source = "class Base { }; class Derived isclass Base { };";
         let pairs = parse(source).unwrap();
-        let program = Arc::new(gs_ast::gs::process::process_gs_ast(pairs, source));
+        let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
         let uri = Uri::from_str("file:///test.gs").unwrap();
         let position = Position {
             line: 0,
@@ -909,7 +927,7 @@ mod tests {
 
         let super_source = "class SuperClass { void MyMethod() {} };";
         let super_pairs = parse(super_source).unwrap();
-        let super_program = Arc::new(gs_ast::gs::process::process_gs_ast(
+        let super_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
             super_pairs,
             super_source,
         ));
@@ -918,10 +936,12 @@ mod tests {
         // 01234567890123456789012345678901234567890123456789012345678901234567890
         //                                                      ^ 54
         let sub_pairs = parse(sub_source).unwrap();
-        let sub_program = Arc::new(gs_ast::gs::process::process_gs_ast(sub_pairs, sub_source));
+        let sub_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            sub_pairs, sub_source,
+        ));
 
         let sub_program_with_include = Arc::new(Program {
-            includes: vec![gs_ast::gs::Include {
+            includes: vec![trainz_ast::gs::Include {
                 path: Some(std::path::PathBuf::from("/super.gs")),
                 path_range: None,
                 name: "super.gs".to_string(),
@@ -967,21 +987,27 @@ mod tests {
 
         let gp_source = "class GrandParent { void SharedMethod() {} };";
         let gp_pairs = parse(gp_source).unwrap();
-        let gp_program = Arc::new(gs_ast::gs::process::process_gs_ast(gp_pairs, gp_source));
+        let gp_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            gp_pairs, gp_source,
+        ));
 
         let p_source = "class Parent isclass GrandParent { };";
         let p_pairs = parse(p_source).unwrap();
-        let p_program = Arc::new(gs_ast::gs::process::process_gs_ast(p_pairs, p_source));
+        let p_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            p_pairs, p_source,
+        ));
 
         let c_source = "class Child isclass Parent { void SharedMethod() { inherited(); } };";
         // 012345678901234567890123456789012345678901234567890123
         //                                                   ^ 51
         let c_pairs = parse(c_source).unwrap();
-        let c_program = Arc::new(gs_ast::gs::process::process_gs_ast(c_pairs, c_source));
+        let c_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            c_pairs, c_source,
+        ));
 
         // Setup includes
         let c_program_with_include = Arc::new(Program {
-            includes: vec![gs_ast::gs::Include {
+            includes: vec![trainz_ast::gs::Include {
                 path: Some(std::path::PathBuf::from("/p.gs")),
                 path_range: None,
                 name: "p.gs".to_string(),
@@ -991,7 +1017,7 @@ mod tests {
         });
 
         let p_program_with_include = Arc::new(Program {
-            includes: vec![gs_ast::gs::Include {
+            includes: vec![trainz_ast::gs::Include {
                 path: Some(std::path::PathBuf::from("/gp.gs")),
                 path_range: None,
                 name: "gp.gs".to_string(),
@@ -1036,7 +1062,7 @@ mod tests {
         // 0123456789012345678901234567890123456789012345678901234567890
         //                                                   ^ 54
         let pairs = parse(source).unwrap();
-        let program = Arc::new(gs_ast::gs::process::process_gs_ast(pairs, source));
+        let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
         let parsed_files = DashMap::new();
         parsed_files.insert(uri.to_string(), program.clone());
 
@@ -1065,7 +1091,7 @@ mod tests {
         let include_path = "/path/to/Bar.gs";
         let source = format!("include \"{}\"\nclass Foo {{ }};", include_path);
         let pairs = parse(&source).unwrap();
-        let mut program = gs_ast::gs::process::process_gs_ast(pairs, &source);
+        let mut program = trainz_ast::gs::process::process_trainz_ast(pairs, &source);
         println!("Includes count: {}", program.includes.len());
         if !program.includes.is_empty() {
             println!("Include 0 range: {:?}", program.includes[0].range);
@@ -1109,7 +1135,7 @@ mod tests {
             };
         "#;
         let pairs = parse(source).unwrap();
-        let program = Arc::new(gs_ast::gs::process::process_gs_ast(pairs, source));
+        let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
         let uri = Uri::from_str("file:///test.gs").unwrap();
         let position = Position {
             line: 7,
@@ -1145,8 +1171,10 @@ mod tests {
                 }
             };
         "#;
-        let pairs =
-            gs_ast::gs::process::process_gs_ast(gs_parser::gs::parse(source).unwrap(), source);
+        let pairs = trainz_ast::gs::process::process_trainz_ast(
+            trainz_parser::gs::parse(source).unwrap(),
+            source,
+        );
         let program = Arc::new(pairs);
         let uri = Uri::from_str("file:///test.gs").unwrap();
         let parsed_files = DashMap::new();
@@ -1191,8 +1219,10 @@ mod tests {
                 }
             };
         "#;
-        let pairs =
-            gs_ast::gs::process::process_gs_ast(gs_parser::gs::parse(source).unwrap(), source);
+        let pairs = trainz_ast::gs::process::process_trainz_ast(
+            trainz_parser::gs::parse(source).unwrap(),
+            source,
+        );
         let program = Arc::new(pairs);
         let uri = Uri::from_str("file:///test.gs").unwrap();
         let parsed_files = DashMap::new();
@@ -1243,7 +1273,7 @@ mod tests {
             };
         "#;
         let pairs = parse(source).unwrap();
-        let program = Arc::new(gs_ast::gs::process::process_gs_ast(pairs, source));
+        let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
         let uri = Uri::from_str("file:///test.gs").unwrap();
         // "GetAsset().GetConfigSoup().GetNamedSoup("mesh-table");"
         let position = Position {
@@ -1292,7 +1322,7 @@ mod tests {
             };
         "#;
         let pairs = parse(source).unwrap();
-        let program = Arc::new(gs_ast::gs::process::process_gs_ast(pairs, source));
+        let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
         let uri = Uri::from_str("file:///test.gs").unwrap();
         // "GetAsset().GetConfigSoup().GetNamedSoup("mesh-table");"
         let position = Position {
@@ -1334,8 +1364,10 @@ class SignalNSW {
     }
 };
         "#;
-        let pairs =
-            gs_ast::gs::process::process_gs_ast(gs_parser::gs::parse(source).unwrap(), source);
+        let pairs = trainz_ast::gs::process::process_trainz_ast(
+            trainz_parser::gs::parse(source).unwrap(),
+            source,
+        );
         let program = Arc::new(pairs);
         let parsed_files = DashMap::new();
         parsed_files.insert("test://file".to_string(), program.clone());
@@ -1379,8 +1411,10 @@ class SignalNSW {
     }
 };
         "#;
-        let pairs =
-            gs_ast::gs::process::process_gs_ast(gs_parser::gs::parse(source).unwrap(), source);
+        let pairs = trainz_ast::gs::process::process_trainz_ast(
+            trainz_parser::gs::parse(source).unwrap(),
+            source,
+        );
         let program = Arc::new(pairs);
         let parsed_files = DashMap::new();
         let uri = Uri::from_str("test://file").unwrap();
@@ -1429,8 +1463,10 @@ class Test {
     }
 };
         "#;
-        let pairs =
-            gs_ast::gs::process::process_gs_ast(gs_parser::gs::parse(source).unwrap(), source);
+        let pairs = trainz_ast::gs::process::process_trainz_ast(
+            trainz_parser::gs::parse(source).unwrap(),
+            source,
+        );
         let program = Arc::new(pairs);
         let parsed_files = DashMap::new();
         let uri = Uri::from_str("test://file").unwrap();
@@ -1477,8 +1513,10 @@ class SignalNSW isclass BaseClass {
     }
 };
         "#;
-        let pairs =
-            gs_ast::gs::process::process_gs_ast(gs_parser::gs::parse(source).unwrap(), source);
+        let pairs = trainz_ast::gs::process::process_trainz_ast(
+            trainz_parser::gs::parse(source).unwrap(),
+            source,
+        );
         let program = Arc::new(pairs);
         let parsed_files = DashMap::new();
         let uri = Uri::from_str("test://file").unwrap();

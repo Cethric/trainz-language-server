@@ -3,8 +3,8 @@ pub mod grammar;
 
 use error::ParseError;
 use grammar::{AuranConfigSoupParser, Rule};
-use pest::Parser;
 use pest::iterators::Pairs;
+use pest::Parser;
 use shadow_rs::shadow;
 
 shadow!(build);

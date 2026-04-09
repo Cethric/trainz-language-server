@@ -1,7 +1,7 @@
 use crate::gs::Include;
-use gs_parser::gs::grammar::Rule;
-use gs_util::range::pair_to_range;
 use pest::iterators::Pair;
+use trainz_common::range::pair_to_range;
+use trainz_parser::gs::grammar::Rule;
 
 pub fn process_include(include_rule: Pair<Rule>) -> Option<Include> {
     let mut include = Include {

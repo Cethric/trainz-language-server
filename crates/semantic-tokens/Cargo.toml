@@ -1,20 +1,19 @@
 [package]
-name = "gs-semantic-tokens"
+name = "trainz-semantic-tokens"
 version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
 shadow-rs = { workspace = true }
 tower-lsp-server = { workspace = true }
-log = { workspace = true }
 rayon = { workspace = true }
 
-gs-ast = { workspace = true }
-gs-diagnostics = { workspace = true }
+trainz-ast = { workspace = true }
+trainz-soup-validators = { workspace = true }
 
 [build-dependencies]
 shadow-rs = { version = "1.7" }
 
 [dev-dependencies]
-gs-parser = { workspace = true }
+trainz-parser = { workspace = true }
 pest.workspace = true

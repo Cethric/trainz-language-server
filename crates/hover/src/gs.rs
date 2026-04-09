@@ -1,9 +1,9 @@
-use gs_ast::gs::Program;
 use tower_lsp_server::ls_types::Hover;
+use trainz_ast::gs::program::Program;
 
 #[allow(deprecated)]
 #[allow(clippy::type_complexity)]
-pub fn gs_hover(_program: &Program) -> Vec<((u32, u32), (u32, u32), Hover)> {
+pub fn trainz_hover(_program: &Program) -> Vec<((u32, u32), (u32, u32), Hover)> {
     let data: Vec<((u32, u32), (u32, u32), Hover)> = vec![];
 
     data
@@ -12,15 +12,15 @@ pub fn gs_hover(_program: &Program) -> Vec<((u32, u32), (u32, u32), Hover)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gs_ast::gs::process::process_gs_ast;
-    use gs_parser::gs::parse;
+    use trainz_ast::gs::process::process_trainz_ast;
+    use trainz_parser::gs::parse;
 
     #[test]
-    fn test_gs_hover_range() {
+    fn test_trainz_hover_range() {
         let code = "class Test { int x; };";
         let pairs = parse(code).unwrap();
-        let program = process_gs_ast(pairs, code);
-        let results = gs_hover(&program);
+        let program = process_trainz_ast(pairs, code);
+        let results = trainz_hover(&program);
 
         for (_start, _end, hover) in results {
             if let Some(range) = hover.range {

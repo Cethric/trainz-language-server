@@ -1,5 +1,5 @@
 [package]
-name = "gs-common"
+name = "trainz-common"
 version = "0.1.0"
 edition.workspace = true
 build = "build.rs"
@@ -8,6 +8,8 @@ build = "build.rs"
 shadow-rs = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
+pest = { workspace = true }
+tower-lsp-server = { workspace = true }
 
 [build-dependencies]
 shadow-rs = { version = "1.7" }

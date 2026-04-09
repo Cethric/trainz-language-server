@@ -1,7 +1,7 @@
 use crate::gs::{Identifier, Type, TypeOrVoid};
-use gs_parser::gs::grammar::Rule;
-use gs_util::range::pair_to_range;
 use pest::iterators::Pair;
+use trainz_common::range::pair_to_range;
+use trainz_parser::gs::grammar::Rule;
 
 pub fn process_identifier(pair: Pair<Rule>) -> Identifier {
     let name = pair.as_str().to_string();

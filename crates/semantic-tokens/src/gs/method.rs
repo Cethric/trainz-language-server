@@ -1,11 +1,11 @@
 use crate::gs::stmt::collect_stmt_tokens;
 use crate::gs::types::collect_type_tokens;
-use gs_ast::gs::{Identifier, MethodModifier, Param, Stmt};
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
+use trainz_ast::gs::{Identifier, MethodModifier, Param, Stmt};
 
 pub fn collect_method_tokens(
     modifiers: &[(MethodModifier, Range)],
-    return_type: &gs_ast::gs::types::TypeOrVoid,
+    return_type: &trainz_ast::gs::types::TypeOrVoid,
     name: &Identifier,
     params: &[Param],
     body: Option<&[Stmt]>,
@@ -28,8 +28,8 @@ pub fn collect_method_tokens(
     }
 
     match return_type {
-        gs_ast::gs::types::TypeOrVoid::Type(ty) => collect_type_tokens(ty, raw_tokens),
-        gs_ast::gs::types::TypeOrVoid::Void(range) => {
+        trainz_ast::gs::types::TypeOrVoid::Type(ty) => collect_type_tokens(ty, raw_tokens),
+        trainz_ast::gs::types::TypeOrVoid::Void(range) => {
             raw_tokens.push((*range, SemanticTokenType::TYPE, vec![]))
         }
     }

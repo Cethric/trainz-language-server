@@ -1,16 +1,61 @@
 #[cfg(test)]
 mod tests {
-    use crate::gs::gs_symboliser;
-    use gs_ast::gs::process::process_gs_ast;
-    use gs_parser::gs::grammar::{GameScriptParser, Rule};
+    use crate::gs::trainz_symboliser;
     use pest::Parser;
     use tower_lsp_server::ls_types::{SymbolKind, SymbolTag};
+    use trainz_ast::gs::process::process_trainz_ast;
+    use trainz_parser::gs::grammar::{GameScriptParser, Rule};
 
     fn get_symbols(src: &str) -> Vec<tower_lsp_server::ls_types::DocumentSymbol> {
         let pairs = GameScriptParser::parse(Rule::program, src)
             .unwrap_or_else(|e| panic!("Parse failed: {}", e));
-        let program = process_gs_ast(pairs, src);
-        gs_symboliser(&program)
+        let program = process_trainz_ast(pairs, src);
+        trainz_symboliser(&program)
+    }
+
+    #[test]
+    fn test_all_symbols_have_contained_selection_range() {
+        let src = r#"
+            class Test {
+                int field1;
+                void Method1() { }
+            };
+        "#;
+        let symbols = get_symbols(src);
+
+        fn check_symbols(symbols: &[tower_lsp_server::ls_types::DocumentSymbol]) {
+            for symbol in symbols {
+                // Check if selection_range is contained in range
+                let r = symbol.range;
+                let s = symbol.selection_range;
+
+                // Assert start position
+                assert!(
+                    r.start.line < s.start.line
+                        || (r.start.line == s.start.line && r.start.character <= s.start.character),
+                    "Symbol {} selection_range start ({:?}) not in range start ({:?})",
+                    symbol.name,
+                    s.start,
+                    r.start
+                );
+
+                // Assert end position
+                assert!(
+                    r.end.line > s.end.line
+                        || (r.end.line == s.end.line && r.end.character >= s.end.character),
+                    "Symbol {} selection_range end ({:?}) not in range end ({:?})",
+                    symbol.name,
+                    s.end,
+                    r.end
+                );
+
+                if let Some(children) = &symbol.children {
+                    check_symbols(children);
+                }
+            }
+        }
+
+        check_symbols(&symbols);
     }
 
     #[test]

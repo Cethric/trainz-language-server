@@ -1,9 +1,9 @@
-use criterion::{Criterion, criterion_group, criterion_main};
-use gs_lsp::server::GameScriptLanguageServer;
+use criterion::{criterion_group, criterion_main, Criterion};
 use std::path::PathBuf;
 use tokio::runtime::Runtime;
-use tower_lsp_server::LspService;
 use tower_lsp_server::ls_types::ProgressToken;
+use tower_lsp_server::LspService;
+use trainz_lsp::state::GameScriptLanguageServer;
 
 async fn bench_process_soup_file(server: &GameScriptLanguageServer, path: PathBuf, content: &str) {
     let workspace_folders = vec![];

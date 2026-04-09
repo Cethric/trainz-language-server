@@ -1,6 +1,17 @@
 target/
 out/
 node_modules/
+.vscode-test/
 
 .env
 .output.txt
+
+# Release artifacts
+/release-artifacts/
+/final-artifacts/
+*.tar.gz
+*.zip
+
+# IDE and OS files
+.DS_Store
+*.iml

@@ -1,12 +1,12 @@
 use dashmap::DashMap;
-use gs_ast::find::position_in_range;
-use gs_ast::gs::Program;
-use gs_ast::gs::find::find_id_at_position;
-use gs_ast::gs::{Block, Expr, LoopBody, PostfixOp, Stmt, Type, TypeOrVoid};
 use log::trace;
 use rayon::prelude::*;
 use std::sync::Arc;
 use tower_lsp_server::ls_types::{Location, ReferenceParams, Uri};
+use trainz_ast::find::position_in_range;
+use trainz_ast::gs::find::find_id_at_position;
+use trainz_ast::gs::program::Program;
+use trainz_ast::gs::{Block, Expr, LoopBody, PostfixOp, Stmt, Type, TypeOrVoid};
 
 pub fn gs_find_references(
     program: Arc<Program>,
@@ -388,18 +388,18 @@ fn find_references_in_type_or_void(ty: &TypeOrVoid, target: &str, uri: &Uri) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gs_parser::gs::parse;
     use std::path::PathBuf;
     use tower_lsp_server::ls_types::{
         Position, TextDocumentIdentifier, TextDocumentPositionParams,
     };
+    use trainz_parser::gs::parse;
 
     #[test]
     fn test_gs_find_references_class() {
         let _ = env_logger::builder().is_test(true).try_init();
         let source = "class MyClass { }; class Other { MyClass m; };";
         let pairs = parse(source).unwrap();
-        let program = Arc::new(gs_ast::gs::process::process_gs_ast(pairs, source));
+        let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
         let uri = Uri::from_file_path("/test.gs").unwrap();
 
         let parsed_files = DashMap::new();
@@ -435,7 +435,7 @@ mod tests {
         let bar_path = "/path/to/Bar.gs";
         let source = format!("include \"{}\"\nclass Foo {{ }};", bar_path);
         let pairs = parse(&source).unwrap();
-        let mut program = gs_ast::gs::process::process_gs_ast(pairs, &source);
+        let mut program = trainz_ast::gs::process::process_trainz_ast(pairs, &source);
         let path_range = program.includes[0].path_range;
         program.includes[0].path = Some(PathBuf::from(bar_path));
         let program = Arc::new(program);
@@ -472,13 +472,15 @@ mod tests {
         let foo_path = "/path/to/Foo.gs";
         let bar_source = format!("include \"{}\"\nclass Bar {{ }};", foo_path);
         let bar_pairs = parse(&bar_source).unwrap();
-        let mut bar_program = gs_ast::gs::process::process_gs_ast(bar_pairs, &bar_source);
+        let mut bar_program = trainz_ast::gs::process::process_trainz_ast(bar_pairs, &bar_source);
         bar_program.includes[0].path = Some(PathBuf::from(foo_path));
         let bar_program = Arc::new(bar_program);
 
         let foo_source = "class Foo { };";
         let foo_pairs = parse(foo_source).unwrap();
-        let foo_program = Arc::new(gs_ast::gs::process::process_gs_ast(foo_pairs, foo_source));
+        let foo_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            foo_pairs, foo_source,
+        ));
 
         let foo_uri = Uri::from_file_path(foo_path).unwrap();
         let bar_uri = Uri::from_file_path("/bar.gs").unwrap();
@@ -532,19 +534,21 @@ mod tests {
         let target_uri = Uri::from_file_path(target_path).unwrap();
 
         let source1 = format!("include \"{}\"\nclass A {{ }};", target_path);
-        let mut program1 = gs_ast::gs::process::process_gs_ast(parse(&source1).unwrap(), &source1);
+        let mut program1 =
+            trainz_ast::gs::process::process_trainz_ast(parse(&source1).unwrap(), &source1);
         program1.includes[0].path = Some(PathBuf::from(target_path));
         let program1 = Arc::new(program1);
         let uri1 = Uri::from_file_path("/a.gs").unwrap();
 
         let source2 = format!("include \"{}\"\nclass B {{ }};", target_path);
-        let mut program2 = gs_ast::gs::process::process_gs_ast(parse(&source2).unwrap(), &source2);
+        let mut program2 =
+            trainz_ast::gs::process::process_trainz_ast(parse(&source2).unwrap(), &source2);
         program2.includes[0].path = Some(PathBuf::from(target_path));
         let program2 = Arc::new(program2);
         let uri2 = Uri::from_file_path("/b.gs").unwrap();
 
         let target_source = "class Target {};";
-        let target_program = Arc::new(gs_ast::gs::process::process_gs_ast(
+        let target_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
             parse(target_source).unwrap(),
             target_source,
         ));
@@ -599,20 +603,20 @@ mod tests {
         // A includes B
         let a_source = format!("include \"{}\"", b_path);
         let mut a_program =
-            gs_ast::gs::process::process_gs_ast(parse(&a_source).unwrap(), &a_source);
+            trainz_ast::gs::process::process_trainz_ast(parse(&a_source).unwrap(), &a_source);
         a_program.includes[0].path = Some(PathBuf::from(b_path));
         let a_program = Arc::new(a_program);
 
         // B includes C and has a class
         let b_source = format!("include \"{}\"\nclass B {{}};", c_path);
         let mut b_program =
-            gs_ast::gs::process::process_gs_ast(parse(&b_source).unwrap(), &b_source);
+            trainz_ast::gs::process::process_trainz_ast(parse(&b_source).unwrap(), &b_source);
         b_program.includes[0].path = Some(PathBuf::from(c_path));
         let b_program = Arc::new(b_program);
 
         // C
         let c_source = "class C {};";
-        let c_program = Arc::new(gs_ast::gs::process::process_gs_ast(
+        let c_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
             parse(c_source).unwrap(),
             c_source,
         ));

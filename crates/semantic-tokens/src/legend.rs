@@ -1,18 +1,23 @@
 use tower_lsp_server::ls_types::{SemanticTokenModifier, SemanticTokenType};
 
+pub fn get_token_type(target: SemanticTokenType) -> u32 {
+    let (types, _) = get_legend();
+    types.iter().position(|t| *t == target).unwrap() as u32
+}
+
 pub fn get_legend() -> (Vec<SemanticTokenType>, Vec<SemanticTokenModifier>) {
     let token_types = vec![
-        SemanticTokenType::KEYWORD,   // 0
-        SemanticTokenType::CLASS,     // 1
-        SemanticTokenType::STRING,    // 2
-        SemanticTokenType::TYPE,      // 3
-        SemanticTokenType::METHOD,    // 4
-        SemanticTokenType::OPERATOR,  // 5
+        SemanticTokenType::CLASS,     // 0
+        SemanticTokenType::METHOD,    // 1
+        SemanticTokenType::PROPERTY,  // 2
+        SemanticTokenType::PARAMETER, // 3
+        SemanticTokenType::VARIABLE,  // 4
+        SemanticTokenType::STRING,    // 5
         SemanticTokenType::NUMBER,    // 6
-        SemanticTokenType::PROPERTY,  // 7
-        SemanticTokenType::PARAMETER, // 8
-        SemanticTokenType::MODIFIER,  // 9
-        SemanticTokenType::VARIABLE,  // 10
+        SemanticTokenType::KEYWORD,   // 7
+        SemanticTokenType::OPERATOR,  // 8
+        SemanticTokenType::TYPE,      // 9
+        SemanticTokenType::MODIFIER,  // 10
         SemanticTokenType::COMMENT,   // 11
     ];
 

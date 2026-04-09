@@ -1,6 +1,6 @@
-use gs_ast::find::HasRange;
-use gs_ast::gs::types::Type;
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
+use trainz_ast::find::HasRange;
+use trainz_ast::gs::types::Type;
 
 pub fn collect_type_tokens(
     ty: &Type,

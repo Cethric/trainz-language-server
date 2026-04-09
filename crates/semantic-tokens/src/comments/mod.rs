@@ -1,7 +1,7 @@
 pub mod tests;
 
-use gs_ast::comments::{Comment, CommentProgram};
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
+use trainz_ast::comments::{Comment, CommentProgram};
 
 pub fn comments_semantic_tokens(
     program: &CommentProgram,

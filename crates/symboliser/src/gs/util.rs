@@ -1,5 +1,5 @@
-use gs_ast::Range;
-use gs_ast::gs::{ClassModifier, MethodModifier};
+use trainz_ast::gs::{ClassModifier, MethodModifier};
+use trainz_ast::Range;
 
 pub(crate) fn is_method_obsolete(modifiers: &Vec<(MethodModifier, Range)>) -> bool {
     modifiers

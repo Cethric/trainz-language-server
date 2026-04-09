@@ -1,0 +1,165 @@
+{
+  "branches": [
+    {
+      "name": "main",
+      "channel": false
+    },
+    {
+      "name": "develop",
+      "channel": "next",
+      "prerelease": true
+    }
+  ],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits",
+        "releaseRules": [
+          {
+            "type": "feat",
+            "release": "minor"
+          },
+          {
+            "type": "fix",
+            "release": "patch"
+          },
+          {
+            "type": "docs",
+            "release": false
+          },
+          {
+            "type": "style",
+            "release": false
+          },
+          {
+            "type": "refactor",
+            "release": false
+          },
+          {
+            "type": "perf",
+            "release": "patch"
+          },
+          {
+            "type": "test",
+            "release": false
+          },
+          {
+            "type": "ci",
+            "release": false
+          }
+        ],
+        "parserOpts": {
+          "noteKeywords": [
+            "BREAKING CHANGE",
+            "BREAKING CHANGES"
+          ]
+        }
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits",
+        "presetConfig": {
+          "types": [
+            {
+              "type": "feat",
+              "section": "Features",
+              "hidden": false
+            },
+            {
+              "type": "fix",
+              "section": "Bug Fixes",
+              "hidden": false
+            },
+            {
+              "type": "perf",
+              "section": "Performance Improvements",
+              "hidden": false
+            },
+            {
+              "type": "revert",
+              "section": "Reverts",
+              "hidden": false
+            },
+            {
+              "type": "docs",
+              "section": "Documentation",
+              "hidden": true
+            },
+            {
+              "type": "style",
+              "section": "Code Style",
+              "hidden": true
+            },
+            {
+              "type": "refactor",
+              "section": "Refactoring",
+              "hidden": true
+            },
+            {
+              "type": "test",
+              "section": "Tests",
+              "hidden": true
+            },
+            {
+              "type": "ci",
+              "section": "CI/CD",
+              "hidden": true
+            }
+          ]
+        }
+      }
+    ],
+    "@semantic-release/changelog",
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "node scripts/update-cargo-versions.js ${nextRelease.version}"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "successComment": "🎉 This issue has been resolved in version ${nextRelease.version}\n\n${nextRelease.notes}",
+        "failComment": false,
+        "failTitle": "The automated release failed",
+        "labels": [
+          "type: release"
+        ],
+        "releasedLabels": [
+          "type: released"
+        ],
+        "assignees": [],
+        "assets": [
+          {
+            "path": "release-artifacts/trainz-lsp-linux-x86_64.tar.gz",
+            "name": "trainz-lsp-${nextRelease.version}-linux-x86_64.tar.gz",
+            "label": "LSP Binary (Linux x86_64)"
+          },
+          {
+            "path": "release-artifacts/trainz-lsp-vscode-*.tar.gz",
+            "label": "VSCode Extension"
+          },
+          {
+            "path": "release-artifacts/trainz-idea-plugin.tar.gz",
+            "label": "JetBrains Plugin"
+          }
+        ]
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "package.json",
+          "CHANGELOG.md",
+          "Cargo.toml",
+          "crates/*/Cargo.toml"
+        ],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ]
+  ]
+}

@@ -1,7 +1,7 @@
 [package]
-name = "gs-lsp"
+name = "trainz-lsp"
 version = "0.1.0"
-edition = { workspace = true }
+edition.workspace = true
 build = "build.rs"
 
 [dependencies]
@@ -9,39 +9,29 @@ shadow-rs = { workspace = true }
 tower-lsp-server = { workspace = true }
 
 tokio = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-thiserror = { workspace = true }
-anyhow = { workspace = true }
 log = { workspace = true }
-async-trait = { workspace = true }
 rayon = { workspace = true }
 
-pest = { workspace = true }
-async-fs = { version = "2.2", features = [] }
-regex = { version = "1.12", features = [] }
-dashmap = { version = "6.1", features = [] }
+dashmap = { workspace = true }
 async-recursion = { version = "1.1", features = [] }
-futures = { version = "0.3", features = [] }
 
 clap = { workspace = true }
-clio = { workspace = true }
 clap-verbosity-flag = { workspace = true }
 
-gs-ast = { workspace = true }
-gs-parser = { workspace = true }
-gs-folding = { workspace = true }
-gs-common = { workspace = true }
-gs-diagnostics = { workspace = true }
-gs-semantic-tokens = { workspace = true }
-gs-symboliser = { workspace = true }
-gs-completions = { workspace = true }
-gs-definition = { workspace = true }
-gs-hover = { path = "../hover" }
+trainz-ast = { workspace = true }
+trainz-parser = { workspace = true }
+trainz-folding = { workspace = true }
+trainz-common = { workspace = true }
+trainz-diagnostics = { workspace = true }
+trainz-soup-validators = { workspace = true }
+trainz-semantic-tokens = { workspace = true }
+trainz-symboliser = { workspace = true }
+trainz-completions = { workspace = true }
+trainz-definition = { workspace = true }
+trainz-hover = { workspace = true }
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["async_tokio"] }
-tokio-test = { version = "0.4", features = [] }
+criterion = { workspace = true }
 
 [[bench]]
 name = "process_gs_file"

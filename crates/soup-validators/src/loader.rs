@@ -1,17 +1,16 @@
-use log::error;
+use log::{debug, error, trace, warn};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use trainz_ast::soup::process::process_soup_ast;
 use trainz_ast::soup::value::{NumericValue, Value};
+use trainz_ast::soup::{KeyValuePair, Soup};
 use trainz_parser::soup::parse_soup;
 
-use crate::models::{ContainerRule, ContainerValidator, SoupValidator, Validators};
+use crate::models::{ArrayElementType, ContainerRule, ContainerValidator, Validators};
+use crate::Validation;
 
-fn parse_rule(
-    key: String,
-    rule_details: Vec<trainz_ast::soup::key_value_pair::KeyValuePair>,
-) -> ContainerRule {
+fn parse_rule(key: String, rule_details: Vec<KeyValuePair>) -> ContainerRule {
     let mut type_name = None;
     let mut kind = None;
     let mut default_value = None;
@@ -54,14 +53,12 @@ fn parse_rule(
                 }
             }
             "validation" => {
-                rule_validation = match detail.value {
-                    Some(Value::String(s, _)) => Some(s),
-                    Some(Value::Variable(s, _)) => Some(s),
-                    Some(Value::Container(details, _)) => {
-                        // If validation is a container, use the first key
-                        details.first().map(|d| d.key.clone())
-                    }
-                    _ => None,
+                if let Some(Value::Container(details, _, _)) = detail.value {
+                    rule_validation = parse_validation(&details);
+                } else if let Some(Value::String(s, _)) | Some(Value::Variable(s, _)) = detail.value {
+                    rule_validation = Some(vec![Validation::Named(s)]);
+                } else {
+                    warn!("Invalid validation value: {:?}", detail.value);
                 }
             }
             "compulsory" => {
@@ -140,20 +137,274 @@ fn parse_rule(
     }
 }
 
+fn parse_simple_validator(validator_soup: Soup) -> HashMap<String, Option<String>> {
+    let mut allowed_values: HashMap<String, Option<String>> = HashMap::new();
+    for kv in validator_soup.key_value_pairs {
+        let description = match kv.value {
+            Some(Value::String(s, _)) => Some(s),
+            Some(Value::Variable(s, _)) => Some(s),
+            val => {
+                trace!("Unexpected value type: {:?}", val);
+                None
+            }
+        };
+        allowed_values.insert(kv.key.clone(), description);
+    }
+
+    allowed_values
+}
+
+fn parse_numeric_as_bool(numeric_value: &NumericValue) -> bool {
+    match numeric_value {
+        NumericValue::Float(v) => *v > 0f64,
+        NumericValue::Hex(v) => *v > 0,
+        NumericValue::Int(v) => *v > 0,
+    }
+}
+
+fn parse_validation(validators: &Vec<KeyValuePair>) -> Option<Vec<Validation>> {
+    let mut validations = vec![];
+
+    for validator in validators {
+        if validator.key.eq_ignore_ascii_case("range") {
+            if let Some(Value::Container(details, _, _)) = &validator.value {
+                let mut min: Option<NumericValue> = None;
+                let mut max: Option<NumericValue> = None;
+                for range in details {
+                    if range.key.eq_ignore_ascii_case("min")
+                        && let Some(Value::Numeric(min_value, _)) = &range.value
+                    {
+                        min = Some(min_value.clone());
+                    } else if range.key.eq_ignore_ascii_case("max")
+                        && let Some(Value::Numeric(max_value, _)) = &range.value
+                    {
+                        max = Some(max_value.clone());
+                    }
+                }
+
+                if let Some(min_value) = min
+                    && let Some(max_value) = max
+                {
+                    if let NumericValue::Float(float_min) = min_value
+                        && let NumericValue::Float(float_max) = max_value
+                    {
+                        validations.push(Validation::FloatRange(float_min, float_max));
+                        continue;
+                    } else if let NumericValue::Hex(float_min) = min_value
+                        && let NumericValue::Hex(float_max) = max_value
+                    {
+                        validations.push(Validation::HexRange(float_min, float_max));
+                        continue;
+                    } else if let NumericValue::Int(float_min) = min_value
+                        && let NumericValue::Int(float_max) = max_value
+                    {
+                        validations.push(Validation::IntRange(float_min, float_max));
+                        continue;
+                    }
+                }
+            }
+            warn!("Invalid range validator: {:?}", validator.value);
+            continue;
+        } else if validator.key.eq_ignore_ascii_case("NotOwnParent") {
+            warn!(
+                "NotOwnParent validator not yet implemented {} {:?}",
+                validator.key, validator.value
+            );
+            validations.push(Validation::NotOwnParent)
+        } else if validator.key.eq_ignore_ascii_case("NeedCollateMeshes") {
+            warn!(
+                "NeedCollateMeshes validator not yet implemented {} {:?}",
+                validator.key, validator.value
+            );
+            validations.push(Validation::NeedCollateMeshes(vec![]))
+        } else {
+            validations.push(Validation::Named(validator.key.clone()));
+            continue;
+        }
+    }
+
+    Some(validations)
+}
+
+fn process_file(
+    filename: &str,
+    validator_content: &str,
+) -> Option<(
+    HashMap<String, HashMap<String, Option<String>>>,
+    Vec<ContainerValidator>,
+)> {
+    if let Ok(pairs) = parse_soup(&validator_content) {
+        let validator_soup = process_soup_ast(pairs, &validator_content);
+
+        // Look for existing container name or create new
+        let is_container_style = validator_soup.key_value_pairs.iter().any(|kv| {
+            matches!(kv.value, Some(Value::Container(_, _, _)))
+        });
+
+        let mut simple_validators: HashMap<String, HashMap<String, Option<String>>> =
+            HashMap::new();
+        let mut container_validators = vec![];
+
+        if is_container_style {
+            for kv in validator_soup.key_value_pairs {
+                if let Some(Value::Container(container_kv, _, _)) = kv.value {
+                    let mut rules = vec![];
+                    let mut array_element: Option<ArrayElementType> = None;
+                    let mut validation = None;
+                    let mut inherit = vec![];
+                    let mut top_level = false;
+                    let mut subpossibilities = vec![];
+                    let mut tag_array = None;
+                    let mut allow_any_key = false;
+
+                    for rule_kv in container_kv {
+                        match rule_kv.value {
+                            Some(Value::Container(rule_details, _, _)) => {
+                                if rule_kv.key.eq_ignore_ascii_case("array-element") {
+                                    let mut types = Vec::new();
+                                    for detail in rule_details {
+                                        if detail.key.starts_with("container-type") {
+                                            if let Some(val) = match detail.value {
+                                                Some(Value::String(s, _))
+                                                | Some(Value::Variable(s, _)) => Some(s),
+                                                _ => None,
+                                            } {
+                                                types.push((detail.key.clone(), val));
+                                            }
+                                        }
+                                    }
+                                    // Sort by the numeric suffix of container-typeN
+                                    types.sort_by_key(|(k, _)| {
+                                        k.strip_prefix("container-type")
+                                            .and_then(|s| s.parse::<usize>().ok())
+                                            .unwrap_or(0)
+                                    });
+
+                                    let type_values: Vec<String> =
+                                        types.into_iter().map(|(_, v)| v).collect();
+                                    if type_values.len() == 1 {
+                                        array_element =
+                                            Some(ArrayElementType::Array(type_values[0].clone()));
+                                    } else if type_values.len() > 1 {
+                                        array_element = Some(ArrayElementType::Tuple(type_values));
+                                    }
+                                    continue;
+                                } else if rule_kv.key.eq_ignore_ascii_case("validation") {
+                                    validation = parse_validation(&rule_details);
+                                    continue;
+                                } else if rule_kv.key.eq_ignore_ascii_case("inherit") {
+                                    for detail in rule_details {
+                                        inherit.push(detail.key);
+                                    }
+                                    continue;
+                                } else if rule_kv.key.eq_ignore_ascii_case("subpossibilities") {
+                                    for sub_kv in rule_details {
+                                        if let Some(Value::Container(sub_details, _, _)) =
+                                            sub_kv.value
+                                        {
+                                            subpossibilities
+                                                .push(parse_rule(sub_kv.key, sub_details));
+                                        }
+                                    }
+                                    continue;
+                                } else if rule_kv.key.eq_ignore_ascii_case("tagarray")
+                                    || rule_kv.key.eq_ignore_ascii_case("tag-array")
+                                {
+                                    tag_array = Some(parse_rule(kv.key.clone(), rule_details));
+                                    continue;
+                                } else {
+                                    rules.push(parse_rule(rule_kv.key.clone(), rule_details));
+                                }
+                            }
+                            Some(Value::String(s, _)) | Some(Value::Variable(s, _)) => {
+                                // Handle top-level keys in container definition
+                                let key_lower = rule_kv.key.to_lowercase();
+                                match key_lower.as_str() {
+                                    "kind" => { /* handle container kind if needed */ }
+                                    "top-level" => {
+                                        top_level = s == "1" || s == "true" || s == "container";
+                                    }
+                                    "inherit" => {
+                                        inherit.push(s);
+                                    }
+                                    "subpossibilities" | "array-element" | "tagarray"
+                                    | "uniquenames" | "allow-any-key" => {
+                                        // Already handled or special metadata
+                                    }
+                                    _ => {
+                                        // It's a simple rule override (e.g., author "string")
+                                        rules.push(ContainerRule {
+                                            key: rule_kv.key.clone(),
+                                            type_name: Some(s),
+                                            kind: None,
+                                            default_value: None,
+                                            description: None,
+                                            validation: None,
+                                            compulsory: None,
+                                            filter: None,
+                                            disabled: None,
+                                            obsolete_tag: None,
+                                            array_element: None,
+                                        });
+                                    }
+                                }
+                            }
+                            Some(Value::Numeric(n, _)) => {
+                                let key_lower = rule_kv.key.to_lowercase();
+                                match key_lower.as_str() {
+                                    "top-level" => top_level = parse_numeric_as_bool(&n),
+                                    "allow-any-key" => allow_any_key = parse_numeric_as_bool(&n),
+                                    "compulsory" => {
+                                        // parsed as a rule at container level? usually it's inside rule_details
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            Some(Value::Array(v, _)) => match rule_kv.key.to_lowercase().as_str() {
+                                "top-level" => {
+                                    if let Some(numeric_value) = v.first() {
+                                        top_level = parse_numeric_as_bool(numeric_value);
+                                    }
+                                }
+                                _ => {}
+                            },
+                            _ => {}
+                        }
+                    }
+                    container_validators.push(ContainerValidator {
+                        container_name: kv.key.clone(),
+                        rules,
+                        array_element,
+                        validation,
+                        inherit,
+                        top_level,
+                        sub_possibilities: subpossibilities,
+                        tag_array,
+                        allow_any_key,
+                    });
+                } else {
+                    warn!("Did not parse validator {:?}", kv)
+                }
+            }
+        } else {
+            simple_validators.insert(filename.to_string(), parse_simple_validator(validator_soup));
+        }
+
+        Some((simple_validators, container_validators))
+    } else {
+        None
+    }
+}
+
 pub fn load_validators(validation_path: &Path) -> Validators {
-    let mut simple_validators = vec![];
+    let mut simple_validators: HashMap<String, HashMap<String, Option<String>>> = HashMap::new();
     let mut container_validators = vec![];
-    let mut category_classes = HashMap::new();
-    let mut category_regions = HashMap::new();
-    let mut category_eras = HashMap::new();
 
     if !validation_path.exists() || !validation_path.is_dir() {
         return Validators {
             simple: simple_validators,
             containers: container_validators,
-            category_classes,
-            category_regions,
-            category_eras,
+            container_map: HashMap::new(),
         };
     }
 
@@ -164,9 +415,7 @@ pub fn load_validators(validation_path: &Path) -> Validators {
             return Validators {
                 simple: simple_validators,
                 containers: container_validators,
-                category_classes,
-                category_regions,
-                category_eras,
+                container_map: HashMap::new(),
             };
         }
     };
@@ -175,233 +424,33 @@ pub fn load_validators(validation_path: &Path) -> Validators {
         let path = entry.path();
         if path.is_file() {
             let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-            let full_filename = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
             if filename.is_empty() {
                 continue;
             }
 
             if let Ok(validator_content) = fs::read_to_string(&path) {
-                if let Ok(pairs) = parse_soup(&validator_content) {
-                    let validator_soup =
-                        process_soup_ast(pairs, &validator_content, &path, &vec![], &vec![]);
-
-                    // Look for existing container name or create new
-                    let filename_lower = filename.to_lowercase();
-                    let full_filename_lower = full_filename.to_lowercase();
-                    let is_container_style = match filename_lower.as_str() {
-                        "container" | "effect-layer" | "inheritance" | "kind" | "my_container" => {
-                            true
-                        }
-                        _ => false,
-                    };
-
-                    if is_container_style {
-                        for kv in validator_soup.key_value_pairs {
-                            if let Some(Value::Container(container_kv, _)) = kv.value {
-                                let mut rules = vec![];
-                                let mut array_element = None;
-                                let mut validation = None;
-                                let mut inherit = vec![];
-                                let mut top_level = false;
-                                let mut subpossibilities = vec![];
-                                let mut tag_array = false;
-
-                                for rule_kv in container_kv {
-                                    match rule_kv.value {
-                                        Some(Value::Container(rule_details, _)) => {
-                                            if rule_kv.key.eq_ignore_ascii_case("array-element") {
-                                                for detail in rule_details {
-                                                    if detail.key == "container-type0" {
-                                                        array_element = match detail.value {
-                                                            Some(Value::String(s, _)) => Some(s),
-                                                            Some(Value::Variable(s, _)) => Some(s),
-                                                            _ => None,
-                                                        };
-                                                    }
-                                                }
-                                                continue;
-                                            }
-                                            if rule_kv.key.eq_ignore_ascii_case("validation") {
-                                                // Handle validation rule for the container itself
-                                                for detail in rule_details {
-                                                    validation = Some(detail.key.clone()); // Usually just a key name
-                                                    if detail.key.eq_ignore_ascii_case("TagArray")
-                                                        || detail
-                                                            .key
-                                                            .eq_ignore_ascii_case("tagarray")
-                                                        || detail
-                                                            .key
-                                                            .eq_ignore_ascii_case("tag-array")
-                                                    {
-                                                        tag_array = true;
-                                                    }
-                                                }
-                                                continue;
-                                            }
-                                            if rule_kv.key.eq_ignore_ascii_case("inherit") {
-                                                for detail in rule_details {
-                                                    inherit.push(detail.key);
-                                                }
-                                                continue;
-                                            }
-                                            if rule_kv.key.eq_ignore_ascii_case("subpossibilities")
-                                            {
-                                                for sub_kv in rule_details {
-                                                    if let Some(Value::Container(sub_details, _)) =
-                                                        sub_kv.value
-                                                    {
-                                                        subpossibilities.push(parse_rule(
-                                                            sub_kv.key,
-                                                            sub_details,
-                                                        ));
-                                                    }
-                                                }
-                                                continue;
-                                            }
-
-                                            rules.push(parse_rule(rule_kv.key, rule_details));
-                                        }
-                                        Some(Value::String(s, _)) | Some(Value::Variable(s, _)) => {
-                                            // Handle top-level keys in container definition
-                                            let key_lower = rule_kv.key.to_lowercase();
-                                            match key_lower.as_str() {
-                                                "kind" => { /* handle container kind if needed */ }
-                                                "top-level" => {
-                                                    top_level =
-                                                        s == "1" || s == "true" || s == "container";
-                                                }
-                                                "validation" => {
-                                                    validation = Some(s.clone());
-                                                    if s.eq_ignore_ascii_case("TagArray") {
-                                                        tag_array = true;
-                                                    }
-                                                }
-                                                "inherit" => {
-                                                    inherit.push(s);
-                                                }
-                                                "subpossibilities" | "array-element"
-                                                | "tagarray" | "uniquenames" => {
-                                                    // Already handled or special metadata
-                                                }
-                                                _ => {
-                                                    // It's a simple rule override (e.g., author "string")
-                                                    rules.push(ContainerRule {
-                                                        key: rule_kv.key.clone(),
-                                                        type_name: Some(s),
-                                                        kind: None,
-                                                        default_value: None,
-                                                        description: None,
-                                                        validation: None,
-                                                        compulsory: None,
-                                                        filter: None,
-                                                        disabled: None,
-                                                        obsolete_tag: None,
-                                                        array_element: None,
-                                                    });
-                                                }
-                                            }
-                                        }
-                                        Some(Value::Numeric(n, _)) => {
-                                            let key_lower = rule_kv.key.to_lowercase();
-                                            match key_lower.as_str() {
-                                                "top-level" => {
-                                                    top_level = match n {
-                                                        NumericValue::Int(val) => val == 1,
-                                                        NumericValue::Float(val) => {
-                                                            (val - 1.0).abs() < 1e-9
-                                                        }
-                                                        _ => false,
-                                                    };
-                                                }
-                                                "compulsory" => {
-                                                    // parsed as a rule at container level? usually it's inside rule_details
-                                                }
-                                                _ => {}
-                                            }
-                                        }
-                                        Some(Value::Array(v, _)) => {
-                                            match rule_kv.key.to_lowercase().as_str() {
-                                                "top-level" => {
-                                                    if let Some(NumericValue::Int(n)) = v.first() {
-                                                        top_level = *n == 1;
-                                                    } else if let Some(NumericValue::Float(n)) =
-                                                        v.first()
-                                                    {
-                                                        top_level = (*n - 1.0).abs() < 1e-9;
-                                                    }
-                                                }
-                                                _ => {}
-                                            }
-                                        }
-                                        _ => {}
-                                    }
-                                }
-                                container_validators.push(ContainerValidator {
-                                    container_name: kv.key.clone(),
-                                    rules,
-                                    array_element,
-                                    validation,
-                                    inherit,
-                                    top_level,
-                                    subpossibilities,
-                                    tag_array,
-                                });
-                            }
-                        }
-                    } else if full_filename_lower == "category-class.txt" {
-                        for kv in validator_soup.key_value_pairs {
-                            let description = match kv.value {
-                                Some(Value::String(s, _)) => s,
-                                Some(Value::Variable(s, _)) => s,
-                                _ => String::new(),
-                            };
-                            category_classes.insert(kv.key.clone(), description);
-                        }
-                    } else if full_filename_lower == "category-region.txt" {
-                        for kv in validator_soup.key_value_pairs {
-                            let description = match kv.value {
-                                Some(Value::String(s, _)) => s,
-                                Some(Value::Variable(s, _)) => s,
-                                _ => String::new(),
-                            };
-                            category_regions.insert(kv.key.clone(), description);
-                        }
-                    } else if full_filename_lower == "category-era.txt" {
-                        for kv in validator_soup.key_value_pairs {
-                            let description = match kv.value {
-                                Some(Value::String(s, _)) => s,
-                                Some(Value::Variable(s, _)) => s,
-                                _ => String::new(),
-                            };
-                            category_eras.insert(kv.key.clone(), description);
-                        }
-                    } else {
-                        let mut allowed_values = HashMap::new();
-                        for kv in validator_soup.key_value_pairs {
-                            let description = match kv.value {
-                                Some(Value::String(s, _)) => s,
-                                Some(Value::Variable(s, _)) => s,
-                                _ => String::new(),
-                            };
-                            allowed_values.insert(kv.key.clone(), description);
-                        }
-
-                        simple_validators.push(SoupValidator {
-                            key_to_check: filename.to_string(),
-                            allowed_values,
-                        });
-                    }
+                if let Some((parsed_simple_validators, parsed_container_validators)) =
+                    process_file(filename, &validator_content)
+                {
+                    simple_validators.extend(parsed_simple_validators);
+                    container_validators.extend(parsed_container_validators);
                 }
             }
         }
     }
 
+    let trainz_build = include_str!("custom-validators/trainz-build.txt");
+    if let Some((parsed_simple_validators, parsed_container_validators)) =
+        process_file("trainz-build", &trainz_build)
+    {
+        simple_validators.extend(parsed_simple_validators);
+        container_validators.extend(parsed_container_validators);
+    }
+
     let mut validators = Validators {
         simple: simple_validators,
         containers: container_validators,
-        category_classes,
-        category_regions,
-        category_eras,
+        container_map: HashMap::new(),
     };
 
     // Perform inheritance merging
@@ -426,7 +475,7 @@ pub fn load_validators(validation_path: &Path) -> Validators {
                                 merged_rules.push(rule.clone());
                             }
                         }
-                        for sub in &parent.subpossibilities {
+                        for sub in &parent.sub_possibilities {
                             if !merged_subpossibilities
                                 .iter()
                                 .any(|r: &ContainerRule| r.key.eq_ignore_ascii_case(&sub.key))
@@ -450,7 +499,7 @@ pub fn load_validators(validation_path: &Path) -> Validators {
                     merged_rules.push(rule.clone());
                 }
             }
-            for sub in &container.subpossibilities {
+            for sub in &container.sub_possibilities {
                 if let Some(idx) = merged_subpossibilities
                     .iter()
                     .position(|r| r.key.eq_ignore_ascii_case(&sub.key))
@@ -462,7 +511,7 @@ pub fn load_validators(validation_path: &Path) -> Validators {
             }
 
             container.rules = merged_rules;
-            container.subpossibilities = merged_subpossibilities;
+            container.sub_possibilities = merged_subpossibilities;
         }
         merged_containers.push(container);
     }
@@ -492,13 +541,13 @@ pub fn load_validators(validation_path: &Path) -> Validators {
                             rule_added = true;
                         }
                     }
-                    for sub in &parent.subpossibilities {
+                    for sub in &parent.sub_possibilities {
                         if !container_to_update
-                            .subpossibilities
+                            .sub_possibilities
                             .iter()
                             .any(|r| r.key.eq_ignore_ascii_case(&sub.key))
                         {
-                            container_to_update.subpossibilities.push(sub.clone());
+                            container_to_update.sub_possibilities.push(sub.clone());
                             rule_added = true;
                         }
                     }
@@ -510,6 +559,19 @@ pub fn load_validators(validation_path: &Path) -> Validators {
             }
         }
     }
+
+    // Populate container_map after inheritance merging
+    validators.container_map = validators
+        .containers
+        .iter()
+        .map(|c| (c.container_name.to_ascii_lowercase(), c.clone()))
+        .collect();
+
+    debug!("Loaded {} simple validators", validators.simple.len());
+    debug!(
+        "Loaded {} container validators",
+        validators.containers.len()
+    );
 
     validators
 }

@@ -3,10 +3,10 @@ use crate::gs::{
     BitwiseOp, ComparisonOp, EqualityOp, Expr, Literal, MathOp, PostfixOp, StringLiteral,
     UnaryPostfixOp, UnaryPrefixOp,
 };
-use gs_parser::gs::grammar::Rule;
-use gs_util::range::pair_to_range;
 use log::trace;
 use pest::iterators::Pair;
+use trainz_common::range::pair_to_range;
+use trainz_parser::gs::grammar::Rule;
 
 pub fn process_expr(pair: Pair<Rule>) -> Expr {
     let range = pair_to_range(&pair);

@@ -1,0 +1,41 @@
+; https://online.ts2009.com/mediaWiki/index.php/%22Trainz-build%22_number
+1.3 Trainz SP3
+1.5 Ultimate Trainz Collection
+1.6 Ultimate Trainz Collection SP1
+2.0 TRS2004
+2.1 TRS2004 SP1
+2.2 TRS2004 SP2 - Passenger Pack
+2.3 TRS2004 SP3
+2.4 TRS2004 SP4
+2.5 TRS2006
+2.6 TRS2006 SP1
+2.7 Trainz Classics 1&2
+2.8 Trainz Classics 3
+2.9 TS2009
+3.0 TS2009 SP1
+3.1 TS2009 SP2 / TS2009 SP3
+3.2 TS2010 / TS2010 SP1
+3.3 TS2010 SP2 / TS2010 SP3 / TS2009 SP4
+3.4 TS2010 SP4
+3.5 TS12
+3.6 TS12 and Trainz Simulator Mac
+3.7 TS12 SP1
+3.8 Trainz Simulator 2 (Mac)
+3.9 Trainz A New Era: Community Edition 1.0
+4.0 Trainz A New Era: Community Edition 1.1
+4.1 Trainz A New Era: Community Edition 1.2
+4.2 Trainz A New Era
+4.3 Trainz A New Era SP1
+4.4 Trainz Model Railways TMR2017
+4.5 Trainz A New Era SP2 / SP3
+4.6 TRS19
+4.7 TRS19 SP2
+4.8 TRS19 SP3
+4.9 TRS19 SP4
+5.0 TRS19 SP5
+5.1 TRS22 / Trainz Plus
+5.2 TRS22 SP1 / Trainz Plus
+5.3 TRS22 SP2 / Trainz Plus
+5.4 TRS22 SP3 / Trainz Plus / Trainz Model Railroader Edition 2.1
+5.5 TRS22 SP4 / Trainz Plus
+5.6 TRS22 SP5 & SP6 / Trainz Plus

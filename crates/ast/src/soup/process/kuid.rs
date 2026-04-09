@@ -1,7 +1,7 @@
 use crate::soup::Kuid;
-use gs_parser::soup::grammar::Rule;
-use gs_util::range::pair_to_range;
 use pest::iterators::Pair;
+use trainz_common::range::pair_to_range;
+use trainz_parser::soup::grammar::Rule;
 
 pub fn process_kuid(pair: Pair<Rule>) -> Kuid {
     let range = pair_to_range(&pair);

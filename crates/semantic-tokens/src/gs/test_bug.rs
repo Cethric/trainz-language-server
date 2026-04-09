@@ -1,7 +1,7 @@
 use crate::gs::expr::collect_expr_tokens;
-use gs_ast::gs::Expr;
-use gs_parser::gs::parse;
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
+use trainz_ast::gs::Expr;
+use trainz_parser::gs::parse;
 
 #[test]
 fn test_str_tokens() {

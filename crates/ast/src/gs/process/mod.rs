@@ -1,7 +1,8 @@
-use crate::gs::{ClassDef, Include, Program};
-use gs_parser::gs::grammar::Rule;
-use gs_util::range::pos_to_range;
+use crate::gs::program::Program;
+use crate::gs::{ClassDef, Include};
 use pest::iterators::Pairs;
+use trainz_common::range::pos_to_range;
+use trainz_parser::gs::grammar::Rule;
 
 mod class;
 mod expr;
@@ -11,7 +12,7 @@ mod stmt;
 #[cfg(test)]
 mod tests;
 
-pub fn process_gs_ast(pairs: Pairs<Rule>, _src: &str) -> Program {
+pub fn process_trainz_ast(pairs: Pairs<Rule>, _src: &str) -> Program {
     let mut includes = vec![];
     let mut class_definitions = vec![];
     let mut root_range = tower_lsp_server::ls_types::Range::default();

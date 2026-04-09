@@ -1,0 +1,9 @@
+
+layer1
+{
+  alpha
+  {
+    type "numeric"
+    validation "0,1"
+  }
+}

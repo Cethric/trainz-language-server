@@ -1,0 +1,11 @@
+
+my_container {
+    key {
+        type "string"
+        validation "IsValidCategoryEra"
+    }
+    region {
+        type "string"
+        validation "IsValidCategoryRegion"
+    }
+}

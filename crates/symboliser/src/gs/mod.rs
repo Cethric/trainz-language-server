@@ -1,6 +1,6 @@
-use gs_ast::gs::{Include, Program};
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind};
+use trainz_ast::gs::Include;
 
 pub mod class;
 pub mod expr;
@@ -10,6 +10,7 @@ mod tests;
 mod util;
 
 pub(crate) use class::process_class_symbol;
+use trainz_ast::gs::program::Program;
 
 #[allow(deprecated)]
 pub(crate) fn process_include_symbol(include: &Include) -> DocumentSymbol {
@@ -26,7 +27,7 @@ pub(crate) fn process_include_symbol(include: &Include) -> DocumentSymbol {
 }
 
 #[allow(deprecated)]
-pub fn gs_symboliser(program: &Program) -> Vec<DocumentSymbol> {
+pub fn trainz_symboliser(program: &Program) -> Vec<DocumentSymbol> {
     let mut symbols: Vec<DocumentSymbol> = program
         .includes
         .par_iter()

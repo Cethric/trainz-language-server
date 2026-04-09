@@ -1,5 +1,5 @@
 [package]
-name = "gs-fmt"
+name = "trainz-fmt"
 version = "0.1.0"
 edition.workspace = true
 build = "build.rs"
@@ -13,10 +13,10 @@ clap-verbosity-flag = { workspace = true }
 tokio = { workspace = true }
 log = { workspace = true }
 
-gs-ast = { workspace = true }
-gs-common = { workspace = true }
-gs-parser = { workspace = true }
-gs-formatter = { workspace = true }
+trainz-ast = { workspace = true }
+trainz-common = { workspace = true }
+trainz-parser = { workspace = true }
+trainz-formatter = { workspace = true }
 
 [build-dependencies]
 shadow-rs = { version = "1.7" }

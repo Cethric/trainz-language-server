@@ -1,0 +1,166 @@
+name: Semantic Release
+
+on:
+  push:
+    branches: [main, develop]
+
+concurrency: release
+
+jobs:
+  build-binaries:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_suffix: linux-x86_64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_suffix: macos-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_suffix: macos-aarch64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_suffix: windows-x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release binaries
+        run: cargo build --verbose --release --target ${{ matrix.target }}
+
+      - name: Create release directory
+        shell: bash
+        run: mkdir -p release-artifacts
+
+      - name: Package binaries (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          tar -czf release-artifacts/trainz-lsp-${{ matrix.artifact_suffix }}.tar.gz \
+            -C target/${{ matrix.target }}/release trainz-lsp trainz-fmt
+
+      - name: Package binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          7z a -tzip release-artifacts/trainz-lsp-${{ matrix.artifact_suffix }}.zip \
+            target/${{ matrix.target }}/release/trainz-lsp.exe \
+            target/${{ matrix.target }}/release/trainz-fmt.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.artifact_suffix }}
+          path: release-artifacts/
+
+  build-extensions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: 'extensions/vscode/pnpm-lock.yaml'
+
+      - name: Build VSCode extension
+        run: |
+          cd extensions/vscode
+          pnpm install --frozen-lockfile
+          pnpm build
+          mkdir -p ../../release-artifacts
+          tar -czf ../../release-artifacts/trainz-lsp-vscode.tar.gz out/
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '24'
+          distribution: 'temurin'
+
+      - name: Build JetBrains extension
+        run: |
+          cd extensions/trainz-idea
+          chmod +x gradlew
+          ./gradlew build
+          mkdir -p ../../release-artifacts
+          tar -czf ../../release-artifacts/trainz-idea-plugin.tar.gz build/distributions/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: extensions
+          path: release-artifacts/
+
+  release:
+    needs: [build-binaries, build-extensions]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-save
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p final-artifacts
+          find release-artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} final-artifacts/ \;
+          ls -la final-artifacts/
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+
+      - name: Upload final artifacts as run artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-binaries-and-extensions
+          path: final-artifacts/
+          retention-days: 90

@@ -1,5 +1,23 @@
-use gs_ast::gs::Include;
 use tower_lsp_server::ls_types::{FoldingRange, FoldingRangeKind};
+use trainz_ast::gs::Include;
+
+pub fn add_folding_range_a(
+    range: tower_lsp_server::ls_types::Range,
+    collapsed_text: Option<String>,
+) -> Option<FoldingRange> {
+    if range.start.line < range.end.line {
+        Some(FoldingRange {
+            start_line: range.start.line,
+            start_character: Some(range.start.character),
+            end_line: range.end.line,
+            end_character: Some(range.end.character),
+            kind: Some(FoldingRangeKind::Region),
+            collapsed_text,
+        })
+    } else {
+        None
+    }
+}
 
 pub fn add_folding_range(
     range: tower_lsp_server::ls_types::Range,
@@ -7,14 +25,10 @@ pub fn add_folding_range(
     collapsed_text: Option<String>,
 ) {
     if range.start.line < range.end.line {
-        result.push(FoldingRange {
-            start_line: range.start.line,
-            start_character: Some(range.start.character),
-            end_line: range.end.line,
-            end_character: Some(range.end.character),
-            kind: Some(FoldingRangeKind::Region),
-            collapsed_text,
-        });
+        let folding = add_folding_range_a(range, collapsed_text);
+        if let Some(folding) = folding {
+            result.push(folding);
+        }
     }
 }
 

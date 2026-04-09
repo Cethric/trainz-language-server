@@ -1,5 +1,5 @@
 [package]
-name = "gs-hover"
+name = "trainz-hover"
 version = "0.1.0"
 edition.workspace = true
 
@@ -7,12 +7,13 @@ edition.workspace = true
 shadow-rs = { workspace = true }
 tower-lsp-server = { workspace = true }
 log = { workspace = true }
-gs-ast = { workspace = true }
-gs-diagnostics = { workspace = true }
+
+trainz-ast = { workspace = true }
+trainz-soup-validators = { workspace = true }
+trainz-common = { workspace = true }
 
 [build-dependencies]
 shadow-rs = { version = "1.7" }
 
 [dev-dependencies]
-gs-parser = { workspace = true }
-pest = { workspace = true }
+trainz-parser = { workspace = true }

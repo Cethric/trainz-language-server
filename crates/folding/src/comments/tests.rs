@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
     use crate::comments::comments_folding_range;
-    use gs_ast::comments::process::process_comments;
-    use gs_parser::comments::grammar::gs::{GsCommentsParser as CommentsParser, Rule};
     use pest::Parser;
+    use trainz_ast::comments::process::process_comments;
+    use trainz_parser::comments::grammar::gs::{GsCommentsParser as CommentsParser, Rule};
 
     #[test]
     fn test_comments_folding_range() {

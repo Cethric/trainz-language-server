@@ -1,11 +1,11 @@
 ---
 name: documentation
-description: Guidelines for generating high-quality Rust documentation for the gs-lsp project, following standard KDoc (///) practices.
+description: Guidelines for generating high-quality Rust documentation for the trainz-lsp project, following standard KDoc (///) practices.
 ---
 
 # Documentation Skill
 
-Use this skill when documenting the `gs-lsp` codebase, including public APIs, modules, and internal logic.
+Use this skill when documenting the `trainz-lsp` codebase, including public APIs, modules, and internal logic.
 
 ## Key Principles
 - **Clarity and Precision**: Documentation should clearly describe the purpose, parameters, and return values of public APIs.

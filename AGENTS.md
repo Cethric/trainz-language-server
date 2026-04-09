@@ -1,9 +1,9 @@
 # AGENTS.md
 
-AGENTS.md is a simple, open format for guiding coding agents. This file provides context and instructions to help AI coding agents work on the `gs-lsp` project.
+AGENTS.md is a simple, open format for guiding coding agents. This file provides context and instructions to help AI coding agents work on the `trainz-lsp` project.
 
 ## Project Overview
-`gs-lsp` is a Language Server Protocol (LSP) implementation for the GS (Game Script) language, written in Rust.
+`trainz-lsp` is a Language Server Protocol (LSP) implementation for the GS (Game Script) language, written in Rust.
 
 ## Tech Stack
 - **Language**: Rust (Edition 2024)
@@ -40,7 +40,7 @@ The project is organized as a Cargo workspace with the following crates:
 
 ## Agent Guidelines
 - **Junie**: Focus on maintaining consistency across the workspace. When adding new features, ensure all relevant crates are updated (e.g., adding a new AST node usually requires updating the parser, symboliser, and possibly completions/hover).
-- **CommitAgent**: Ensure all changes are valid before committing. This includes verifying that the code builds (`cargo build`), all tests pass (`cargo test`), and the code is well-formatted (`cargo fmt`). Only commit changes when these conditions are met. A helper script `commit-agent.sh` is provided in the project root to automate this verification and commit process. Usage: `./commit-agent.sh "Commit message"`.
+- **CommitAgent**: Ensure all changes are valid before committing. This includes verifying that the code builds (`cargo build`), all tests pass (`cargo test`), and the code is well-formatted (`cargo fmt`). Only commit changes when these conditions are met. A helper script `scripts/commit-agent.sh` is provided in the project root to automate this verification and commit process. Usage: `./scripts/commit-agent.sh "Commit message"`.
 - **Testing**: Always run `cargo test` after making changes to verify no regressions.
 - **Documentation**: Use Rust-standard KDoc (///) for public APIs.
 - **Code Style**: Follow standard Rust idioms and the existing formatting in the project.

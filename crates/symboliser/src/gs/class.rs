@@ -1,5 +1,6 @@
-use gs_ast::gs::{ClassDef, MethodDef, NativeMethodDef};
 use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind, SymbolTag};
+use trainz_ast::gs::{ClassDef, MethodDef, NativeMethodDef};
+use trainz_common::range::clamp_range;
 
 use super::stmt::process_block;
 use crate::gs::util::{is_class_obsolete, is_method_obsolete};
@@ -17,7 +18,7 @@ pub(crate) fn process_class_symbol(class: &ClassDef) -> DocumentSymbol {
                 tags: None,
                 deprecated: None,
                 range: field.range,
-                selection_range: name.range,
+                selection_range: clamp_range(&field.range, name.range),
                 children: None,
             });
         }
@@ -66,7 +67,7 @@ fn process_method_symbol(method: &MethodDef) -> DocumentSymbol {
             tags: None,
             deprecated: None,
             range: param.range,
-            selection_range: param.name.range,
+            selection_range: clamp_range(&param.range, param.name.range),
             children: None,
         });
     }
@@ -105,7 +106,7 @@ fn process_native_method_symbol(method: &NativeMethodDef) -> DocumentSymbol {
             tags: None,
             deprecated: None,
             range: param.range,
-            selection_range: param.name.range,
+            selection_range: clamp_range(&param.range, param.name.range),
             children: None,
         });
     }

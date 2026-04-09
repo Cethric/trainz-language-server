@@ -1,21 +1,15 @@
 pub mod kuid;
 pub mod value;
 
-use crate::soup::{KeyValuePair, Soup};
-use gs_parser::soup::grammar::Rule;
-use gs_util::range::{pair_to_range, pos_to_range};
+use crate::soup::key_value_pair::KeyValuePair;
+use crate::soup::soup::Soup;
 use pest::iterators::{Pair, Pairs};
-use std::path::{Path, PathBuf};
 use tower_lsp_server::ls_types::Range;
+use trainz_common::range::{pair_to_range, pos_to_range};
+use trainz_parser::soup::grammar::Rule;
 use value::process_value;
 
-pub fn process_soup_ast(
-    pairs: Pairs<Rule>,
-    src: &str,
-    _base_path: &Path,
-    _workspace_folders: &Vec<PathBuf>,
-    _search_paths: &Vec<PathBuf>,
-) -> Soup {
+pub fn process_soup_ast(pairs: Pairs<Rule>, src: &str) -> Soup {
     let mut key_value_pairs = vec![];
     let mut root_range = Range::default();
 
@@ -46,10 +40,7 @@ pub fn process_soup_ast(
 }
 
 pub fn process_key_value_pair(pair: Pair<Rule>) -> KeyValuePair {
-    let mut range = pair_to_range(&pair);
-    if range.end.line > 0 {
-        range.end.line = range.end.line - 1;
-    }
+    let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
     let key_pair = inner.next().unwrap();
     let key_range = pair_to_range(&key_pair);

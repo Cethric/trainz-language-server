@@ -4,8 +4,8 @@ mod pratt;
 
 use error::ParseError;
 use grammar::{GameScriptParser, Rule};
-use pest::Parser;
 use pest::iterators::Pairs;
+use pest::Parser;
 
 pub fn parse(src: &'_ str) -> Result<Pairs<'_, Rule>, ParseError> {
     match GameScriptParser::parse(Rule::program, src) {

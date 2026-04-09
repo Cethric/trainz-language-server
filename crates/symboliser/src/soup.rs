@@ -1,6 +1,9 @@
-use gs_ast::soup::{KeyValuePair, Soup, Value};
-use gs_diagnostics::soup::{ContainerValidator, Validators};
+use rayon::prelude::*;
 use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind};
+use trainz_ast::soup::key_value_pair::KeyValuePair;
+use trainz_ast::soup::soup::Soup;
+use trainz_ast::soup::Value;
+use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validators};
 
 #[allow(deprecated)]
 pub fn soup_symboliser(soup: &Soup, validators: Option<&Validators>) -> Vec<DocumentSymbol> {
@@ -8,13 +11,13 @@ pub fn soup_symboliser(soup: &Soup, validators: Option<&Validators>) -> Vec<Docu
 
     let kind_kv = soup
         .key_value_pairs
-        .iter()
-        .find(|kv| kv.key.eq_ignore_ascii_case("kind"));
+        .par_iter()
+        .find_first(|kv| kv.key.eq_ignore_ascii_case("kind"));
     let validator = kind_kv.and_then(|kv| match &kv.value {
         Some(Value::String(s, _)) | Some(Value::Variable(s, _)) => validators.and_then(|vs| {
             vs.containers
-                .iter()
-                .find(|v| v.container_name.eq_ignore_ascii_case(s))
+                .par_iter()
+                .find_first(|v| v.container_name.eq_ignore_ascii_case(s))
         }),
         _ => None,
     });
@@ -36,12 +39,12 @@ fn process_key_value_symbol(
 
     let rule = validator.and_then(|v| {
         v.rules
-            .iter()
-            .find(|r| r.key.eq_ignore_ascii_case(&kv.key))
+            .par_iter()
+            .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
             .or_else(|| {
-                v.subpossibilities
-                    .iter()
-                    .find(|r| r.key.eq_ignore_ascii_case(&kv.key))
+                v.sub_possibilities
+                    .par_iter()
+                    .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
             })
     });
 
@@ -49,29 +52,39 @@ fn process_key_value_symbol(
 
     if let Some(value) = &kv.value {
         match value {
-            Value::Container(kv_pairs, _) => {
-                let inner_validator = rule
-                    .and_then(|r| r.type_name.as_ref())
-                    .and_then(|type_name| {
-                        all_validators.and_then(|vs| {
-                            vs.containers
-                                .iter()
-                                .find(|v| v.container_name.eq_ignore_ascii_case(type_name))
-                        })
-                    })
-                    .or_else(|| {
-                        validator
-                            .and_then(|v| v.array_element.as_ref())
-                            .and_then(|type_name| {
-                                all_validators.and_then(|vs| {
-                                    vs.containers
-                                        .iter()
-                                        .find(|v| v.container_name.eq_ignore_ascii_case(type_name))
+            Value::Container(kv_pairs, _, _) => {
+                for inner_kv in kv_pairs {
+                    let inner_validator = rule
+                        .and_then(|r| r.type_name.as_ref())
+                        .and_then(|type_name| {
+                            all_validators.and_then(|vs| {
+                                vs.containers.par_iter().find_first(|v| {
+                                    v.container_name.eq_ignore_ascii_case(type_name)
                                 })
                             })
-                    });
+                        })
+                        .or_else(|| {
+                            validator
+                                .and_then(|v| v.array_element.as_ref())
+                                .and_then(|ae| {
+                                    let type_name = match ae {
+                                        ArrayElementType::Array(s) => Some(s),
+                                        ArrayElementType::Tuple(types) => inner_kv
+                                            .key
+                                            .parse::<usize>()
+                                            .ok()
+                                            .and_then(|idx| types.get(idx)),
+                                    };
+                                    type_name.and_then(|tn| {
+                                        all_validators.and_then(|vs| {
+                                            vs.containers.par_iter().find_first(|v| {
+                                                v.container_name.eq_ignore_ascii_case(tn)
+                                            })
+                                        })
+                                    })
+                                })
+                        });
 
-                for inner_kv in kv_pairs {
                     children.push(process_key_value_symbol(
                         inner_kv,
                         inner_validator,
@@ -110,11 +123,11 @@ fn process_key_value_symbol(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gs_ast::soup::process::process_soup_ast;
-    use gs_diagnostics::soup::{ContainerRule, ContainerValidator, Validators};
-    use gs_parser::soup::parse_soup;
-    use std::path::Path;
+    use trainz_ast::soup::process::process_soup_ast;
+    use trainz_parser::soup::parse_soup;
+    use trainz_soup_validators::{ContainerRule, ContainerValidator, Validators};
 
+    #[allow(deprecated)]
     #[test]
     fn test_soup_symbol_deprecation() {
         let code = r#"
@@ -122,7 +135,7 @@ mod tests {
         obsolete-key "value"
         "#;
         let pairs = parse_soup(code).unwrap();
-        let soup = process_soup_ast(pairs, code, Path::new("test.soup"), &vec![], &vec![]);
+        let soup = process_soup_ast(pairs, code);
 
         let mut validators = Validators::default();
         validators.containers.push(ContainerValidator {
@@ -157,12 +170,12 @@ mod tests {
         string"
         "#;
         let pairs = parse_soup(code).unwrap();
-        let soup = process_soup_ast(pairs, code, Path::new(""), &vec![], &vec![]);
+        let soup = process_soup_ast(pairs, code);
         let symbols = soup_symboliser(&soup, None);
 
         let desc_symbol = symbols.iter().find(|s| s.name == "description").unwrap();
         // The symbol range should cover all lines of the multi-line string.
         assert_eq!(desc_symbol.range.start.line, 1);
-        assert_eq!(desc_symbol.range.end.line, 3);
+        assert_eq!(desc_symbol.range.end.line, 4);
     }
 }

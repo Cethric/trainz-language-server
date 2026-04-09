@@ -1,11 +1,11 @@
 ---
 name: testing
-description: Specialized skill for testing and verifying changes in the gs-lsp project, focusing on Rust unit and integration testing.
+description: Specialized skill for testing and verifying changes in the trainz-lsp project, focusing on Rust unit and integration testing.
 ---
 
 # Testing Skill
 
-Use this skill when developing, running, or verifying tests within the `gs-lsp` workspace.
+Use this skill when developing, running, or verifying tests within the `trainz-lsp` workspace.
 
 ## Key Principles
 - **No Regressions**: Always run `cargo test` after changes to verify project health.
@@ -25,7 +25,7 @@ Use this skill when developing, running, or verifying tests within the `gs-lsp` 
 2. Verify all crates in the workspace pass.
 
 ### Running tests for a specific crate
-1. Execute `cargo test -p gs-lsp-parser` (replace with the correct crate name).
+1. Execute `cargo test -p trainz-lsp-parser` (replace with the correct crate name).
 
 ## Checklist
 - [ ] `cargo test` passes for the entire workspace.

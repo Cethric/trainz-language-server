@@ -1,0 +1,8 @@
+; pnpm configuration file
+; https://pnpm.io/pnpmrc
+
+; Use strict mode to prevent hoisting
+shamefully-hoist=false
+
+; Lock file only changes with actual dependency changes
+lockfile-only=true
