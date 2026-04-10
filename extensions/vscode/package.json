@@ -139,10 +139,10 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "pnpm compile",
-    "compile": "tsc -p ./",
+    "vscode:prepublish": "pnpm build",
+    "build": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "pretest": "pnpm compile && pnpm lint",
+    "pretest": "pnpm build && pnpm lint",
     "test": "node ./out/test/runTest.js",
     "lint": "eslint src --ext ts"
   },
