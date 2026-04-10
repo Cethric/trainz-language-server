@@ -1,4 +1,5 @@
 use log::{debug, error, trace, warn};
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -7,8 +8,8 @@ use trainz_ast::soup::value::{NumericValue, Value};
 use trainz_ast::soup::{KeyValuePair, Soup};
 use trainz_parser::soup::parse_soup;
 
-use crate::models::{ArrayElementType, ContainerRule, ContainerValidator, Validators};
 use crate::Validation;
+use crate::models::{ArrayElementType, ContainerRule, ContainerValidator, Validators};
 
 fn parse_rule(key: String, rule_details: Vec<KeyValuePair>) -> ContainerRule {
     let mut type_name = None;
@@ -55,7 +56,8 @@ fn parse_rule(key: String, rule_details: Vec<KeyValuePair>) -> ContainerRule {
             "validation" => {
                 if let Some(Value::Container(details, _, _)) = detail.value {
                     rule_validation = parse_validation(&details);
-                } else if let Some(Value::String(s, _)) | Some(Value::Variable(s, _)) = detail.value {
+                } else if let Some(Value::String(s, _)) | Some(Value::Variable(s, _)) = detail.value
+                {
                     rule_validation = Some(vec![Validation::Named(s)]);
                 } else {
                     warn!("Invalid validation value: {:?}", detail.value);
@@ -237,9 +239,10 @@ fn process_file(
         let validator_soup = process_soup_ast(pairs, &validator_content);
 
         // Look for existing container name or create new
-        let is_container_style = validator_soup.key_value_pairs.iter().any(|kv| {
-            matches!(kv.value, Some(Value::Container(_, _, _)))
-        });
+        let is_container_style = validator_soup
+            .key_value_pairs
+            .par_iter()
+            .any(|kv| matches!(kv.value, Some(Value::Container(_, _, _))));
 
         let mut simple_validators: HashMap<String, HashMap<String, Option<String>>> =
             HashMap::new();

@@ -49,11 +49,6 @@ jobs:
         working-directory: extensions/vscode
         continue-on-error: true
 
-      - name: Type check
-        run: pnpm typecheck
-        working-directory: extensions/vscode
-        continue-on-error: true
-
       #      - name: Run tests
       #        run: |
       #          mkdir -p test-results

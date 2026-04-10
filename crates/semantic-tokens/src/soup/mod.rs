@@ -6,8 +6,8 @@ mod tests;
 use crate::soup::value::collect_value_tokens;
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
-use trainz_ast::soup::soup::Soup;
 use trainz_ast::soup::Value;
+use trainz_ast::soup::soup::Soup;
 use trainz_soup_validators::{ArrayElementType, Validators};
 
 pub fn soup_semantic_tokens(

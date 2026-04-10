@@ -2106,6 +2106,7 @@ name = "trainz-soup-validators"
 version = "0.1.0"
 dependencies = [
  "log",
+    "rayon",
  "trainz-ast",
  "trainz-parser",
 ]

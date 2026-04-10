@@ -2,8 +2,8 @@ use crate::util::add_folding_range_a;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::FoldingRange;
-use trainz_ast::soup::soup::Soup;
 use trainz_ast::soup::Value;
+use trainz_ast::soup::soup::Soup;
 
 #[cfg(test)]
 mod tests;

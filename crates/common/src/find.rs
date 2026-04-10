@@ -1,6 +1,6 @@
 use crate::range::pair_to_range;
-use pest::iterators::{Pair, Pairs};
 use pest::RuleType;
+use pest::iterators::{Pair, Pairs};
 use tower_lsp_server::ls_types::Position;
 
 pub fn find_at_position<Rule: RuleType>(

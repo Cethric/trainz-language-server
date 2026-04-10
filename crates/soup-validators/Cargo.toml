@@ -7,3 +7,4 @@ edition.workspace = true
 trainz-ast = { workspace = true }
 trainz-parser = { workspace = true }
 log = { workspace = true }
+rayon = { workspace = true }

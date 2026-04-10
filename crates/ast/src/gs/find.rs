@@ -1,10 +1,10 @@
-use crate::find::{position_in_range, HasRange};
+use crate::Position;
+use crate::find::{HasRange, position_in_range};
 use crate::gs::program::Program;
 use crate::gs::{
     Block, ClassDef, Expr, FieldDef, Identifier, LoopBody, MethodDef, NativeMethodDef, PostfixOp,
     Stmt, Type,
 };
-use crate::Position;
 use log::trace;
 use rayon::prelude::*;
 

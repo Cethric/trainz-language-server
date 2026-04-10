@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use pest::Parser;
 use std::hint::black_box;
 use trainz_ast::gs::process::process_trainz_ast;

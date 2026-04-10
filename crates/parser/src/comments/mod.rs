@@ -4,8 +4,8 @@ pub mod grammar;
 use error::ParseError;
 use grammar::gs::{GsCommentsParser, Rule as GsRule};
 use grammar::soup::{Rule as SoupRule, SoupCommentsParser};
-use pest::iterators::Pairs;
 use pest::Parser;
+use pest::iterators::Pairs;
 use shadow_rs::shadow;
 
 shadow!(build);
