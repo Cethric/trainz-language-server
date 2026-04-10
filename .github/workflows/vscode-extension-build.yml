@@ -76,7 +76,7 @@ jobs:
       - name: Create archive
         run: |
           mkdir -p artifacts
-          tar -czf artifacts/trainz-language-server-vscode-${{ matrix.os }}-node${{ matrix.node }}-${{ github.sha }}.tar.gz out/
+          tar -C out -czf artifacts/trainz-language-server-vscode-${{ matrix.os }}-node${{ matrix.node }}-${{ github.sha }}.tar.gz .
         working-directory: extensions/vscode
         if: success()
 

@@ -42,7 +42,7 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --profile release
 
       - name: Check formatting
         run: cargo fmt -- --check
