@@ -15,7 +15,7 @@ pub struct AstCache {
 impl AstCache {
     pub fn new() -> Self {
         let mut cache_dir = std::env::temp_dir();
-        cache_dir.push("trainz-lsp-cache");
+        cache_dir.push("language-server-cache");
         if !cache_dir.exists() {
             let _ = fs::create_dir_all(&cache_dir);
         }

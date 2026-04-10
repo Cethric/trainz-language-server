@@ -1,4 +1,4 @@
-
+use rayon::prelude::*;
 use tower_lsp_server::ls_types::{Hover, HoverParams, MarkupContent, MarkupKind, Position};
 use trainz_ast::soup::key_value_pair::KeyValuePair;
 use trainz_ast::soup::soup::Soup;
@@ -21,35 +21,34 @@ pub fn soup_hover(soup: &Soup, params: HoverParams, validators: &Validators) -> 
     let position = params.text_document_position_params.position;
 
     // Find kind-based validator for the whole soup if 'kind' key exists
-    let kind_validator = soup
-        .key_value_pairs
-        .iter()
-        .find(|kv| kv.key.eq_ignore_ascii_case("kind"))
-        .and_then(|kv| {
-            if let Some(Value::String(kind_name, _)) = &kv.value {
-                validators
-                    .containers
-                    .iter()
-                    .find(|v| v.container_name.eq_ignore_ascii_case(kind_name))
-            } else if let Some(Value::Variable(kind_name, _)) = &kv.value {
-                validators
-                    .containers
-                    .iter()
-                    .find(|v| v.container_name.eq_ignore_ascii_case(kind_name))
-            } else {
-                None
-            }
-        })
-        .or_else(|| {
-            // If no 'kind' tag, the top-level keys themselves might be container names
-            // Check if ANY top-level key matches a top-level container definition
-            soup.key_value_pairs.iter().find_map(|kv| {
-                validators
-                    .containers
-                    .iter()
-                    .find(|v| v.top_level && v.container_name.eq_ignore_ascii_case(&kv.key))
+    let kind_validator =
+        soup.key_value_pairs
+            .iter()
+            .find(|kv| kv.key.eq_ignore_ascii_case("kind"))
+            .and_then(|kv| {
+                if let Some(Value::String(kind_name, _)) = &kv.value {
+                    validators
+                        .containers
+                        .par_iter()
+                        .find_first(|v| v.container_name.eq_ignore_ascii_case(kind_name))
+                } else if let Some(Value::Variable(kind_name, _)) = &kv.value {
+                    validators
+                        .containers
+                        .par_iter()
+                        .find_first(|v| v.container_name.eq_ignore_ascii_case(kind_name))
+                } else {
+                    None
+                }
             })
-        });
+            .or_else(|| {
+                // If no 'kind' tag, the top-level keys themselves might be container names
+                // Check if ANY top-level key matches a top-level container definition
+                soup.key_value_pairs.iter().find_map(|kv| {
+                    validators.containers.par_iter().find_first(|v| {
+                        v.top_level && v.container_name.eq_ignore_ascii_case(&kv.key)
+                    })
+                })
+            });
 
     find_hover_recursive(&soup.key_value_pairs, position, validators, kind_validator)
 }
@@ -65,8 +64,8 @@ pub fn find_hover_recursive(
             if let Some(validator) = current_validator {
                 let rule = validator
                     .rules
-                    .iter()
-                    .find(|r| r.key.eq_ignore_ascii_case(&kv.key));
+                    .par_iter()
+                    .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key));
                 if let Some(rule) = rule {
                     let mut hover = create_hover_from_rule(rule, &kv.key_range);
                     if let Some(h) = &mut hover {
@@ -77,7 +76,7 @@ pub fn find_hover_recursive(
                             {
                                 if validators
                                     .containers
-                                    .iter()
+                                    .par_iter()
                                     .any(|v| v.container_name.eq_ignore_ascii_case(kind_name))
                                 {
                                     markup.value.push_str(&format!(
@@ -97,8 +96,8 @@ pub fn find_hover_recursive(
                     if let Some(type_name) = &tag_array.type_name {
                         let type_validator = validators
                             .containers
-                            .iter()
-                            .find(|v| v.container_name.eq_ignore_ascii_case(type_name));
+                            .par_iter()
+                            .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name));
                         if let Some(type_validator) = type_validator {
                             return Some(Hover {
                                 contents: tower_lsp_server::ls_types::HoverContents::Markup(
@@ -127,7 +126,7 @@ pub fn find_hover_recursive(
                                         "### Key: `{}`\n### Values:\n{}",
                                         kv.key,
                                         values
-                                            .iter()
+                                            .par_iter()
                                             .map(|(k, v)| if let Some(v) = v {
                                                 format!("- `{}`: {}", k, v)
                                             } else {
@@ -146,8 +145,8 @@ pub fn find_hover_recursive(
                 // Check top-level container match
                 let container_validator = validators
                     .containers
-                    .iter()
-                    .find(|v| v.container_name.eq_ignore_ascii_case(&kv.key));
+                    .par_iter()
+                    .find_first(|v| v.container_name.eq_ignore_ascii_case(&kv.key));
                 if let Some(validator) = container_validator {
                     let wiki_name = get_wiki_container_name(&validator.container_name);
                     return Some(Hover {
@@ -183,20 +182,19 @@ pub fn find_hover_recursive(
                             type_name.and_then(|tn| {
                                 validators
                                     .containers
-                                    .iter()
-                                    .find(|v| v.container_name.eq_ignore_ascii_case(tn))
+                                    .par_iter()
+                                    .find_first(|v| v.container_name.eq_ignore_ascii_case(tn))
                             })
                         } else {
                             let rule = cv
                                 .rules
-                                .iter()
-                                .find(|r| r.key.eq_ignore_ascii_case(&kv.key));
+                                .par_iter()
+                                .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key));
                             if let Some(rule) = rule {
                                 if let Some(type_name) = &rule.type_name {
-                                    validators
-                                        .containers
-                                        .iter()
-                                        .find(|v| v.container_name.eq_ignore_ascii_case(type_name))
+                                    validators.containers.par_iter().find_first(|v| {
+                                        v.container_name.eq_ignore_ascii_case(type_name)
+                                    })
                                 } else {
                                     None
                                 }
@@ -204,7 +202,7 @@ pub fn find_hover_recursive(
                                 // Check if this is a TagArray and the key is an entry (not 'type')
                                 if let Some(tag_array) = &cv.tag_array {
                                     if let Some(type_name) = &tag_array.type_name {
-                                        validators.containers.iter().find(|v| {
+                                        validators.containers.par_iter().find_first(|v| {
                                             v.container_name.eq_ignore_ascii_case(&type_name)
                                         })
                                     } else {
@@ -218,8 +216,8 @@ pub fn find_hover_recursive(
                     } else {
                         validators
                             .containers
-                            .iter()
-                            .find(|v| v.container_name.eq_ignore_ascii_case(&kv.key))
+                            .par_iter()
+                            .find_first(|v| v.container_name.eq_ignore_ascii_case(&kv.key))
                     };
 
                     let nested_hover =

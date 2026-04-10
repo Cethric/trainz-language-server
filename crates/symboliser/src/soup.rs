@@ -1,8 +1,8 @@
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind};
+use trainz_ast::soup::Value;
 use trainz_ast::soup::key_value_pair::KeyValuePair;
 use trainz_ast::soup::soup::Soup;
-use trainz_ast::soup::Value;
 use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validators};
 
 #[allow(deprecated)]
@@ -150,7 +150,10 @@ mod tests {
         });
 
         let symbols = soup_symboliser(&soup, Some(&validators));
-        let obsolete_symbol = symbols.iter().find(|s| s.name == "obsolete-key").unwrap();
+        let obsolete_symbol = symbols
+            .par_iter()
+            .find_first(|s| s.name == "obsolete-key")
+            .unwrap();
 
         assert!(obsolete_symbol.deprecated.unwrap_or(false));
         assert!(
@@ -173,7 +176,10 @@ mod tests {
         let soup = process_soup_ast(pairs, code);
         let symbols = soup_symboliser(&soup, None);
 
-        let desc_symbol = symbols.iter().find(|s| s.name == "description").unwrap();
+        let desc_symbol = symbols
+            .par_iter()
+            .find_first(|s| s.name == "description")
+            .unwrap();
         // The symbol range should cover all lines of the multi-line string.
         assert_eq!(desc_symbol.range.start.line, 1);
         assert_eq!(desc_symbol.range.end.line, 4);

@@ -8,7 +8,7 @@ export class SoupEditorProvider implements vscode.CustomTextEditorProvider {
         return providerRegistration;
     }
 
-    private static readonly viewType = 'trainz-lsp.soupEditor';
+    private static readonly viewType = 'language-server.soupEditor';
 
     constructor(
         private readonly context: vscode.ExtensionContext

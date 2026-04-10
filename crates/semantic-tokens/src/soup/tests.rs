@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::soup::soup_semantic_tokens;
+    use rayon::prelude::*;
     use tower_lsp_server::ls_types::SemanticTokenType;
     use trainz_ast::soup::process::process_soup_ast;
     use trainz_parser::soup::parse_soup;
@@ -36,8 +37,8 @@ mod tests {
 
         // 123456 - length 6, type 6 (NUMBER)
         let int_token = tokens
-            .iter()
-            .find(|t| t.length == 6 && t.token_type == type_number);
+            .par_iter()
+            .find_first(|t| t.length == 6 && t.token_type == type_number);
         assert!(
             int_token.is_some(),
             "Should find 6-digit int literal token. Tokens: {:?}",
@@ -46,8 +47,8 @@ mod tests {
 
         // 12.345f - length 7, type 6 (NUMBER)
         let float_token = tokens
-            .iter()
-            .find(|t| t.length == 7 && t.token_type == type_number);
+            .par_iter()
+            .find_first(|t| t.length == 7 && t.token_type == type_number);
         assert!(
             float_token.is_some(),
             "Should find 7-character float literal token. Tokens: {:?}",
@@ -56,8 +57,8 @@ mod tests {
 
         // \"hello world\" - length 13, type STRING
         let string_token = tokens
-            .iter()
-            .find(|t| t.length == 13 && t.token_type == type_string);
+            .par_iter()
+            .find_first(|t| t.length == 13 && t.token_type == type_string);
         assert!(
             string_token.is_some(),
             "Should find string literal token. Tokens: {:?}",
@@ -66,8 +67,8 @@ mod tests {
 
         // <KUID:123456:7890> - length 18, type PROPERTY in Soup
         let kuid_token = tokens
-            .iter()
-            .find(|t| t.length == 18 && t.token_type == type_property);
+            .par_iter()
+            .find_first(|t| t.length == 18 && t.token_type == type_property);
         assert!(
             kuid_token.is_some(),
             "Should find KUID literal token. Tokens: {:?}",
@@ -76,8 +77,8 @@ mod tests {
 
         // $(my_variable) - length 14, type VARIABLE
         let var_token = tokens
-            .iter()
-            .find(|t| t.length == 14 && t.token_type == type_variable);
+            .par_iter()
+            .find_first(|t| t.length == 14 && t.token_type == type_variable);
         assert!(
             var_token.is_some(),
             "Should find variable literal token. Tokens: {:?}",
@@ -99,7 +100,7 @@ mod tests {
 
         // We expect 3 tokens for the string literal, one for each line.
         let string_tokens: Vec<_> = tokens
-            .iter()
+            .par_iter()
             .filter(|t| t.token_type == type_string)
             .collect();
         assert!(
@@ -110,19 +111,19 @@ mod tests {
 
         // "This is a
         assert!(
-            string_tokens.iter().any(|t| t.length == 10),
+            string_tokens.par_iter().any(|t| t.length == 10),
             "Should find first line of multiline string. Tokens: {:?}",
             string_tokens
         );
         // multi-line
         assert!(
-            string_tokens.iter().any(|t| t.length == 18),
+            string_tokens.par_iter().any(|t| t.length == 18),
             "Should find second line of multiline string. Tokens: {:?}",
             string_tokens
         );
         // string"
         assert!(
-            string_tokens.iter().any(|t| t.length == 15),
+            string_tokens.par_iter().any(|t| t.length == 15),
             "Should find third line of multiline string. Tokens: {:?}",
             string_tokens
         );
@@ -154,8 +155,8 @@ mod tests {
 
         let raw_tokens = soup_semantic_tokens(&soup, Some(&validators));
         let obsolete_token = raw_tokens
-            .iter()
-            .find(|(_r, _t, m)| m.contains(&SemanticTokenModifier::DEPRECATED));
+            .par_iter()
+            .find_first(|(_r, _t, m)| m.contains(&SemanticTokenModifier::DEPRECATED));
 
         assert!(
             obsolete_token.is_some(),
@@ -173,7 +174,9 @@ mod tests {
         let type_string = crate::legend::get_token_type(SemanticTokenType::STRING);
 
         // \"💩\" should have length 4 (2 for quotes + 2 for 💩)
-        let string_token = tokens.iter().find(|t| t.token_type == type_string);
+        let string_token = tokens
+            .par_iter()
+            .find_first(|t| t.token_type == type_string);
         assert!(
             string_token.is_some(),
             "Should find string literal token. Tokens: {:?}",

@@ -66,13 +66,13 @@ This will output the formatted commit message you should use.
 
 Each release includes:
 
-- **LSP Binaries** - Compiled `trainz-lsp` and `trainz-fmt` for:
+- **LSP Binaries** - Compiled `trainz-language-server` and `trainz-fmt` for:
   - Linux x86_64
   - macOS x86_64
   - macOS ARM64 (Apple Silicon)
   - Windows x86_64
 
-- **VSCode Extension** - `trainz-lsp-vscode.tar.gz` containing the compiled extension
+- **VSCode Extension** - `trainz-language-server-vscode.tar.gz` containing the compiled extension
 
 - **JetBrains Plugin** - `trainz-idea-plugin.tar.gz` containing the plugin distributions
 
@@ -117,7 +117,6 @@ To manually trigger a release without changing code:
 
 ### See Also
 
-- [Versioning Strategy](./README.md#versioning)
 - [Contributing Guide](./CONTRIBUTING.md)
 - [Semantic Release Documentation](https://semantic-release.gitbook.io/)
 - [Conventional Commits](https://www.conventionalcommits.org/)

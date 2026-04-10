@@ -60,7 +60,7 @@ pub fn validate_container(
 ) {
     let mut found_keys = std::collections::HashSet::new();
     let unique_names = validator.validation.as_ref().map_or(false, |v| {
-        v.iter().any(|val| matches!(val, Validation::Named(name) if name.eq_ignore_ascii_case("UniqueNames") || name.eq_ignore_ascii_case("SubPossibilities")))
+        v.par_iter().any(|val| matches!(val, Validation::Named(name) if name.eq_ignore_ascii_case("UniqueNames") || name.eq_ignore_ascii_case("SubPossibilities")))
     });
 
     for kv in container_kv {
@@ -81,6 +81,10 @@ pub fn validate_container(
     }
 
     validate_compulsory_keys(container_kv, &found_keys, validator, diagnostics);
+
+    let is_tag_array = validator.tag_array.is_some() || validator.validation.as_ref().map_or(false, |v| {
+        v.par_iter().any(|val| matches!(val, Validation::Named(name) if name.eq_ignore_ascii_case("tagarray") || name.eq_ignore_ascii_case("tag-array")))
+    });
 
     if let Some(tag_array) = &validator.tag_array {
         for kv in container_kv {
@@ -121,8 +125,8 @@ pub fn validate_container(
                 for (index, array_type) in tuple.iter().enumerate() {
                     let key = index.to_string();
                     if let Some(kv) = container_kv
-                        .iter()
-                        .find(|kv| kv.key.eq_ignore_ascii_case(&key))
+                        .par_iter()
+                        .find_first(|kv| kv.key.eq_ignore_ascii_case(&key))
                     {
                         if let Some(Value::Container(value, _, _)) = &kv.value {
                             if let Some(element_validator) =
@@ -152,6 +156,9 @@ pub fn validate_container(
                 continue;
             }
         }
+        if kv.key.eq_ignore_ascii_case("tagarray") || kv.key.eq_ignore_ascii_case("tag-array") {
+            continue;
+        }
 
         if validator
             .array_element
@@ -169,9 +176,10 @@ pub fn validate_container(
             .or_else(|| {
                 validator
                     .sub_possibilities
-                    .iter()
-                    .find(|r| r.key.eq_ignore_ascii_case(&kv.key))
-            });
+                    .par_iter()
+                    .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
+            })
+            .or_else(|| validator.tag_array.as_ref());
 
         match rule {
             Some(rule) => {
@@ -228,8 +236,8 @@ pub fn validate_container(
                         if let Some(element_type) = element_type {
                             if let Some(element_validator) = all_validators
                                 .containers
-                                .iter()
-                                .find(|c| &c.container_name == element_type)
+                                .par_iter()
+                                .find_first(|c| &c.container_name == element_type)
                             {
                                 validate_container(
                                     inner_kv,
@@ -254,7 +262,7 @@ pub fn validate_container(
                             });
                         }
                     }
-                } else if !validator.allow_any_key {
+                } else if !validator.allow_any_key && !is_tag_array {
                     // Unknown key in container
                     diagnostics.push(Diagnostic {
                         range: kv.range,
@@ -312,7 +320,7 @@ pub fn validate_container(
     // Special check for array-element sequential keys
     if let Some(array_element_type) = &validator.array_element {
         let mut indices: Vec<usize> = found_keys
-            .iter()
+            .par_iter()
             .filter_map(|k| k.parse::<usize>().ok())
             .collect();
         indices.sort_unstable();
@@ -322,7 +330,9 @@ pub fn validate_container(
                 for (i, &index) in indices.iter().enumerate() {
                     if i != index {
                         // Find the KV pair for this index to get its range
-                        if let Some(kv) = container_kv.iter().find(|kv| kv.key == index.to_string())
+                        if let Some(kv) = container_kv
+                            .par_iter()
+                            .find_first(|kv| kv.key == index.to_string())
                         {
                             diagnostics.push(Diagnostic {
                                 range: kv.range,

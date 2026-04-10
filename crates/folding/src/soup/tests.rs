@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use rayon::prelude::*;
     use trainz_ast::soup::process::process_soup_ast;
     use trainz_parser::soup::parse_soup;
 
@@ -12,8 +13,8 @@ mod tests {
 
         // container starts at line 1, ends at line 8.
         let container_range = ranges
-            .iter()
-            .find(|r| r.start_line == 1)
+            .par_iter()
+            .find_first(|r| r.start_line == 1)
             .expect("Container range not found");
         assert_eq!(container_range.end_line, 8);
         assert_eq!(container_range.end_character, Some(1));
@@ -38,8 +39,8 @@ mod tests {
         let ranges = crate::soup::soup_folding_range(&soup);
 
         let container_range = ranges
-            .iter()
-            .find(|r| r.start_line == 1)
+            .par_iter()
+            .find_first(|r| r.start_line == 1)
             .expect("Container range not found (start_line 1)");
 
         assert_eq!(container_range.start_line, 1);

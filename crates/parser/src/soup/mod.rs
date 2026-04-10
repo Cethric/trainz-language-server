@@ -3,8 +3,8 @@ pub mod grammar;
 
 use error::ParseError;
 use grammar::{AuranConfigSoupParser, Rule};
-use pest::iterators::Pairs;
 use pest::Parser;
+use pest::iterators::Pairs;
 use shadow_rs::shadow;
 
 shadow!(build);
@@ -40,40 +40,43 @@ mod tests {
         assert!(result.is_ok(), "Failed to parse soup: {:?}", result.err());
     }
 
+    fn assert_parse_soup_input(input: &str) {
+        let result = parse_soup(input);
+        assert!(result.is_ok(), "Failed to parse soup input: {:?}", input);
+        let pairs: Vec<_> = result.unwrap().collect();
+        assert!(
+            pairs
+                .iter()
+                .any(|pair| pair.as_rule() == Rule::key_value_pair),
+            "Expected at least one key_value_pair for input: {:?}, got: {:?}",
+            input,
+            pairs
+        );
+    }
+
     #[test]
-    fn test_parse_soup_multi_char_value() {
-        let inputs = vec![
-            "name value",
-            "age 123",
-            "pi 3.14",
-            "color 0xFF00FF",
-            "msg \"hello\"",
-        ];
-        for input in inputs {
-            println!("Testing input: {:?}", input);
-            let result = parse_soup(input).unwrap();
-            let pairs: Vec<_> = result.collect();
-            for pair in &pairs {
-                if pair.as_rule() == Rule::key_value_pair {
-                    println!("Rule: {:?}, Content: {:?}", pair.as_rule(), pair.as_str());
-                    let mut inner = pair.clone().into_inner();
-                    let key = inner.next().unwrap();
-                    println!("  Key: {:?}, Content: {:?}", key.as_rule(), key.as_str());
-                    if let Some(value) = inner.next() {
-                        println!(
-                            "  Value: {:?}, Content: {:?}",
-                            value.as_rule(),
-                            value.as_str()
-                        );
-                        let mut value_inner = value.into_inner();
-                        if let Some(v) = value_inner.next() {
-                            println!("    V: {:?}, Content: {:?}", v.as_rule(), v.as_str());
-                        }
-                    }
-                }
-            }
-            println!("---");
-        }
+    fn test_parse_soup_string_value() {
+        assert_parse_soup_input("name value");
+    }
+
+    #[test]
+    fn test_parse_soup_numeric_value() {
+        assert_parse_soup_input("age 123");
+    }
+
+    #[test]
+    fn test_parse_soup_float_value() {
+        assert_parse_soup_input("pi 3.14");
+    }
+
+    #[test]
+    fn test_parse_soup_hex_value() {
+        assert_parse_soup_input("color 0xFF00FF");
+    }
+
+    #[test]
+    fn test_parse_soup_quoted_string_value() {
+        assert_parse_soup_input("msg \"hello\"");
     }
 }
 

@@ -60,3 +60,16 @@ pub struct Validators {
     pub containers: Vec<ContainerValidator>,
     pub container_map: HashMap<String, ContainerValidator>,
 }
+
+impl fmt::Display for Validation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Validation::IntRange(a, b) => write!(f, "Range: {}-{}", a, b),
+            Validation::HexRange(a, b) => write!(f, "HexRange: {}-{}", a, b),
+            Validation::FloatRange(a, b) => write!(f, "FloatRange: {}-{}", a, b),
+            Validation::NeedCollateMeshes(v) => write!(f, "NeedCollateMeshes: {}", v.join(", ")),
+            Validation::NotOwnParent => write!(f, "NotOwnParent"),
+            Validation::Named(s) => write!(f, "{}", s),
+        }
+    }
+}

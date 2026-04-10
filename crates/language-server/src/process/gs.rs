@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use tower_lsp_server::{Bounded, NotCancellable, OngoingProgress};
 use trainz_ast::cache::ProgramCache;
-use trainz_ast::gs::process::process_trainz_ast;
 use trainz_ast::gs::Include;
+use trainz_ast::gs::process::process_trainz_ast;
 use trainz_parser::gs::parse;
 
 pub trait ProcessGS {

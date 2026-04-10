@@ -1,9 +1,12 @@
 # AGENTS.md
 
-AGENTS.md is a simple, open format for guiding coding agents. This file provides context and instructions to help AI coding agents work on the `trainz-lsp` project.
+AGENTS.md is a simple, open format for guiding coding agents. This file provides context and instructions to help AI
+coding agents work on the `trainz-language-server` project.
 
 ## Project Overview
-`trainz-lsp` is a Language Server Protocol (LSP) implementation for the GS (Game Script) language, written in Rust.
+
+`trainz-language-server` is a Language Server Protocol (LSP) implementation for the GS (Game Script) language, written
+in Rust.
 
 ## Tech Stack
 - **Language**: Rust (Edition 2024)

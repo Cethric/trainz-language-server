@@ -5,7 +5,7 @@ members = [
     "crates/formatter",
     "crates/formatter-cli",
     "crates/diagnostics",
-    "crates/lsp",
+    "crates/language-server",
     "crates/parser",
     "crates/semantic-tokens",
     "crates/symboliser",
@@ -50,7 +50,7 @@ trainz-common = { path = "crates/common", version = "0.1.0" }
 trainz-parser = { path = "crates/parser", version = "0.1.0" }
 trainz-diagnostics = { path = "crates/diagnostics", version = "0.1.0" }
 trainz-formatter = { path = "crates/formatter", version = "0.1.0" }
-trainz-lsp = { path = "crates/lsp", version = "0.1.0" }
+trainz-language-server = { path = "crates/language-server", version = "0.1.0" }
 trainz-semantic-tokens = { path = "crates/semantic-tokens", version = "0.1.0" }
 trainz-symboliser = { path = "crates/symboliser", version = "0.1.0" }
 trainz-completions = { path = "crates/completions", version = "0.1.0" }

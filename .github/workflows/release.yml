@@ -60,15 +60,15 @@ jobs:
       - name: Package binaries (Unix)
         if: runner.os != 'Windows'
         run: |
-          tar -czf release-artifacts/trainz-lsp-${{ matrix.artifact_suffix }}.tar.gz \
-            -C target/${{ matrix.target }}/release trainz-lsp trainz-fmt
+          tar -czf release-artifacts/trainz-language-server-${{ matrix.artifact_suffix }}.tar.gz \
+            -C target/${{ matrix.target }}/release trainz-language-server trainz-fmt
 
       - name: Package binaries (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          7z a -tzip release-artifacts/trainz-lsp-${{ matrix.artifact_suffix }}.zip \
-            target/${{ matrix.target }}/release/trainz-lsp.exe \
+          7z a -tzip release-artifacts/trainz-language-server-${{ matrix.artifact_suffix }}.zip \
+            target/${{ matrix.target }}/release/trainz-language-server.exe \
             target/${{ matrix.target }}/release/trainz-fmt.exe
 
       - name: Upload artifact
@@ -100,7 +100,7 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm build
           mkdir -p ../../release-artifacts
-          tar -czf ../../release-artifacts/trainz-lsp-vscode.tar.gz out/
+          tar -czf ../../release-artifacts/trainz-language-server-vscode.tar.gz out/
 
       - name: Set up JDK
         uses: actions/setup-java@v4

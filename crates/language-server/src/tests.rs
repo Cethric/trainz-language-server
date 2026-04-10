@@ -1,7 +1,9 @@
 use crate::state::GameScriptLanguageServer;
-use tokio::time::{timeout, Duration};
+use rayon::prelude::*;
+use tokio::time::{Duration, timeout};
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{LanguageServer, LspService};
+use trainz_semantic_tokens::legend::get_token_type;
 
 #[tokio::test]
 async fn test_did_change_deadlock() {
@@ -102,10 +104,9 @@ async fn test_semantic_tokens_initial() {
         // "Foo" class name (rule: class_name, token_type: 1)
 
         // Find "include"
-        let include_token = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 7 && t.token_type == 0);
+        let include_token = tokens.data.par_iter().find_first(|t| {
+            t.length == 7 && t.token_type == get_token_type(SemanticTokenType::KEYWORD)
+        });
         assert!(
             include_token.is_some(),
             "Should find 'include' keyword. Tokens: {:?}",
@@ -113,25 +114,26 @@ async fn test_semantic_tokens_initial() {
         );
 
         // Find "\"Bar.gs\""
-        let path_token = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 8 && t.token_type == 2);
+        let path_token = tokens.data.par_iter().find_first(|t| {
+            t.length == 8 && t.token_type == get_token_type(SemanticTokenType::STRING)
+        });
         assert!(path_token.is_some(), "Should find '\"Bar.gs\"' path");
 
         // Find "class"
-        let class_token = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 5 && t.token_type == 0);
+        let class_token = tokens.data.par_iter().find_first(|t| {
+            t.length == 5 && t.token_type == get_token_type(SemanticTokenType::KEYWORD)
+        });
         assert!(class_token.is_some(), "Should find 'class' keyword");
 
         // Find "Foo"
-        let foo_token = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 3 && t.token_type == 1);
-        assert!(foo_token.is_some(), "Should find 'Foo' class name");
+        let foo_token = tokens.data.par_iter().find_first(|t| {
+            t.length == 3 && t.token_type == get_token_type(SemanticTokenType::CLASS)
+        });
+        assert!(
+            foo_token.is_some(),
+            "Should find 'Foo' class name. Tokens: {:?}",
+            tokens.data
+        );
     } else {
         panic!("Expected semantic tokens result");
     }
@@ -180,45 +182,44 @@ async fn test_semantic_tokens_statements_literals() {
         // if (type 0), return (type 0)
         // VARIABLE is type 10 in legend
 
-        let int_token = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 3 && t.token_type == 3);
+        let int_token = tokens.data.par_iter().find_first(|t| {
+            t.length == 3 && t.token_type == get_token_type(SemanticTokenType::TYPE)
+        });
         assert!(
             int_token.is_some(),
             "Should find 'int' type. Tokens: {:?}",
             tokens.data
         );
 
-        let i_token = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 1 && t.token_type == 10);
+        let i_token = tokens.data.par_iter().find_first(|t| {
+            t.length == 1 && t.token_type == get_token_type(SemanticTokenType::VARIABLE)
+        });
         assert!(
             i_token.is_some(),
             "Should find 'i' variable. Tokens: {:?}",
             tokens.data
         );
 
-        let num_token = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 3 && t.token_type == 6);
+        let num_token = tokens.data.par_iter().find_first(|t| {
+            t.length == 3 && t.token_type == get_token_type(SemanticTokenType::NUMBER)
+        });
         assert!(num_token.is_some(), "Should find '123' number");
 
-        let if_token = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 2 && t.token_type == 0);
+        let if_token = tokens.data.par_iter().find_first(|t| {
+            t.length == 2 && t.token_type == get_token_type(SemanticTokenType::KEYWORD)
+        });
         assert!(if_token.is_some(), "Should find 'if' keyword");
 
-        let return_token = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 6 && t.token_type == 0);
+        let return_token = tokens.data.par_iter().find_first(|t| {
+            t.length == 6 && t.token_type == get_token_type(SemanticTokenType::KEYWORD)
+        });
         assert!(return_token.is_some(), "Should find 'return' keyword");
 
-        let block_tokens: Vec<_> = tokens.data.iter().filter(|t| t.token_type == 13).collect();
+        let block_tokens: Vec<_> = tokens
+            .data
+            .par_iter()
+            .filter(|t| t.token_type == 13)
+            .collect();
         assert!(
             block_tokens.is_empty(),
             "Should NOT find macro block tokens"
@@ -294,17 +295,19 @@ async fn test_semantic_tokens_update() {
         // "void" at (1, 9) - index 3 (TYPE)
         // "Bar" at (1, 14) - index 4 (METHOD)
 
-        let bar_token = tokens.data.iter().find(|t| t.token_type == 4); // METHOD is 4
+        let bar_token = tokens
+            .data
+            .par_iter()
+            .find_first(|t| t.token_type == get_token_type(SemanticTokenType::METHOD));
         assert!(
             bar_token.is_some(),
             "Should find 'Bar' method token. Tokens: {:?}",
             tokens.data
         );
 
-        let public_token = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 6 && t.token_type == 9); // MODIFIER is 9
+        let public_token = tokens.data.par_iter().find_first(|t| {
+            t.length == 6 && t.token_type == get_token_type(SemanticTokenType::MODIFIER)
+        });
         assert!(
             public_token.is_some(),
             "Should find 'public' modifier token"
@@ -359,19 +362,24 @@ async fn test_semantic_tokens_soup() {
         // "username" key (rule: key, token_type: 0)
         // "\"test\"" string (rule: string, token_type: 2)
 
-        let kuid_key = tokens
-            .data
-            .iter()
-            .find(|t| t.token_type == 0 && t.length == 4);
-        assert!(kuid_key.is_some(), "Should find 'kuid' key token");
+        let kuid_key = tokens.data.par_iter().find_first(|t| {
+            t.token_type == get_token_type(SemanticTokenType::KEYWORD) && t.length == 4
+        });
+        assert!(
+            kuid_key.is_some(),
+            "Should find 'kuid' key token. Tokens: {:?}",
+            tokens.data
+        );
 
-        let kuid_value = tokens.data.iter().find(|t| t.token_type == 7);
+        let kuid_value = tokens
+            .data
+            .par_iter()
+            .find_first(|t| t.token_type == get_token_type(SemanticTokenType::STRING));
         assert!(kuid_value.is_some(), "Should find kuid value token");
 
-        let username_key = tokens
-            .data
-            .iter()
-            .find(|t| t.token_type == 0 && t.length == 8);
+        let username_key = tokens.data.par_iter().find_first(|t| {
+            t.token_type == get_token_type(SemanticTokenType::KEYWORD) && t.length == 8
+        });
         assert!(username_key.is_some(), "Should find 'username' key token");
     } else {
         panic!("Expected semantic tokens result for soup file");
@@ -418,26 +426,25 @@ async fn test_semantic_tokens_isclass() {
     if let Some(SemanticTokensResult::Tokens(tokens)) = result {
         // "class" (type 0), "Foo" (type 1), "isclass" (type 10), "Bar" (type 1)
 
-        let class_token = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 5 && t.token_type == 0);
+        let class_token = tokens.data.par_iter().find_first(|t| {
+            t.length == 5 && t.token_type == get_token_type(SemanticTokenType::KEYWORD)
+        });
         assert!(class_token.is_some(), "Should find 'class' keyword token");
 
-        let isclass_inheritance_token = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 7 && t.token_type == 0);
+        let isclass_inheritance_token = tokens.data.par_iter().find_first(|t| {
+            t.length == 7 && t.token_type == get_token_type(SemanticTokenType::KEYWORD)
+        });
         assert!(
             isclass_inheritance_token.is_some(),
             "Should find 'isclass' keyword token in inheritance. Tokens: {:?}",
             tokens.data
         );
 
-        let isclass_check_token = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 7 && t.token_type == 0 && t.delta_start > 0);
+        let isclass_check_token = tokens.data.par_iter().find_first(|t| {
+            t.length == 7
+                && t.token_type == get_token_type(SemanticTokenType::KEYWORD)
+                && t.delta_start > 0
+        });
         assert!(
             isclass_check_token.is_some(),
             "Should find 'isclass' keyword token in check. Tokens: {:?}",
@@ -489,8 +496,8 @@ async fn test_semantic_tokens_include() {
         // Find both "include" tokens
         let include_tokens: Vec<_> = tokens
             .data
-            .iter()
-            .filter(|t| t.length == 7 && t.token_type == 0)
+            .par_iter()
+            .filter(|t| t.length == 7 && t.token_type == get_token_type(SemanticTokenType::KEYWORD))
             .collect();
         assert_eq!(
             include_tokens.len(),
@@ -501,10 +508,9 @@ async fn test_semantic_tokens_include() {
 
         // Find "Subdir/Helper.gs"
         // Length of "\"Subdir/Helper.gs\"" is 18
-        let helper_path = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 18 && t.token_type == 2);
+        let helper_path = tokens.data.par_iter().find_first(|t| {
+            t.length == 18 && t.token_type == get_token_type(SemanticTokenType::STRING)
+        });
         assert!(
             helper_path.is_some(),
             "Should find '\"Subdir/Helper.gs\"' path"
@@ -512,10 +518,9 @@ async fn test_semantic_tokens_include() {
 
         // Find "Other.gs"
         // Length of "\"Other.gs\"" is 10
-        let other_path = tokens
-            .data
-            .iter()
-            .find(|t| t.length == 10 && t.token_type == 2);
+        let other_path = tokens.data.par_iter().find_first(|t| {
+            t.length == 10 && t.token_type == get_token_type(SemanticTokenType::STRING)
+        });
         assert!(other_path.is_some(), "Should find '\"Other.gs\"' path");
     } else {
         panic!("Expected semantic tokens result");
@@ -527,10 +532,16 @@ async fn test_soup_diagnostics() {
     let temp_dir = std::env::current_dir()
         .unwrap()
         .join("temp_validation_test");
-    std::fs::create_dir_all(&temp_dir).unwrap();
+    if temp_dir.exists() {
+        std::fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    let validator_dir = temp_dir.join("validators");
+    let test_file_dir = temp_dir.join("test_file_dir");
+    std::fs::create_dir_all(&validator_dir).unwrap();
+    std::fs::create_dir_all(&test_file_dir).unwrap();
 
     // Test Case 1: category-era.txt with semicolon separated values
-    let era_path = temp_dir.join("category-era.txt");
+    let era_path = validator_dir.join("category-era.txt");
     std::fs::write(
         &era_path,
         "era1 \"Era 1 Description\"\nera2 \"Era 2 Description\"",
@@ -538,11 +549,11 @@ async fn test_soup_diagnostics() {
     .unwrap();
 
     // Test Case 2: category-region.txt with special key '00'
-    let region_path = temp_dir.join("category-region.txt");
+    let region_path = validator_dir.join("category-region.txt");
     std::fs::write(&region_path, "00 \"No Region\"\nAU \"Australia\"").unwrap();
 
     // Add a container validator for testing category-era
-    let container_path = temp_dir.join("my_container.txt");
+    let container_path = validator_dir.join("my_container.txt");
     let container_rules = r#"
 my_container {
     key {
@@ -558,14 +569,14 @@ my_container {
     std::fs::write(&container_path, container_rules).unwrap();
 
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![], "")
+        GameScriptLanguageServer::new(client, Some(validator_dir.clone()), vec![], "")
     });
 
     service.inner().initialized(InitializedParams {}).await;
 
     // content with a key matching the validator filename and a value
-    let content = "my_container\n{\n  key \"era1;invalid_era\"\n  region \"00\"\n}\n";
-    let uri = Uri::from_file_path(temp_dir.join("test_file.soup")).unwrap();
+    let content = "my_container\n{\n  key \"invalid_era\"\n  region \"00\"\n}\n";
+    let uri = Uri::from_file_path(test_file_dir.join("test_file.soup")).unwrap();
     let path = uri.to_file_path().unwrap();
     std::fs::write(&path, content).unwrap();
 
@@ -597,9 +608,11 @@ my_container {
             DocumentDiagnosticReport::Full(full) => {
                 let items = &full.full_document_diagnostic_report.items;
 
-                let has_era_error = items.iter().any(|diag| {
+                let has_era_error = items.par_iter().any(|diag| {
                     diag.message
-                        .contains("Value 'invalid_era' for key 'key' is not a valid category era.")
+                        .contains("Invalid value(s) 'invalid_era' for key 'category-era'")
+                        && diag.message.contains("era1")
+                        && diag.message.contains("era2")
                         && diag.severity == Some(DiagnosticSeverity::ERROR)
                 });
                 assert!(
@@ -608,7 +621,7 @@ my_container {
                     items
                 );
 
-                let has_region_error = items.iter().any(|diag| diag.message.contains("region"));
+                let has_region_error = items.par_iter().any(|diag| diag.message.contains("region"));
                 assert!(
                     !has_region_error,
                     "Should NOT find diagnostic for valid '00' in category-region. Diagnostics: {:?}",
@@ -649,10 +662,10 @@ my_container {
     };
 
     let has_era1 = items_era
-        .iter()
+        .par_iter()
         .any(|item| item.label == "era1" && item.detail == Some("Era 1 Description".to_string()));
     let has_era2 = items_era
-        .iter()
+        .par_iter()
         .any(|item| item.label == "era2" && item.detail == Some("Era 2 Description".to_string()));
     assert!(
         has_era1,
@@ -691,7 +704,7 @@ my_container {
     };
 
     let has_00 = region_items
-        .iter()
+        .par_iter()
         .any(|item| item.label == "00" && item.detail == Some("No Region".to_string()));
     assert!(
         has_00,
@@ -813,9 +826,9 @@ thumbnails-element
                 let items = &full.full_document_diagnostic_report.items;
 
                 // Should find type error for 'width' (expected numeric, found string)
-                let has_type_error = items.iter().any(|diag| {
+                let has_type_error = items.par_iter().any(|diag| {
                     diag.message
-                        .contains("Invalid type for key 'thumbnails-element' in container 'width'. Expected 'numeric', found 'string', kind 'None'")
+                        .contains("Invalid type for key 'width' in container 'thumbnails-element'")
                         && diag.severity == Some(DiagnosticSeverity::ERROR)
                 });
                 assert!(
@@ -826,7 +839,7 @@ thumbnails-element
 
                 // Should NOT find duplicate key error (since 'preview' and 'main' are unique)
                 let has_duplicate_error = items
-                    .iter()
+                    .par_iter()
                     .any(|diag| diag.message.contains("Duplicate key"));
                 assert!(
                     !has_duplicate_error,
@@ -863,8 +876,8 @@ thumbnails-element
         CompletionResponse::List(list) => list.items,
     };
 
-    let has_image = items.iter().any(|item| item.label == "image");
-    let has_height = items.iter().any(|item| item.label == "height");
+    let has_image = items.par_iter().any(|item| item.label == "image");
+    let has_height = items.par_iter().any(|item| item.label == "height");
     assert!(has_image, "Should suggest 'image' inside 'main'");
     assert!(has_height, "Should suggest 'height' inside 'main'");
 
@@ -1010,7 +1023,7 @@ thumbnails-element
                 let items = &full.full_document_diagnostic_report.items;
 
                 // Should find duplicate key 'preview'
-                let has_duplicate_error = items.iter().any(|diag| {
+                let has_duplicate_error = items.par_iter().any(|diag| {
                     diag.message
                         .contains("Duplicate key 'preview' in container 'thumbnails'")
                         && diag.severity == Some(DiagnosticSeverity::ERROR)
@@ -1023,7 +1036,7 @@ thumbnails-element
 
                 // Check that 'thumbnails-element' validation works (e.g., inside 'duplicate')
                 // No errors should be reported for 'duplicate' if it matches 'thumbnails-element'
-                let has_duplicate_content_error = items.iter().any(|diag| {
+                let has_duplicate_content_error = items.par_iter().any(|diag| {
                     diag.range.start.line == 7 // inside 'duplicate'
                 });
                 assert!(
@@ -1141,7 +1154,7 @@ category-era "era1;invalid"
                 let items = &full.full_document_diagnostic_report.items;
 
                 // key2 should have a type error (expected numeric, found string)
-                let has_type_error = items.iter().any(|diag| {
+                let has_type_error = items.par_iter().any(|diag| {
                     diag.message
                         .contains("Invalid type for key 'key2' in container 'my-container'")
                         && diag.severity == Some(DiagnosticSeverity::ERROR)
@@ -1153,7 +1166,7 @@ category-era "era1;invalid"
                 );
 
                 // unknown should have a warning
-                let has_unknown_warning = items.iter().any(|diag| {
+                let has_unknown_warning = items.par_iter().any(|diag| {
                     diag.message
                         .contains("Unknown key 'unknown' in container 'my-container'")
                         && diag.severity == Some(DiagnosticSeverity::WARNING)
@@ -1165,7 +1178,7 @@ category-era "era1;invalid"
                 );
 
                 // alpha should be valid
-                let has_alpha_error = items.iter().any(|diag| diag.message.contains("alpha"));
+                let has_alpha_error = items.par_iter().any(|diag| diag.message.contains("alpha"));
                 assert!(
                     !has_alpha_error,
                     "Should NOT find error for 'alpha'. Diagnostics: {:?}",
@@ -1201,10 +1214,18 @@ category-era "era1;invalid"
         CompletionResponse::List(list) => list.items,
     };
 
-    let has_key1 = items.iter().any(|item| item.label == "key1");
-    let has_key2 = items.iter().any(|item| item.label == "key2");
-    assert!(has_key1, "Should suggest 'key1' in my-container");
-    assert!(has_key2, "Should suggest 'key2' in my-container");
+    let has_key1 = items.par_iter().any(|item| item.label == "key1");
+    let has_key2 = items.par_iter().any(|item| item.label == "key2");
+    assert!(
+        has_key1,
+        "Should suggest 'key1' in my-container. Items: {:?}",
+        items
+    );
+    assert!(
+        has_key2,
+        "Should suggest 'key2' in my-container. Items: {:?}",
+        items
+    );
 
     // 3. Check Completions for key1 value
     let val_completion_params = CompletionParams {
@@ -1231,8 +1252,8 @@ category-era "era1;invalid"
         CompletionResponse::List(list) => list.items,
     };
 
-    let has_v1 = val_items.iter().any(|item| item.label == "v1");
-    let has_v2 = val_items.iter().any(|item| item.label == "v2");
+    let has_v1 = val_items.par_iter().any(|item| item.label == "v1");
+    let has_v2 = val_items.par_iter().any(|item| item.label == "v2");
     assert!(has_v1, "Should suggest 'v1' for key1");
     assert!(has_v2, "Should suggest 'v2' for key1");
 
@@ -1251,7 +1272,7 @@ category-era "era1;invalid"
     let hover = service.inner().hover(hover_params).await.unwrap().unwrap();
     if let HoverContents::Markup(markup) = hover.contents {
         assert!(markup.value.contains("Key: `key1`"));
-        assert!(markup.value.contains("**Validation**: `v1,v2`"));
+        assert!(markup.value.contains("**Validation**:\n- `v1,v2`"));
     } else {
         panic!("Expected markup hover contents");
     }

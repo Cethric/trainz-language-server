@@ -25,9 +25,13 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/completions/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/diagnostics/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/soup-validators/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/language-server/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/language-server/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/language-server/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/crates/lsp/target" />
       <excludeFolder url="file://$MODULE_DIR$/crates/parser/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/crates/language-server/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

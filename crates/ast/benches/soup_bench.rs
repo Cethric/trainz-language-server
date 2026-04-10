@@ -1,7 +1,6 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use pest::Parser;
 use std::hint::black_box;
-use std::path::Path;
 use trainz_ast::soup::process::process_soup_ast;
 use trainz_parser::soup::grammar::{AuranConfigSoupParser, Rule};
 
@@ -65,13 +64,7 @@ fn soup_benchmark(c: &mut Criterion) {
     c.bench_function("process_soup_ast", |b| {
         b.iter(|| {
             let pairs = AuranConfigSoupParser::parse(Rule::soup, black_box(&large_soup)).unwrap();
-            process_soup_ast(
-                black_box(pairs),
-                black_box(&large_soup),
-                Path::new("."),
-                &vec![],
-                &vec![],
-            )
+            process_soup_ast(black_box(pairs), black_box(&large_soup))
         })
     });
 

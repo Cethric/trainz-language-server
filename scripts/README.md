@@ -1,6 +1,6 @@
 # Scripts
 
-This directory contains supporting scripts for the trainz-lsp project.
+This directory contains supporting scripts for the trainz-language-server project.
 
 ## Available Scripts
 

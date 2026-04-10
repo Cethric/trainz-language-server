@@ -14,17 +14,22 @@ pub fn add_key_completions_from_validator(
         "Adding key completions from validator '{}' with filter '{}'",
         validator.container_name, current_text
     );
+    let is_complete_key_match = validator
+        .rules
+        .iter()
+        .any(|r| r.key.eq_ignore_ascii_case(current_text))
+        || validator
+            .sub_possibilities
+            .iter()
+            .any(|r| r.key.eq_ignore_ascii_case(current_text));
+    let filter = if is_complete_key_match {
+        ""
+    } else {
+        current_text
+    };
+
     for rule in &validator.rules {
-        if current_text.is_empty()
-            || rule
-                .key
-                .to_lowercase()
-                .contains(&current_text.to_lowercase())
-        {
-            debug!(
-                "Adding completion for key '{}' from validator rule",
-                rule.key
-            );
+        if filter.is_empty() || rule.key.to_lowercase().contains(&filter.to_lowercase()) {
             completions.push(CompletionItem {
                 label: rule.key.clone(),
                 kind: Some(CompletionItemKind::FIELD),
@@ -46,16 +51,7 @@ pub fn add_key_completions_from_validator(
     // Also subpossibilities for top-level
     if validator.top_level {
         for sub in &validator.sub_possibilities {
-            if current_text.is_empty()
-                || sub
-                    .key
-                    .to_lowercase()
-                    .contains(&current_text.to_lowercase())
-            {
-                debug!(
-                    "Adding completion for key '{}' from subpossibilities",
-                    sub.key
-                );
+            if filter.is_empty() || sub.key.to_lowercase().contains(&filter.to_lowercase()) {
                 completions.push(CompletionItem {
                     label: sub.key.clone(),
                     kind: Some(CompletionItemKind::FIELD),

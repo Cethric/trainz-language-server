@@ -584,7 +584,7 @@ mod tests {
         assert!(result.is_some());
         let locations = result.unwrap();
         assert_eq!(locations.len(), 2);
-        let uris: Vec<Uri> = locations.iter().map(|l| l.uri.clone()).collect();
+        let uris: Vec<Uri> = locations.par_iter().map(|l| l.uri.clone()).collect();
         assert!(uris.contains(&uri1));
         assert!(uris.contains(&uri2));
     }

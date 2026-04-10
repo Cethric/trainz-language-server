@@ -1,5 +1,5 @@
 [package]
-name = "trainz-lsp"
+name = "trainz-language-server"
 version = "0.1.0"
 edition.workspace = true
 build = "build.rs"

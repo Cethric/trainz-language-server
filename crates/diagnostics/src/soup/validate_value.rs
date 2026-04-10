@@ -1,6 +1,7 @@
 use crate::soup::validate_container::validate_container;
 use crate::soup::validate_simple_value;
 use log::warn;
+use rayon::prelude::*;
 use std::path::Path;
 use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity};
 use trainz_ast::soup::{NumericValue, Value};
@@ -19,7 +20,7 @@ pub fn validate_value(
             Value::String(_, _) => "string",
             Value::Numeric(_, _) => "numeric",
             Value::Array(v, _) => {
-                if v.iter().any(|n| matches!(n, NumericValue::Float(_))) {
+                if v.par_iter().any(|n| matches!(n, NumericValue::Float(_))) {
                     "floatlist"
                 } else {
                     "array"
@@ -38,6 +39,15 @@ pub fn validate_value(
             }
             _ => false,
         };
+
+        if rule.key == "region" {
+            log::error!(
+                "DEBUG: Key: {}, type_name: {:?}, value: {:?}",
+                rule.key,
+                type_name,
+                value
+            );
+        }
 
         let is_array_type = actual_type == "array" || actual_type == "floatlist";
 
@@ -89,6 +99,87 @@ pub fn validate_value(
                 ..Default::default()
             });
         }
+
+        if type_name == "filepathedit" && !type_mismatch {
+            if let Some(base_path) = base_path {
+                if let Value::String(s, _) = value {
+                    let file_path = if let Some(parent) = base_path.parent() {
+                        parent.join(s)
+                    } else {
+                        Path::new(s).to_path_buf()
+                    };
+
+                    if !file_path.exists() {
+                        diagnostics.push(Diagnostic {
+                            range: value.range(),
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            message: format!("File '{}' for key '{}' does not exist.", s, rule.key),
+                            source: Some(String::from("soup-validator")),
+                            ..Default::default()
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(validations) = &rule.validation {
+        for validation in validations {
+            if let Validation::Named(name) = validation {
+                if name == "IsValidCategoryClass" {
+                    if let Some(allowed_values) = all_validators.simple.get("category-class") {
+                        if let Value::String(s, _) = value {
+                            crate::soup::validate_simple_value::validate_simple_value_str(
+                                value.range(),
+                                s,
+                                "category-class",
+                                allowed_values,
+                                diagnostics,
+                            );
+                        }
+                    }
+                } else if name == "IsValidCategoryRegion" {
+                    if let Some(allowed_values) = all_validators.simple.get("category-region") {
+                        if let Value::String(s, _) = value {
+                            crate::soup::validate_simple_value::validate_simple_value_str(
+                                value.range(),
+                                s,
+                                "category-region",
+                                allowed_values,
+                                diagnostics,
+                            );
+                        }
+                    }
+                } else if name == "IsValidCategoryEra" {
+                    if let Some(allowed_values) = all_validators.simple.get("category-era") {
+                        if let Value::String(s, _) = value {
+                            for era in s.split(';') {
+                                if era.is_empty() {
+                                    continue;
+                                }
+                                if !allowed_values.contains_key(era) {
+                                    diagnostics.push(Diagnostic {
+                                        range: value.range(),
+                                        severity: Some(DiagnosticSeverity::ERROR),
+                                        message: format!(
+                                            "Invalid value(s) '{}' for key 'category-era'. Allowed values are: {}",
+                                            era,
+                                            allowed_values
+                                                .keys()
+                                                .map(|k| k.to_string())
+                                                .collect::<Vec<_>>()
+                                                .join(", ")
+                                        ),
+                                        source: Some(String::from("soup-validator")),
+                                        ..Default::default()
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     match value {
@@ -96,8 +187,8 @@ pub fn validate_value(
             if let Some(kind_name) = &rule.kind {
                 if let Some(validator) = all_validators
                     .containers
-                    .iter()
-                    .find(|v| v.container_name.eq_ignore_ascii_case(kind_name))
+                    .par_iter()
+                    .find_first(|v| v.container_name.eq_ignore_ascii_case(kind_name))
                 {
                     validate_container(
                         container_kv,
@@ -111,8 +202,8 @@ pub fn validate_value(
             } else if let Some(type_name) = &rule.type_name {
                 if let Some(validator) = all_validators
                     .containers
-                    .iter()
-                    .find(|v| v.container_name.eq_ignore_ascii_case(type_name))
+                    .par_iter()
+                    .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name))
                 {
                     validate_container(
                         container_kv,

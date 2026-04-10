@@ -5,6 +5,7 @@ use dashmap::DashMap;
 use log::{debug, error, trace};
 use rayon::prelude::*;
 use std::str::FromStr;
+use tower_lsp_server::LanguageServer;
 use tower_lsp_server::jsonrpc::Error;
 use tower_lsp_server::ls_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeActionResponse,
@@ -25,11 +26,9 @@ use tower_lsp_server::ls_types::{
     StaticTextDocumentColorProviderOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TextEdit,
     UnchangedDocumentDiagnosticReport, Uri, WorkDoneProgressOptions, WorkspaceDiagnosticParams,
-    WorkspaceDiagnosticReport, WorkspaceDiagnosticReportResult, WorkspaceEdit,
-    WorkspaceSymbol, WorkspaceSymbolParams, SymbolLocation,
+    WorkspaceDiagnosticReport, WorkspaceDiagnosticReportResult, WorkspaceEdit, WorkspaceSymbol,
+    WorkspaceSymbolOptions, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
-};
-use tower_lsp_server::LanguageServer;
 use trainz_completions::soup::soup_completions;
 use trainz_definition::gs::definitions::gs_goto_definition;
 use trainz_definition::gs::references::gs_find_references;
@@ -195,8 +194,11 @@ impl LanguageServer for GameScriptLanguageServer {
                     id: None,
                 },
             )),
-            workspace_symbol_provider: Some(OneOf::Right(WorkDoneProgressOptions {
-                work_done_progress: Some(true),
+            workspace_symbol_provider: Some(OneOf::Right(WorkspaceSymbolOptions {
+                resolve_provider: Some(true),
+                work_done_progress_options: WorkDoneProgressOptions {
+                    work_done_progress: Some(true),
+                },
             })),
             ..Default::default()
         };
@@ -1124,7 +1126,7 @@ impl LanguageServer for GameScriptLanguageServer {
                                     }
                                     trainz_ast::comments::Comment::GroupComment(c) => c
                                         .comments
-                                        .iter()
+                                        .par_iter()
                                         .map(|lc| lc.text.as_str())
                                         .collect::<Vec<_>>()
                                         .join("\n"),
@@ -1296,10 +1298,10 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
-    async fn workspace_symbol(
+    async fn symbol(
         &self,
         params: WorkspaceSymbolParams,
-    ) -> tower_lsp_server::jsonrpc::Result<Option<Vec<WorkspaceSymbol>>> {
+    ) -> tower_lsp_server::jsonrpc::Result<Option<WorkspaceSymbolResponse>> {
         trace!("Workspace Symbol {:?}", params);
 
         let work_done_token = params.work_done_progress_params.work_done_token.clone();
@@ -1334,7 +1336,7 @@ impl LanguageServer for GameScriptLanguageServer {
             progress.finish().await;
         }
 
-        Ok(Some(symbols))
+        Ok(Some(WorkspaceSymbolResponse::Nested(symbols)))
     }
 }
 
@@ -1346,23 +1348,26 @@ fn collect_matching_symbols(
 ) {
     // Check if this symbol matches the query
     if query.is_empty() || symbol.name.to_lowercase().contains(query) {
-        let uri = Uri::from_file_path(file_path).unwrap_or_else(|_| Uri::from_str(file_path).unwrap());
-        
+        let uri =
+            Uri::from_file_path(file_path).unwrap_or_else(|| Uri::from_str(file_path).unwrap());
+
         symbols.push(WorkspaceSymbol {
             name: symbol.name.clone(),
             kind: symbol.kind,
             tags: symbol.tags.clone(),
             container_name: symbol.detail.clone(),
-            location: Location {
+            location: OneOf::Left(Location {
                 uri: uri.clone(),
                 range: symbol.range,
-            },
+            }),
             data: None,
         });
     }
 
     // Recursively check children
-    for child in &symbol.children {
-        collect_matching_symbols(symbols, child, query, file_path);
+    if let Some(children) = &symbol.children {
+        for child in children {
+            collect_matching_symbols(symbols, child, query, file_path);
+        }
     }
 }

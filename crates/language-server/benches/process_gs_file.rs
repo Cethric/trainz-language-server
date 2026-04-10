@@ -1,9 +1,10 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use std::path::PathBuf;
 use tokio::runtime::Runtime;
-use tower_lsp_server::ls_types::ProgressToken;
 use tower_lsp_server::LspService;
-use trainz_lsp::state::GameScriptLanguageServer;
+use tower_lsp_server::ls_types::ProgressToken;
+use trainz_language_server::process::gs::ProcessGS;
+use trainz_language_server::state::GameScriptLanguageServer;
 
 async fn bench_process_gs_file(server: &GameScriptLanguageServer, path: PathBuf, content: &str) {
     let workspace_folders = vec![];
@@ -25,7 +26,7 @@ async fn bench_process_gs_file(server: &GameScriptLanguageServer, path: PathBuf,
 fn criterion_benchmark(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let (service, _socket) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], "test"));
     let server = service.inner();
 
     // In Cargo, benches run with CWD set to the crate root.

@@ -116,6 +116,7 @@ where
 mod tests {
     use super::*;
     use pest::Parser;
+    use rayon::prelude::*;
     use trainz_parser::comments::grammar::gs::{GsCommentsParser, Rule as GsRule};
     use trainz_parser::comments::grammar::soup::{Rule as SoupRule, SoupCommentsParser};
 
@@ -137,7 +138,7 @@ public define int DIRECTION_LEFT      = 0;    //!< Left junction direction state
 
         let groups: Vec<_> = program
             .comments
-            .iter()
+            .par_iter()
             .filter_map(|c| match c {
                 Comment::GroupComment(g) => Some(g),
                 _ => None,
@@ -145,7 +146,7 @@ public define int DIRECTION_LEFT      = 0;    //!< Left junction direction state
             .collect();
         let lines: Vec<_> = program
             .comments
-            .iter()
+            .par_iter()
             .filter_map(|c| match c {
                 Comment::LineComment(l) => Some(l),
                 _ => None,
@@ -178,7 +179,7 @@ key value
 
         let groups: Vec<_> = program
             .comments
-            .iter()
+            .par_iter()
             .filter_map(|c| match c {
                 Comment::GroupComment(g) => Some(g),
                 _ => None,
@@ -186,7 +187,7 @@ key value
             .collect();
         let lines: Vec<_> = program
             .comments
-            .iter()
+            .par_iter()
             .filter_map(|c| match c {
                 Comment::LineComment(l) => Some(l),
                 _ => None,

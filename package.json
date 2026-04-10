@@ -1,5 +1,5 @@
 {
-  "name": "trainz-lsp",
+  "name": "trainz-language-server",
   "version": "0.0.0-semantically-released",
   "description": "Language Server Protocol implementation for the GS (Game Script) and Soup languages used in Trainz",
   "repository": {

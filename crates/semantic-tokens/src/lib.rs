@@ -3,6 +3,7 @@ pub mod gs;
 pub mod legend;
 pub mod soup;
 
+use rayon::prelude::*;
 use shadow_rs::shadow;
 use tower_lsp_server::ls_types::{Range, SemanticToken, SemanticTokenModifier, SemanticTokenType};
 
@@ -69,13 +70,16 @@ pub fn process_raw_tokens(
 
     for (range, token_type, modifiers) in raw_tokens {
         let type_idx = token_types
-            .iter()
-            .position(|t| *t == token_type)
+            .par_iter()
+            .position_first(|t| *t == token_type)
             .unwrap_or(0) as u32;
 
         let mut modifiers_bitset = 0;
         for modifier in modifiers {
-            if let Some(pos) = token_modifiers.iter().position(|m| *m == modifier) {
+            if let Some(pos) = token_modifiers
+                .par_iter()
+                .position_first(|m| *m == modifier)
+            {
                 modifiers_bitset |= 1 << pos;
             }
         }
@@ -298,8 +302,8 @@ mod tests {
         let (_, token_modifiers) = legend::get_legend();
         let doc_modifier_bit = 1
             << token_modifiers
-                .iter()
-                .position(|m| *m == SemanticTokenModifier::DOCUMENTATION)
+                .par_iter()
+                .position_first(|m| *m == SemanticTokenModifier::DOCUMENTATION)
                 .unwrap();
 
         // Line 0 and Line 1 comments should have DOCUMENTATION bitset since they immediately precede line 2 (DECLARATION)

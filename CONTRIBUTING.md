@@ -1,6 +1,7 @@
-# Contributing to trainz-lsp
+# Contributing to trainz-language-server
 
-Thank you for your interest in contributing to trainz-lsp! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to trainz-language-server! This document provides guidelines and
+instructions for contributing.
 
 ## Commit Message Convention
 

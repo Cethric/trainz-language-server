@@ -2,6 +2,7 @@
 mod tests {
     use crate::gs::trainz_symboliser;
     use pest::Parser;
+    use rayon::prelude::*;
     use tower_lsp_server::ls_types::{SymbolKind, SymbolTag};
     use trainz_ast::gs::process::process_trainz_ast;
     use trainz_parser::gs::grammar::{GameScriptParser, Rule};
@@ -147,35 +148,35 @@ mod tests {
         // Let's verify some key ones
         assert!(
             body_symbols
-                .iter()
+                .par_iter()
                 .any(|s| s.name == "a" && s.kind == SymbolKind::VARIABLE)
         );
         assert!(
             body_symbols
-                .iter()
+                .par_iter()
                 .any(|s| s.name == "label1" && s.kind == SymbolKind::VARIABLE)
         );
 
         assert!(
             body_symbols
-                .iter()
+                .par_iter()
                 .any(|s| s.name == "if" && s.kind == SymbolKind::NAMESPACE)
         );
         assert!(
             body_symbols
-                .iter()
+                .par_iter()
                 .any(|s| s.name == "while" && s.kind == SymbolKind::NAMESPACE)
         );
 
         assert!(
             body_symbols
-                .iter()
+                .par_iter()
                 .any(|s| s.name == "for" && s.kind == SymbolKind::NAMESPACE)
         );
 
         assert!(
             body_symbols
-                .iter()
+                .par_iter()
                 .any(|s| s.name == "switch" && s.kind == SymbolKind::NAMESPACE)
         );
     }
@@ -197,7 +198,7 @@ mod tests {
         // a = 1 + 2 -> "assign" symbol
         assert!(
             body_symbols
-                .iter()
+                .par_iter()
                 .any(|s| s.name == "assign" && s.kind == SymbolKind::VARIABLE)
         );
     }
@@ -251,29 +252,29 @@ mod tests {
         // 1. Check if 'pid' and 'inherited' are found
         assert!(
             body_symbols
-                .iter()
+                .par_iter()
                 .any(|s| s.name == "inherited" && s.kind == SymbolKind::VARIABLE)
         );
         assert!(
             body_symbols
-                .iter()
+                .par_iter()
                 .any(|s| s.name == "pid" && s.kind == SymbolKind::VARIABLE)
         );
 
         // 2. Check if 'use_metric' is found as a variable after '!'
         assert!(
             body_symbols
-                .iter()
+                .par_iter()
                 .any(|s| s.name == "use_metric" && s.kind == SymbolKind::VARIABLE)
         );
 
         // 3. Ensure '!' is NOT a variable
-        assert!(!body_symbols.iter().any(|s| s.name == "!"));
+        assert!(!body_symbols.par_iter().any(|s| s.name == "!"));
 
         // 4. Check if single-line if return is handled
         let if_symbol = body_symbols
-            .iter()
-            .find(|s| s.name == "if")
+            .par_iter()
+            .find_first(|s| s.name == "if")
             .expect("Should find 'if' symbol");
         let if_children = if_symbol
             .children
@@ -282,33 +283,37 @@ mod tests {
         // Should contain 'use_metric' (from cond) and symbols from return statement
         assert!(
             if_children
-                .iter()
+                .par_iter()
                 .any(|s| s.name == "use_metric" && s.kind == SymbolKind::VARIABLE)
         );
         assert!(
             if_children
-                .iter()
+                .par_iter()
                 .any(|s| s.name == "pid" && s.kind == SymbolKind::VARIABLE)
         );
 
         // 5. Check out_description = out_description
         let out_desc_symbols: Vec<_> = body_symbols
-            .iter()
+            .par_iter()
             .filter(|s| s.name == "out_description")
             .collect();
         // One from declaration, two from assignment = 3
         assert_eq!(out_desc_symbols.len(), 3);
 
         // 6. Check soup.SetNamedTag
-        assert!(body_symbols.iter().any(|s| s.name == "soup"));
-        assert!(body_symbols.iter().any(|s| s.name == "SetNamedTag"));
+        assert!(body_symbols.par_iter().any(|s| s.name == "soup"));
+        assert!(body_symbols.par_iter().any(|s| s.name == "SetNamedTag"));
         // string literals are formatted as Literal(String("..."))
-        assert!(body_symbols.iter().any(|s| s.name.contains("speed-normal")));
+        assert!(
+            body_symbols
+                .par_iter()
+                .any(|s| s.name.contains("speed-normal"))
+        );
 
         // 7. Check -1.0
         assert!(
             body_symbols
-                .iter()
+                .par_iter()
                 .any(|s| s.name.contains("-1.0") || s.name == "-1.0")
         );
     }

@@ -1,8 +1,9 @@
+use rayon::prelude::*;
 use tower_lsp_server::ls_types::{SemanticTokenModifier, SemanticTokenType};
 
 pub fn get_token_type(target: SemanticTokenType) -> u32 {
     let (types, _) = get_legend();
-    types.iter().position(|t| *t == target).unwrap() as u32
+    types.par_iter().position_first(|t| *t == target).unwrap() as u32
 }
 
 pub fn get_legend() -> (Vec<SemanticTokenType>, Vec<SemanticTokenModifier>) {

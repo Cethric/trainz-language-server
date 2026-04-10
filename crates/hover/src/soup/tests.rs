@@ -3,8 +3,7 @@ use trainz_ast::soup::process::process_soup_ast;
 use trainz_parser::soup::parse_soup;
 use trainz_soup_validators::load_validators;
 
-#[test]
-fn test_soup_hover_case_insensitive() {
+fn setup_case_insensitive_hover_data() -> (Soup, std::path::PathBuf) {
     let content = r#"
 My_Container {
     KeyA "value"
@@ -13,7 +12,6 @@ My_Container {
     let pairs = parse_soup(content).unwrap();
     let soup = process_soup_ast(pairs, content);
 
-    // Create a temporary validation directory
     let temp_dir = std::env::current_dir()
         .unwrap()
         .join("temp_hover_case_insensitive_test");
@@ -35,12 +33,13 @@ my_container
 "#;
     std::fs::write(temp_dir.join("my_container.txt"), my_container_txt).unwrap();
 
-    // Hover over "KeyA" in Soup which is at line 2, char 4 (0-indexed)
-    // content is:
-    // \n (line 0)
-    // My_Container { (line 1)
-    //     KeyA "value" (line 2)
-    // }
+    (soup, temp_dir)
+}
+
+#[test]
+fn test_soup_hover_case_insensitive_key() {
+    let (soup, temp_dir) = setup_case_insensitive_hover_data();
+
     let params = HoverParams {
         text_document_position_params: tower_lsp_server::ls_types::TextDocumentPositionParams {
             text_document: tower_lsp_server::ls_types::TextDocumentIdentifier {
@@ -67,7 +66,13 @@ my_container
         panic!("Expected MarkupContent");
     }
 
-    // Test top-level case-insensitive match
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
+fn test_soup_hover_case_insensitive_container() {
+    let (soup, temp_dir) = setup_case_insensitive_hover_data();
+
     let params_top = HoverParams {
         text_document_position_params: tower_lsp_server::ls_types::TextDocumentPositionParams {
             text_document: tower_lsp_server::ls_types::TextDocumentIdentifier {

@@ -1,8 +1,8 @@
 use std::fs;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{LanguageServer, LspService};
-use trainz_lsp::state::GameScriptLanguageServer;
+use trainz_language_server::state::GameScriptLanguageServer;
 
 #[tokio::test]
 async fn test_circular_include_deadlock() {

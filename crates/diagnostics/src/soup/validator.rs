@@ -1,4 +1,5 @@
 use crate::soup::{validate_container, validate_value};
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::path::Path;
 use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity};
@@ -30,18 +31,26 @@ pub fn soup_diagnostics(
         _ => None,
     });
 
-    let kind_validator = kind_validator_name
-        .as_ref()
-        .and_then(|name| {
-            let val = validators.container_map.get(&name.to_ascii_lowercase());
-            if val.is_none() {
-                println!("Validator not found for: {}, available keys: {:?}", name, validators.container_map.keys());
-            }
-            val
-        });
+    let kind_validator = kind_validator_name.as_ref().and_then(|name| {
+        println!("Looking for validator: {}", name);
+        let val = validators.container_map.get(&name.to_ascii_lowercase());
+        if val.is_none() {
+            println!(
+                "Validator not found for: {}, available keys: {:?}",
+                name,
+                validators.container_map.keys()
+            );
+        } else {
+            println!("Validator found: {}", name);
+        }
+        val
+    });
 
     if let Some(validator) = kind_validator {
-        println!("Validator found: {}, top_level: {}", validator.container_name, validator.top_level);
+        println!(
+            "Validator found: {}, top_level: {}",
+            validator.container_name, validator.top_level
+        );
         if validator.top_level {
             // Validate all subpossibilities at the top level
             for sub in &validator.sub_possibilities {
@@ -143,11 +152,11 @@ pub fn soup_diagnostics(
                 }
                 if !validator
                     .sub_possibilities
-                    .iter()
+                    .par_iter()
                     .any(|sub| sub.key.eq_ignore_ascii_case(&kv.key))
                     && !validator
                         .rules
-                        .iter()
+                        .par_iter()
                         .any(|rule| rule.key.eq_ignore_ascii_case(&kv.key))
                 {
                     // Ignore metadata keys

@@ -134,12 +134,12 @@
         "assignees": [],
         "assets": [
           {
-            "path": "release-artifacts/trainz-lsp-linux-x86_64.tar.gz",
-            "name": "trainz-lsp-${nextRelease.version}-linux-x86_64.tar.gz",
+            "path": "release-artifacts/trainz-language-server-linux-x86_64.tar.gz",
+            "name": "trainz-language-server-${nextRelease.version}-linux-x86_64.tar.gz",
             "label": "LSP Binary (Linux x86_64)"
           },
           {
-            "path": "release-artifacts/trainz-lsp-vscode-*.tar.gz",
+            "path": "release-artifacts/trainz-language-server-vscode-*.tar.gz",
             "label": "VSCode Extension"
           },
           {

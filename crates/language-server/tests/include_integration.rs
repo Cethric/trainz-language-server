@@ -1,8 +1,9 @@
+use rayon::prelude::*;
 use std::fs;
 use std::path::PathBuf;
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{LanguageServer, LspService};
-use trainz_lsp::state::GameScriptLanguageServer;
+use trainz_language_server::state::GameScriptLanguageServer;
 
 fn setup_temp_workspace(test_name: &str) -> (PathBuf, Uri) {
     let temp_dir = std::env::current_dir()
@@ -74,8 +75,8 @@ async fn test_include_document_symbols() {
     if let Some(DocumentSymbolResponse::Nested(symbols)) = result {
         // Find include symbol
         let include_symbol = symbols
-            .iter()
-            .find(|s| s.name == "Helper.gs" && s.kind == SymbolKind::MODULE);
+            .par_iter()
+            .find_first(|s| s.name == "Helper.gs" && s.kind == SymbolKind::MODULE);
         assert!(
             include_symbol.is_some(),
             "Should find 'Helper.gs' include symbol. Symbols: {:?}",
@@ -84,8 +85,8 @@ async fn test_include_document_symbols() {
 
         // Find class symbol
         let class_symbol = symbols
-            .iter()
-            .find(|s| s.name == "Main" && s.kind == SymbolKind::CLASS);
+            .par_iter()
+            .find_first(|s| s.name == "Main" && s.kind == SymbolKind::CLASS);
         assert!(class_symbol.is_some(), "Should find 'Main' class symbol");
     } else {
         panic!("Expected nested document symbols");
@@ -206,20 +207,20 @@ async fn test_include_goto_definition() {
         let sym_result = service.inner().document_symbol(sym_params).await.unwrap();
         if let Some(DocumentSymbolResponse::Nested(symbols)) = sym_result {
             // Find class Main, then method Run, then variable h
-            let main = symbols.iter().find(|s| s.name == "Main").unwrap();
+            let main = symbols.par_iter().find_first(|s| s.name == "Main").unwrap();
             let run = main
                 .children
                 .as_ref()
                 .unwrap()
-                .iter()
-                .find(|s| s.name == "Run")
+                .par_iter()
+                .find_first(|s| s.name == "Run")
                 .unwrap();
             let h = run
                 .children
                 .as_ref()
                 .unwrap()
-                .iter()
-                .find(|s| s.name == "h")
+                .par_iter()
+                .find_first(|s| s.name == "h")
                 .unwrap();
 
             // The detail for 'h' contains the Helper type with its range.

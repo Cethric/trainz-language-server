@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use tower_lsp_server::ls_types::{Hover, MarkupContent, MarkupKind};
 use trainz_common::wiki::get_wiki_kind_name;
 use trainz_soup_validators::ContainerRule;
@@ -30,8 +31,8 @@ pub fn create_hover_from_rule(rule: &ContainerRule, range: &trainz_ast::Range) -
     if let Some(v) = &rule.validation {
         validation_rules.push(format!(
             "**Validation**:\n{}",
-            v.iter()
-                .map(|v| format!("- `{:?}`", v))
+            v.par_iter()
+                .map(|v| format!("- `{}`", v))
                 .collect::<Vec<String>>()
                 .join("\n")
         ));

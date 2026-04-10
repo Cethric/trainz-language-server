@@ -1,7 +1,8 @@
+use rayon::prelude::*;
 use std::collections::HashMap;
 use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity};
-use trainz_ast::soup::Value;
 use trainz_ast::Range;
+use trainz_ast::soup::Value;
 
 pub fn validate_simple_value(
     value: &Value,
@@ -40,7 +41,7 @@ pub fn validate_simple_value_str(
                 value,
                 key_to_check,
                 allowed_values
-                    .iter()
+                    .par_iter()
                     .map(|(k, v)| if let Some(v) = v {
                         format!("{}: {}", k, v)
                     } else {

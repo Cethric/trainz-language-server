@@ -1,4 +1,5 @@
 use crate::soup::find_hover_recursive;
+use rayon::prelude::*;
 use std::collections::HashMap;
 use tower_lsp_server::ls_types::{Hover, MarkupContent, MarkupKind, Position};
 use trainz_ast::soup::value::Value;
@@ -17,13 +18,13 @@ pub fn find_hover_in_value(
                 if let Some(kind_name) = &rule.kind {
                     next_validator = validators
                         .containers
-                        .iter()
-                        .find(|v| v.container_name.eq_ignore_ascii_case(kind_name));
+                        .par_iter()
+                        .find_first(|v| v.container_name.eq_ignore_ascii_case(kind_name));
                 } else if let Some(type_name) = &rule.type_name {
                     next_validator = validators
                         .containers
-                        .iter()
-                        .find(|v| v.container_name.eq_ignore_ascii_case(type_name));
+                        .par_iter()
+                        .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name));
                 }
             }
             find_hover_recursive(container_kv, position, validators, next_validator)
@@ -58,7 +59,7 @@ pub fn get_hover_for_simple_validator(
 
     if !allowed_values.is_empty() {
         value_doc.push_str("#### Available Options\n");
-        let mut sorted_options: Vec<_> = allowed_values.iter().collect();
+        let mut sorted_options: Vec<_> = allowed_values.par_iter().collect();
         sorted_options.sort_by(|a, b| a.0.cmp(b.0));
         for (opt, desc) in sorted_options {
             value_doc.push_str(&if let Some(desc) = desc {

@@ -1,6 +1,6 @@
 {
-  "name": "trainz-lsp-vscode",
-  "publisher": "trainz-lsp",
+  "name": "trainz-language-server-vscode",
+  "publisher": "trainz-language-server",
   "displayName": "Trainz GS Language Server",
   "description": "Language Server extension for Trainz GS",
   "version": "0.1.0",
@@ -46,10 +46,10 @@
       "type": "object",
       "title": "Trainz GS LSP configuration",
       "properties": {
-        "trainz-lsp.serverPath": {
+        "trainz-language-server.serverPath": {
           "type": "string",
-          "default": "trainz-lsp",
-          "description": "Path to the trainz-lsp executable"
+          "default": "trainz-language-server",
+          "description": "Path to the trainz-language-server executable"
         }
       }
     },
@@ -162,6 +162,7 @@
     "glob": "^13.0.6",
     "globals": "^17.4.0",
     "mocha": "^11.7.5",
+    "mocha-junit-reporter": "^2.0.0",
     "sinon": "^21.0.3",
     "typescript": "^6.0.2"
   }

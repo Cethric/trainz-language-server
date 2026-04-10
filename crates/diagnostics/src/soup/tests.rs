@@ -1,8 +1,9 @@
 use super::validator::*;
+use rayon::prelude::*;
 use tower_lsp_server::ls_types::DiagnosticSeverity;
 use trainz_ast::soup::process::process_soup_ast;
 use trainz_parser::soup::parse_soup;
-use trainz_soup_validators::{load_validators, ContainerValidator, Validators};
+use trainz_soup_validators::{ContainerValidator, Validators, load_validators};
 
 #[test]
 fn test_bool_kuid_filepath_types() {
@@ -46,7 +47,7 @@ test_container
     let diagnostics = soup_diagnostics(&soup, &validators, None);
 
     let errors: Vec<_> = diagnostics
-        .iter()
+        .par_iter()
         .filter(|d| d.severity == Some(DiagnosticSeverity::ERROR))
         .collect();
 
@@ -122,11 +123,11 @@ type "numeric"
     // 1. "Signals" should match "signals" in container.txt
     // 2. "Light" should match "light" in signal-possibility
     let errors: Vec<_> = diagnostics
-        .iter()
+        .par_iter()
         .filter(|d| d.severity == Some(DiagnosticSeverity::ERROR))
         .collect();
     let warnings: Vec<_> = diagnostics
-        .iter()
+        .par_iter()
         .filter(|d| d.severity == Some(DiagnosticSeverity::WARNING))
         .collect();
 
@@ -178,7 +179,7 @@ UniqueNames
 
     let validators = load_validators(&temp_dir);
     let diagnostics = soup_diagnostics(&soup2, &validators, None);
-    let has_duplicate_error = diagnostics.iter().any(|diag| {
+    let has_duplicate_error = diagnostics.par_iter().any(|diag| {
         diag.message.to_lowercase().contains("duplicate key")
             && diag.message.to_lowercase().contains("'keya'")
     });
@@ -193,7 +194,7 @@ UniqueNames
 }
 
 #[test]
-fn test_kind_txt_validation() {
+fn test_kind_txt_validation_valid_content() {
     let content = r#"
 kind "my-kind"
 key1 "value1"
@@ -221,7 +222,7 @@ my-kind
     let diagnostics = soup_diagnostics(&soup, &validators, None);
 
     let errors: Vec<_> = diagnostics
-        .iter()
+        .par_iter()
         .filter(|d| d.severity == Some(DiagnosticSeverity::ERROR))
         .collect();
     assert!(
@@ -230,20 +231,39 @@ my-kind
         errors
     );
 
-    // Test with invalid value
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_kind_txt_validation_invalid_content() {
     let invalid_content = r#"
 kind "my-kind"
 key1 123
 "#;
     let pairs_invalid = parse_soup(invalid_content).unwrap();
     let soup_invalid = process_soup_ast(pairs_invalid, invalid_content);
+
+    let temp_dir = std::env::current_dir()
+        .unwrap()
+        .join("temp_kind_test_invalid");
+    if temp_dir.exists() {
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let kind_txt = r#"
+my-kind
+{
+  key1 { type "string" }
+}
+"#;
+    std::fs::write(temp_dir.join("kind.txt"), kind_txt).unwrap();
+
+    let validators = load_validators(&temp_dir);
     let diagnostics_invalid = soup_diagnostics(&soup_invalid, &validators, None);
-    eprintln!(
-        "DEBUG: Diagnostics for invalid content: {:?}",
-        diagnostics_invalid
-    );
+
     let has_type_error = diagnostics_invalid
-        .iter()
+        .par_iter()
         .any(|d| d.message.contains("Invalid type for key 'key1'"));
     assert!(
         has_type_error,
@@ -251,7 +271,7 @@ key1 123
         diagnostics_invalid
     );
 
-    let _ = std::fs::remove_dir_all(&temp_dir);
+    std::fs::remove_dir_all(&temp_dir).unwrap();
 }
 
 #[test]
@@ -320,7 +340,7 @@ type "numeric"
 
     // Check if there are any errors. Numeric keys should be valid.
     let errors: Vec<_> = diagnostics
-        .iter()
+        .par_iter()
         .filter(|d| d.severity == Some(DiagnosticSeverity::ERROR))
         .collect();
     assert!(
@@ -389,7 +409,7 @@ type "numeric"
     let diagnostics = soup_diagnostics(&soup, &validators, None);
 
     // Check for duplicate key error.
-    let has_duplicate_error = diagnostics.iter().any(|diag| {
+    let has_duplicate_error = diagnostics.par_iter().any(|diag| {
         diag.message
             .contains("Duplicate key '0' in container 'signals'")
     });
@@ -454,7 +474,7 @@ type "numeric"
     let diagnostics = soup_diagnostics(&soup, &validators, None);
 
     let errors: Vec<_> = diagnostics
-        .iter()
+        .par_iter()
         .filter(|d| d.severity == Some(DiagnosticSeverity::ERROR))
         .collect();
     assert!(
@@ -512,7 +532,7 @@ type "string"
     let diagnostics = soup_diagnostics(&soup, &validators, None);
 
     let unknown_key_errors: Vec<_> = diagnostics
-        .iter()
+        .par_iter()
         .filter(|diag| diag.message.contains("Unknown key"))
         .collect();
 
@@ -526,7 +546,7 @@ type "string"
 }
 
 #[test]
-fn test_compulsory_and_obsolete_validation() {
+fn test_compulsory_optional_keys_do_not_error() {
     let content = r#"
     kind "test-container"
     required-key "present"
@@ -574,9 +594,8 @@ obsolete-tag 1
     let validators = load_validators(&temp_dir);
     let diagnostics = soup_diagnostics(&soup, &validators, None);
 
-    // Should have no errors for missing optional keys
     let missing_errors: Vec<_> = diagnostics
-        .iter()
+        .par_iter()
         .filter(|diag| {
             diag.message.contains("is missing") && diag.severity == Some(DiagnosticSeverity::ERROR)
         })
@@ -588,8 +607,50 @@ obsolete-tag 1
         missing_errors
     );
 
-    // Should have a warning for obsolete-key
-    let obsolete_warning = diagnostics.iter().find(|diag| {
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_obsolete_key_generates_warning() {
+    let content = r#"
+    kind "test-container"
+    required-key "present"
+    obsolete-key "should-warn"
+    "#;
+    let pairs = parse_soup(content).unwrap();
+    let soup = process_soup_ast(pairs, content);
+
+    let temp_dir = std::env::current_dir()
+        .unwrap()
+        .join("temp_compulsory_test_obsolete");
+    if temp_dir.exists() {
+        std::fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_txt = r#"
+test-container
+{
+  kind "container"
+  top-level 1
+  required-key
+  {
+type "string"
+compulsory 1
+  }
+  obsolete-key
+  {
+type "string"
+obsolete-tag 1
+  }
+}
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+
+    let validators = load_validators(&temp_dir);
+    let diagnostics = soup_diagnostics(&soup, &validators, None);
+
+    let obsolete_warning = diagnostics.par_iter().find_first(|diag| {
         diag.message.contains("is obsolete/deprecated")
             && diag.severity == Some(DiagnosticSeverity::WARNING)
     });
@@ -635,7 +696,7 @@ compulsory 1
     let diagnostics = soup_diagnostics(&soup, &validators, None);
 
     // Should have an error for missing required-key
-    let missing_error = diagnostics.iter().find(|diag| {
+    let missing_error = diagnostics.par_iter().find_first(|diag| {
         diag.message
             .contains("Compulsory key 'required-key' is missing")
             && diag.severity == Some(DiagnosticSeverity::ERROR)
@@ -705,7 +766,7 @@ type "int"
     let diagnostics = soup_diagnostics(&soup, &validators, None);
 
     let has_type_error = diagnostics
-        .iter()
+        .par_iter()
         .any(|diag| diag.message.contains("Invalid type for key 'width'"));
     assert!(
         !has_type_error,
@@ -748,7 +809,7 @@ type "vector2"
     let diagnostics = soup_diagnostics(&soup, &validators, None);
 
     let has_type_error = diagnostics
-        .iter()
+        .par_iter()
         .any(|diag| diag.message.contains("Invalid type for key 'pos'"));
     assert!(
         !has_type_error,
@@ -788,7 +849,7 @@ fn test_user_issue_string_table_validation() {
     }
 
     let has_unknown_key_error = diagnostics
-        .iter()
+        .par_iter()
         .any(|diag| diag.message.contains("Unknown key"));
 
     assert!(
@@ -829,6 +890,11 @@ string-table
   kind "container"
   tag-array
   {
+    kind "string-entry"
+  }
+  validation
+  {
+    UniqueNames
   }
 }
 
@@ -848,7 +914,7 @@ type "string"
 
     // 1. Check for duplicate key error for "Key1"
     let has_duplicate_error = diagnostics
-        .iter()
+        .par_iter()
         .any(|diag| diag.message.contains("Duplicate key 'Key1'"));
     assert!(
         has_duplicate_error,
@@ -871,7 +937,7 @@ Key3 {
     let diagnostics_invalid = soup_diagnostics(&soup_invalid, &validators, None);
 
     let has_unknown_key_error = diagnostics_invalid
-        .iter()
+        .par_iter()
         .any(|diag| diag.message.contains("Unknown key 'invalid_key'"));
     assert!(
         has_unknown_key_error,
@@ -918,7 +984,7 @@ key "value"
     let diagnostics = soup_diagnostics(&soup, &validators, None);
 
     let has_error = diagnostics
-        .iter()
+        .par_iter()
         .any(|d| d.severity == Some(DiagnosticSeverity::ERROR));
     assert!(
         !has_error,
@@ -944,7 +1010,7 @@ type "string"
     let validators_mixed = load_validators(&temp_dir);
     let diagnostics_mixed = soup_diagnostics(&soup, &validators_mixed, None);
     let has_error_mixed = diagnostics_mixed
-        .iter()
+        .par_iter()
         .any(|d| d.severity == Some(DiagnosticSeverity::ERROR));
     assert!(
         !has_error_mixed,
@@ -970,7 +1036,7 @@ type "string"
     let validators_tagarray = load_validators(&temp_dir);
     let diagnostics_tagarray = soup_diagnostics(&soup, &validators_tagarray, None);
     let has_error_tagarray = diagnostics_tagarray
-        .iter()
+        .par_iter()
         .any(|d| d.severity == Some(DiagnosticSeverity::ERROR));
     assert!(
         !has_error_tagarray,
@@ -990,7 +1056,7 @@ tag-array { }
     let soup_meta = process_soup_ast(pairs_meta, content_meta);
     let diagnostics_meta = soup_diagnostics(&soup_meta, &validators, None);
     let has_unknown_key = diagnostics_meta
-        .iter()
+        .par_iter()
         .any(|d| d.message.contains("Unknown key"));
     assert!(
         !has_unknown_key,
@@ -1063,7 +1129,7 @@ kind "my-container"
     let soup_missing = process_soup_ast(pairs_missing, content_missing);
     let diagnostics_missing = soup_diagnostics(&soup_missing, &validators, None);
 
-    let has_missing_key_error = diagnostics_missing.iter().any(|diag| {
+    let has_missing_key_error = diagnostics_missing.par_iter().any(|diag| {
         diag.message
             .contains("Compulsory key 'required-key' is missing")
     });
@@ -1145,7 +1211,7 @@ kind "my-array"
     let soup_non_seq = process_soup_ast(pairs_non_seq, content_non_seq);
     let diagnostics_non_seq = soup_diagnostics(&soup_non_seq, &validators, None);
 
-    let has_seq_error = diagnostics_non_seq.iter().any(|diag| {
+    let has_seq_error = diagnostics_non_seq.par_iter().any(|diag| {
         diag.message.contains("Non-sequential array index '2'")
             && diag.message.contains("Expected '1'")
     });
@@ -1160,7 +1226,7 @@ kind "my-array"
 
 #[test]
 fn test_top_level_inheritance() {
-    let temp_dir = std::env::temp_dir().join("trainz-lsp-test-top-level");
+    let temp_dir = std::env::temp_dir().join("language-server-test-top-level");
     std::fs::create_dir_all(&temp_dir).unwrap();
 
     let kind_content = r#"
@@ -1227,7 +1293,7 @@ track-id "test-track"
 
     // Should NOT have any "Unknown key" errors if top_level validation worked
     let has_unknown_key = diagnostics
-        .iter()
+        .par_iter()
         .any(|d| d.message.contains("Unknown key"));
     assert!(
         !has_unknown_key,
@@ -1237,7 +1303,7 @@ track-id "test-track"
 
     // Should NOT have error for 'asset-id' as it is inherited from base-asset
     let has_missing_asset_id = diagnostics
-        .iter()
+        .par_iter()
         .any(|d| d.message.contains("Compulsory key 'asset-id' is missing"));
     assert!(
         !has_missing_asset_id,
@@ -1247,7 +1313,7 @@ track-id "test-track"
 
     // Should NOT have error for 'track-id' as it is inherited from itrack
     let has_missing_track_id = diagnostics
-        .iter()
+        .par_iter()
         .any(|d| d.message.contains("Compulsory key 'track-id' is missing"));
     assert!(
         !has_missing_track_id,
@@ -1264,7 +1330,7 @@ kind "obsolete-track"
     let diagnostics_missing = soup_diagnostics(&soup_missing, &validators, None);
 
     let has_missing_asset_id = diagnostics_missing
-        .iter()
+        .par_iter()
         .any(|d| d.message.contains("Compulsory key 'asset-id' is missing"));
     assert!(
         has_missing_asset_id,
@@ -1273,7 +1339,7 @@ kind "obsolete-track"
     );
 
     let has_missing_track_id = diagnostics_missing
-        .iter()
+        .par_iter()
         .any(|d| d.message.contains("Compulsory key 'track-id' is missing"));
     assert!(
         has_missing_track_id,
@@ -1289,7 +1355,7 @@ kind "obsolete-track"
 
 #[test]
 fn test_subpossibilities_case_insensitivity() {
-    let temp_dir = std::env::temp_dir().join("trainz-lsp-test-subpossibilities-case");
+    let temp_dir = std::env::temp_dir().join("language-server-test-subpossibilities-case");
     if temp_dir.exists() {
         std::fs::remove_dir_all(&temp_dir).unwrap();
     }
@@ -1329,7 +1395,7 @@ test-container
     let diagnostics = soup_diagnostics(&soup, &validators, None);
 
     let has_error = diagnostics
-        .iter()
+        .par_iter()
         .any(|d| d.severity == Some(DiagnosticSeverity::ERROR));
     assert!(
         !has_error,
@@ -1348,7 +1414,7 @@ test-container
     let soup_missing = process_soup_ast(pairs_missing, soup_content_missing);
     let diagnostics_missing = soup_diagnostics(&soup_missing, &validators, None);
 
-    let has_missing_key = diagnostics_missing.iter().any(|d| {
+    let has_missing_key = diagnostics_missing.par_iter().any(|d| {
         d.message
             .contains("Compulsory key 'mandatory-key' is missing")
     });
@@ -1372,7 +1438,7 @@ test-container
     let diagnostics_metadata = soup_diagnostics(&soup_metadata, &validators, None);
 
     let has_unknown_key = diagnostics_metadata
-        .iter()
+        .par_iter()
         .any(|d| d.message.contains("Unknown key"));
     assert!(
         !has_unknown_key,
@@ -1385,7 +1451,7 @@ test-container
 
 #[test]
 fn test_category_class_validation() {
-    let temp_dir = std::env::temp_dir().join("trainz-lsp-test-cat-class");
+    let temp_dir = std::env::temp_dir().join("language-server-test-cat-class");
     if temp_dir.exists() {
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
@@ -1400,6 +1466,7 @@ Track "Track objects"
     let container_content = r#"
 my_container {
 kind "container"
+top-level 1
 category-class {
     type string
     validation IsValidCategoryClass
@@ -1428,6 +1495,7 @@ category-class "Scenery"
 
     let soup_content_invalid = r#"
 my_container {
+kind "my_container"
 category-class "InvalidClass"
 }
 "#;
@@ -1436,9 +1504,10 @@ category-class "InvalidClass"
     let diagnostics_invalid = soup_diagnostics(&soup_invalid, &validators, None);
     println!("Diagnostics invalid: {:?}", diagnostics_invalid);
 
-    let has_cat_class_error = diagnostics_invalid
-        .iter()
-        .any(|d| d.message.contains("is not a valid category class"));
+    let has_cat_class_error = diagnostics_invalid.par_iter().any(|d| {
+        d.message
+            .contains("Invalid value(s) 'InvalidClass' for key 'category-class'")
+    });
     assert!(
         has_cat_class_error,
         "Expected category class error, but got: {:?}",
@@ -1448,6 +1517,7 @@ category-class "InvalidClass"
     // Test with "WAT" as requested by user
     let soup_content_wat = r#"
 my_container {
+kind "my_container"
 category-class "WAT"
 }
 "#;
@@ -1455,9 +1525,9 @@ category-class "WAT"
     let soup_wat = process_soup_ast(pairs_wat, soup_content_wat);
     let diagnostics_wat = soup_diagnostics(&soup_wat, &validators, None);
 
-    let has_wat_error = diagnostics_wat.iter().any(|d| {
+    let has_wat_error = diagnostics_wat.par_iter().any(|d| {
         d.message
-            .contains("Value 'WAT' for key 'category-class' is not a valid category class")
+            .contains("Invalid value(s) 'WAT' for key 'category-class'")
     });
     assert!(
         has_wat_error,
@@ -1505,9 +1575,10 @@ category-region "GER"
     let pairs_fra_invalid = parse_soup(soup_content_fra_invalid).unwrap();
     let soup_fra_invalid = process_soup_ast(pairs_fra_invalid, soup_content_fra_invalid);
     let diagnostics_fra_invalid = soup_diagnostics(&soup_fra_invalid, &validators_region, None);
-    let has_region_error = diagnostics_fra_invalid
-        .iter()
-        .any(|d| d.message.contains("is not a valid category region"));
+    let has_region_error = diagnostics_fra_invalid.par_iter().any(|d| {
+        d.message
+            .contains("Invalid value(s) 'GER' for key 'category-region'")
+    });
     assert!(
         has_region_error,
         "Expected category region error, but got: {:?}",
@@ -1524,6 +1595,8 @@ category-region "GER"
 
     let container_content_era = r#"
 era_container {
+kind "container"
+top-level 1
 category-era {
     type string
     validation IsValidCategoryEra
@@ -1534,6 +1607,7 @@ category-era {
 
     let soup_content_era = r#"
 era_container {
+kind "era_container"
 category-era "2000s;2010s;"
 }
 "#;
@@ -1549,15 +1623,16 @@ category-era "2000s;2010s;"
 
     let soup_content_era_invalid = r#"
 era_container {
+kind "era_container"
 category-era "2000s;2030s;2010s;"
 }
 "#;
     let pairs_era_invalid = parse_soup(soup_content_era_invalid).unwrap();
     let soup_era_invalid = process_soup_ast(pairs_era_invalid, soup_content_era_invalid);
     let diagnostics_era_invalid = soup_diagnostics(&soup_era_invalid, &validators_era, None);
-    let has_era_error = diagnostics_era_invalid.iter().any(|d| {
+    let has_era_error = diagnostics_era_invalid.par_iter().any(|d| {
         d.message
-            .contains("Value '2030s' for key 'category-era' is not a valid category era.")
+            .contains("Invalid value(s) '2030s' for key 'category-era'")
     });
     assert!(
         has_era_error,
@@ -1570,7 +1645,7 @@ category-era "2000s;2030s;2010s;"
 
 #[test]
 fn test_disabled_keys_ignored() {
-    let temp_dir = std::env::temp_dir().join("trainz-lsp-test-disabled");
+    let temp_dir = std::env::temp_dir().join("language-server-test-disabled");
     if temp_dir.exists() {
         std::fs::remove_dir_all(&temp_dir).unwrap();
     }
@@ -1664,8 +1739,8 @@ normal-top "value"
 }
 
 #[test]
-fn test_type_combobox_listbox_filepathedit() {
-    let temp_dir = std::env::temp_dir().join("soup_type_test");
+fn test_combobox() {
+    let temp_dir = std::env::temp_dir().join("soup_combobox_test");
     if temp_dir.exists() {
         std::fs::remove_dir_all(&temp_dir).unwrap();
     }
@@ -1674,6 +1749,105 @@ fn test_type_combobox_listbox_filepathedit() {
     let container_txt = r#"
 test-container
 {
+  kind "container"
+  top-level 1
+  combo { type "combobox" }
+  list { type "listbox" }
+  file { type "filepathedit" }
+}
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+    let validators = load_validators(&temp_dir);
+
+    // 1. Valid case
+    let valid_content = r#"
+test-container {
+kind "test-container"
+combo "single_value"
+}
+"#;
+    let pairs = parse_soup(valid_content).unwrap();
+    let soup = process_soup_ast(pairs, valid_content);
+    let diagnostics = soup_diagnostics(&soup, &validators, None);
+    assert!(
+        diagnostics.is_empty(),
+        "Expected no diagnostics, found: {:?}",
+        diagnostics
+    );
+
+    // 2. Case with semicolon (should be allowed, no warning)
+    let invalid_content = r#"
+test-container {
+kind "test-container"
+combo "val1;val2"
+}
+"#;
+    let pairs_inv = parse_soup(invalid_content).unwrap();
+    let soup_inv = process_soup_ast(pairs_inv, invalid_content);
+    let diagnostics_inv =
+        soup_diagnostics(&soup_inv, &validators, Some(&temp_dir.join("test.soup")));
+    println!("Diagnostics: {:?}", diagnostics_inv);
+    assert!(
+        diagnostics_inv.is_empty(),
+        "Expected no diagnostics for combobox with semicolon, but found: {:?}",
+        diagnostics_inv
+    );
+
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_listbox() {
+    let temp_dir = std::env::temp_dir().join("soup_listbox_test");
+    if temp_dir.exists() {
+        std::fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_txt = r#"
+test-container
+{
+  kind "container"
+  top-level 1
+  combo { type "combobox" }
+  list { type "listbox" }
+  file { type "filepathedit" }
+}
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+    let validators = load_validators(&temp_dir);
+
+    let valid_content = r#"
+test-container {
+kind "test-container"
+list "val1;val2;val3;"
+}
+"#;
+    let pairs = parse_soup(valid_content).unwrap();
+    let soup = process_soup_ast(pairs, valid_content);
+    let diagnostics = soup_diagnostics(&soup, &validators, None);
+    assert!(
+        diagnostics.is_empty(),
+        "Expected no diagnostics, found: {:?}",
+        diagnostics
+    );
+
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_filepathedit() {
+    let temp_dir = std::env::temp_dir().join("soup_filepathedit_test");
+    if temp_dir.exists() {
+        std::fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_txt = r#"
+test-container
+{
+  kind "container"
+  top-level 1
   combo { type "combobox" }
   list { type "listbox" }
   file { type "filepathedit" }
@@ -1686,11 +1860,10 @@ test-container
 
     let validators = load_validators(&temp_dir);
 
-    // 1. Valid cases
+    // 1. Valid case
     let valid_content = r#"
 test-container {
-combo "single_value"
-list "val1;val2;val3;"
+kind "test-container"
 file "existing_file.txt"
 }
 "#;
@@ -1699,14 +1872,14 @@ file "existing_file.txt"
     let diagnostics = soup_diagnostics(&soup, &validators, Some(&temp_dir.join("test.soup")));
     assert!(
         diagnostics.is_empty(),
-        "Expected no diagnostics for valid types, but found: {:?}",
+        "Expected no diagnostics, found: {:?}",
         diagnostics
     );
 
-    // 2. Invalid cases
+    // 2. Invalid case
     let invalid_content = r#"
 test-container {
-combo "val1;val2"
+kind "test-container"
 file "non_existent.txt"
 }
 "#;
@@ -1717,20 +1890,9 @@ file "non_existent.txt"
         &validators,
         Some(&temp_dir.join("test_inv.soup")),
     );
-
-    let has_combo_warning = diagnostics_inv.iter().any(|d| {
-        d.severity == Some(DiagnosticSeverity::WARNING)
-            && d.message.contains("expects a single string value")
-    });
-    let has_file_error = diagnostics_inv.iter().any(|d| {
+    let has_file_error = diagnostics_inv.par_iter().any(|d| {
         d.severity == Some(DiagnosticSeverity::ERROR) && d.message.contains("does not exist")
     });
-
-    assert!(
-        has_combo_warning,
-        "Expected warning for combobox with semicolon, but found: {:?}",
-        diagnostics_inv
-    );
     assert!(
         has_file_error,
         "Expected error for non-existent file in filepathedit, but found: {:?}",
@@ -1916,7 +2078,7 @@ kind "my-tuple"
     let diagnostics_missing = soup_diagnostics(&soup_missing, &validators, None);
     assert!(
         diagnostics_missing
-            .iter()
+            .par_iter()
             .any(|d| d.message.contains("Missing tuple element '1'")),
         "Expected missing element error, but found: {:?}",
         diagnostics_missing
@@ -1942,7 +2104,7 @@ kind "my-tuple"
     let diagnostics_extra = soup_diagnostics(&soup_extra, &validators, None);
     assert!(
         diagnostics_extra
-            .iter()
+            .par_iter()
             .any(|d| d.message.contains("Index '2' out of bounds")),
         "Expected out of bounds error, but found: {:?}",
         diagnostics_extra
@@ -1966,7 +2128,7 @@ kind "my-tuple"
     // Should have an error about missing compulsory key 'value_str' in 'string-elem'
     assert!(
         diagnostics_wrong_type
-            .iter()
+            .par_iter()
             .any(|d| d.message.contains("Compulsory key 'value_str' is missing")),
         "Expected missing compulsory key error for element 0, but found: {:?}",
         diagnostics_wrong_type

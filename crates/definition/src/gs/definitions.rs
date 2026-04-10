@@ -47,8 +47,8 @@ fn find_member_type(
                 entry
                     .value()
                     .classes
-                    .iter()
-                    .find(|c| c.name.name == cls_name)
+                    .par_iter()
+                    .find_first(|c| c.name.name == cls_name)
                     .map(|c| (c.clone(), ()))
             }) {
                 class_def = Some(cls);
@@ -356,8 +356,8 @@ pub fn gs_goto_definition(
                                         let included_program = entry.value();
                                         included_program
                                             .classes
-                                            .iter()
-                                            .find(|c| c.name.name == cls_name)
+                                            .par_iter()
+                                            .find_first(|c| c.name.name == cls_name)
                                             .map(|c| {
                                                 (c.clone(), parse_uri_or_path(included_uri_str))
                                             })
@@ -485,7 +485,7 @@ pub fn gs_goto_definition(
             "gs_goto_definition classes in program: {:?}",
             program
                 .classes
-                .iter()
+                .par_iter()
                 .map(|c| &c.name.name)
                 .collect::<Vec<_>>()
         );
@@ -618,8 +618,8 @@ pub fn gs_goto_definition(
                                     let included_program = entry.value();
                                     included_program
                                         .classes
-                                        .iter()
-                                        .find(|class| class.name.name == cls_name)
+                                        .par_iter()
+                                        .find_first(|class| class.name.name == cls_name)
                                         .map(|class| {
                                             (class.clone(), parse_uri_or_path(included_uri_str))
                                         })

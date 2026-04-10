@@ -1,8 +1,9 @@
+use rayon::prelude::*;
 use std::path::Path;
 use tower_lsp_server::ls_types::{Location, Position, Range, Uri};
+use trainz_ast::soup::Value;
 use trainz_ast::soup::key_value_pair::KeyValuePair;
 use trainz_ast::soup::soup::Soup;
-use trainz_ast::soup::Value;
 use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validators};
 
 pub fn soup_goto_definition(
@@ -68,14 +69,14 @@ fn find_definition_recursive(
                 if let Some(cv) = current_validator {
                     rule = cv
                         .rules
-                        .iter()
-                        .find(|r| r.key.eq_ignore_ascii_case(&kv.key));
+                        .par_iter()
+                        .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key));
                     if let Some(r) = rule {
                         if let Some(type_name) = &r.type_name {
                             next_validator = validators
                                 .containers
-                                .iter()
-                                .find(|v| v.container_name.eq_ignore_ascii_case(type_name));
+                                .par_iter()
+                                .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name));
                         }
                     }
 
@@ -90,8 +91,8 @@ fn find_definition_recursive(
                             next_validator = type_name.and_then(|tn| {
                                 validators
                                     .containers
-                                    .iter()
-                                    .find(|v| v.container_name.eq_ignore_ascii_case(tn))
+                                    .par_iter()
+                                    .find_first(|v| v.container_name.eq_ignore_ascii_case(tn))
                             });
                         }
                     }
@@ -99,21 +100,21 @@ fn find_definition_recursive(
                     // Top-level
                     next_validator = validators
                         .containers
-                        .iter()
-                        .find(|cv| cv.container_name.eq_ignore_ascii_case(&kv.key));
+                        .par_iter()
+                        .find_first(|cv| cv.container_name.eq_ignore_ascii_case(&kv.key));
 
                     // If not a container, check simple validators
                     if next_validator.is_none() {
                         if let Some(_) = validators.simple.get(&kv.key) {
                             rule = validators
                                 .containers
-                                .iter()
-                                .find(|c| c.container_name.eq_ignore_ascii_case(&kv.key))
+                                .par_iter()
+                                .find_first(|c| c.container_name.eq_ignore_ascii_case(&kv.key))
                                 .and_then(|container| {
                                     container
                                         .rules
-                                        .iter()
-                                        .find(|r| r.key.eq_ignore_ascii_case(&kv.key))
+                                        .par_iter()
+                                        .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
                                 });
                         }
                     }

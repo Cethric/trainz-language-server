@@ -1,11 +1,6 @@
 import * as vscode from 'vscode';
-import { workspace, ExtensionContext, languages, WorkspaceFolder, Uri, window, LogOutputChannel } from 'vscode';
-import {
-  LanguageClient,
-  LanguageClientOptions,
-  ServerOptions,
-  Executable
-} from 'vscode-languageclient/node';
+import {ExtensionContext, languages, LogOutputChannel, Uri, window, workspace, WorkspaceFolder} from 'vscode';
+import {Executable, LanguageClient, LanguageClientOptions, ServerOptions} from 'vscode-languageclient/node';
 
 // let defaultClient: LanguageClient;
 const clients = new Map<string, LanguageClient>();
@@ -44,11 +39,11 @@ function getOuterMostWorkspaceFolder(folder: WorkspaceFolder): WorkspaceFolder {
 }
 
 export function activate(context: ExtensionContext) {
-  const config = workspace.getConfiguration('trainz-lsp');
-  let command = config.get<string>('serverPath') || 'trainz-lsp';
+  const config = workspace.getConfiguration('language-server');
+  let command = config.get<string>('serverPath') || 'language-server';
 
 
-  const outputChannel: LogOutputChannel = window.createOutputChannel('trainz-lsp', { log: true });
+  const outputChannel: LogOutputChannel = window.createOutputChannel('language-server', {log: true});
 
   const run: Executable = {
     command,
@@ -56,8 +51,8 @@ export function activate(context: ExtensionContext) {
     options: {
       env: {
         ...process.env,
-        TRAINZ_LSP_SCRIPT_SEARCH_PATHS: "/Users/rogan/Developer/gs-lsp-test/scripts;/Users/rogan/Developer/gs-lsp-test/ScriptLib_2.5",
-        TRAINZ_LSP_SOUP_VALIDATION_PATH: "/Users/rogan/Developer/gs-lsp-test/validation",
+        TRAINZ_LANGUAGE_SERVER_SCRIPT_SEARCH_PATHS: "/Users/rogan/Developer/gs-lsp-test/scripts;/Users/rogan/Developer/gs-lsp-test/ScriptLib_2.5",
+        TRAINZ_LANGUAGE_SERVER_SOUP_VALIDATION_PATH: "/Users/rogan/Developer/gs-lsp-test/validation",
         RUST_LOG: "debug"
       }
     }
@@ -101,7 +96,7 @@ export function activate(context: ExtensionContext) {
       );
 
       // Create diagnostic collection
-      const diagnosticCollection = languages.createDiagnosticCollection('trainz-lsp');
+      const diagnosticCollection = languages.createDiagnosticCollection('language-server');
       context.subscriptions.push(diagnosticCollection);
 
       // Start the language client and register other features once ready

@@ -1,6 +1,6 @@
 # Semantic Release Setup - Implementation Summary
 
-This document summarizes the semantic release process implementation for the trainz-lsp project.
+This document summarizes the semantic release process implementation for the trainz-language-server project.
 
 ## Files Created/Modified
 
@@ -98,13 +98,15 @@ Closes #123
 Each GitHub release includes:
 
 **LSP Binaries:**
-- `trainz-lsp-linux-x86_64.tar.gz`
-- `trainz-lsp-macos-x86_64.tar.gz`
-- `trainz-lsp-macos-aarch64.tar.gz`
-- `trainz-lsp-windows-x86_64.zip`
+
+- `trainz-language-server-linux-x86_64.tar.gz`
+- `trainz-language-server-macos-x86_64.tar.gz`
+- `trainz-language-server-macos-aarch64.tar.gz`
+- `trainz-language-server-windows-x86_64.zip`
 
 **Extensions:**
-- `trainz-lsp-vscode.tar.gz` - VSCode extension build
+
+- `trainz-language-server-vscode.tar.gz` - VSCode extension build
 - `trainz-idea-plugin.tar.gz` - JetBrains plugin distributions
 
 ## Integration with Existing CI/CD

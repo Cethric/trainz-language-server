@@ -1,13 +1,12 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use std::path::PathBuf;
 use tokio::runtime::Runtime;
-use tower_lsp_server::ls_types::ProgressToken;
 use tower_lsp_server::LspService;
-use trainz_lsp::state::GameScriptLanguageServer;
+use tower_lsp_server::ls_types::ProgressToken;
+use trainz_language_server::process::soup::ProcessSoup;
+use trainz_language_server::state::GameScriptLanguageServer;
 
 async fn bench_process_soup_file(server: &GameScriptLanguageServer, path: PathBuf, content: &str) {
-    let workspace_folders = vec![];
-
     let progress = server
         .client
         .progress(ProgressToken::String("bench".to_string()), "Benchmarking")
@@ -16,7 +15,7 @@ async fn bench_process_soup_file(server: &GameScriptLanguageServer, path: PathBu
         .await;
 
     server
-        .process_soup_file(&path, content, &workspace_folders, false, &progress)
+        .process_soup_file(&path, content, false, &progress)
         .await;
 
     progress.finish().await;
@@ -25,7 +24,7 @@ async fn bench_process_soup_file(server: &GameScriptLanguageServer, path: PathBu
 fn criterion_benchmark(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let (service, _socket) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![]));
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], "test"));
     let server = service.inner();
 
     let mut path = std::env::current_dir().unwrap();

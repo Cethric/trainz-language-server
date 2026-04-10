@@ -1,2 +1,0 @@
-era1 "Era 1 Description"
-era2 "Era 2 Description"

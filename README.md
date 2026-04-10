@@ -1,6 +1,7 @@
-# trainz-lsp
+# trainz-language-server
 
-`trainz-lsp` is a Language Server Protocol (LSP) implementation for the **GS (Game Script)** and **Soup** languages used in Trainz, written in Rust.
+`trainz-language-server` is a Language Server Protocol (LSP) implementation for the **GS (Game Script)** and **Soup**
+languages used in Trainz, written in Rust.
 
 ## Features
 
@@ -40,22 +41,24 @@ To build the project in release mode:
 cargo build --release
 ```
 
-The compiled binary will be located at `target/release/trainz-lsp`.
+The compiled binary will be located at `target/release/trainz-language-server`.
 
 ### Running
 
 To run the LSP server:
 
 ```bash
-./target/release/trainz-lsp
+./target/release/language-server
 ```
 
 #### CLI Options
 
 - `-v, --verbose`: Increase logging verbosity (use multiple `-v` for higher verbosity).
 - `-q, --quiet`: Decrease logging verbosity.
-- `-p, --validation-path <PATH>`: Path to the directory containing soup validators. Can also be set via the `TRAINZ_LSP_SOUP_VALIDATION_PATH` environment variable.
-- `-s, --search-paths <PATHS>`: Semicolon-separated list of paths to search for Trainz scripts. Can also be set via the `TRAINZ_LSP_SCRIPT_SEARCH_PATHS` environment variable.
+- `-p, --validation-path <PATH>`: Path to the directory containing soup validators. Can also be set via the
+  `TRAINZ_LANGUAGE_SERVER_SOUP_VALIDATION_PATH` environment variable.
+- `-s, --search-paths <PATHS>`: Semicolon-separated list of paths to search for Trainz scripts. Can also be set via the
+  `TRAINZ_LANGUAGE_SERVER_SCRIPT_SEARCH_PATHS` environment variable.
 - `-h, --help`: Print help.
 - `-V, --version`: Print version information.
 
@@ -63,7 +66,8 @@ To run the LSP server:
 
 The project includes extensions for various editors in the `extensions/` directory:
 
-- **Visual Studio Code**: Located in `extensions/vscode`. Requires setting the `trainz-lsp.serverPath` to the built `trainz-lsp` binary.
+- **Visual Studio Code**: Located in `extensions/vscode`. Requires setting the `trainz-language-server.serverPath` to
+  the built `trainz-language-server` binary.
 - **IntelliJ IDEA**: Located in `extensions/trainz-idea`.
 
 ## Project Structure
@@ -73,7 +77,7 @@ The workspace is organized into several crates:
 - `crates/ast`: Abstract Syntax Tree definitions.
 - `crates/common`: Common types and utilities.
 - `crates/parser`: GS and Soup grammar parsing using `pest`.
-- `crates/lsp`: LSP server implementation.
+- `crates/trainz-language-server`: LSP server implementation.
 - `crates/diagnostics`: Diagnostics and error reporting.
 - `crates/formatter`: Code formatting logic.
 - `crates/formatter-cli`: CLI tool for the formatter.
@@ -109,4 +113,4 @@ Refer to [AGENTS.md](AGENTS.md) for more details on contributing and project gui
 
 ## License
 
-This project is part of the `trainz-lsp` effort.
+This project is part of the `trainz-language-server` effort.

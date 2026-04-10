@@ -53,11 +53,33 @@ jobs:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Install cargo2junit
+        run: cargo install cargo2junit --locked
+
       - name: Build
         run: cargo build --verbose
 
       - name: Run tests
-        run: cargo test --verbose
+        shell: bash
+        run: |
+          mkdir -p target/test-results
+          set -o pipefail
+          cargo test --message-format=json | cargo2junit > target/test-results/cargo-test-results.xml
+
+      - name: Publish Rust test dashboard
+        uses: ctrf-io/github-test-reporter@v1
+        with:
+          report-path: 'target/test-results/*.xml'
+          summary-report: true
+          failed-report: true
+          test-report: true
+          insights-report: true
+          status-check: true
+          upload-artifact: true
+          report-order: 'summary-report,failed-report,insights-report,test-report'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: always()
 
       - name: Check formatting
         run: cargo fmt -- --check
@@ -68,7 +90,7 @@ jobs:
       - name: Create archive
         run: |
           mkdir -p artifacts
-          tar -czf artifacts/trainz-lsp-${{ matrix.os }}-${{ github.sha }}.tar.gz target/debug/trainz-lsp target/debug/trainz-fmt
+          tar -czf artifacts/trainz-language-server-${{ matrix.os }}-${{ github.sha }}.tar.gz target/debug/trainz-language-server target/debug/trainz-fmt
         if: success()
 
       - name: Upload build artifacts

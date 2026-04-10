@@ -23,7 +23,7 @@ pub fn semantic_tokens(
     // Gather all known class names
     let known_classes: std::collections::HashSet<String> = program
         .classes
-        .iter()
+        .par_iter()
         .map(|c| c.name.name.clone())
         .collect();
 

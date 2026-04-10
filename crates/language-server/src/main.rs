@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use tokio::main;
 use tower_lsp_server::{LspService, Server};
 use trainz_common::logging::setup_logger;
-use trainz_lsp::state::GameScriptLanguageServer;
+use trainz_language_server::state::GameScriptLanguageServer;
 
 pub mod process;
 pub mod state;
@@ -23,7 +23,7 @@ struct Args {
     verbosity: clap_verbosity_flag::Verbosity,
 
     /// Path to the directory containing soup validators
-    #[arg(short = 'p', long, env = "TRAINZ_LSP_SOUP_VALIDATION_PATH")]
+    #[arg(short = 'p', long, env = "TRAINZ_LANGUAGE_SERVER_SOUP_VALIDATION_PATH")]
     validation_path: Option<PathBuf>,
 
     /// Paths to search for Trainz scripts (separated by ;)
@@ -31,7 +31,7 @@ struct Args {
         short,
         long,
         value_delimiter = ';',
-        env = "TRAINZ_LSP_SCRIPT_SEARCH_PATHS"
+        env = "TRAINZ_LANGUAGE_SERVER_SCRIPT_SEARCH_PATHS"
     )]
     search_paths: Vec<PathBuf>,
 }
@@ -42,7 +42,7 @@ async fn main() {
 
     let args = Args::parse();
     let validation_path = args.validation_path.or_else(|| {
-        env::var("TRAINZ_LSP_SOUP_VALIDATION_PATH")
+        env::var("TRAINZ_LANGUAGE_SERVER_SOUP_VALIDATION_PATH")
             .ok()
             .map(PathBuf::from)
     });

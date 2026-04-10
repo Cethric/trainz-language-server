@@ -2,6 +2,7 @@ target/
 out/
 node_modules/
 .vscode-test/
+extensions/vscode/test-results/
 
 .env
 .output.txt

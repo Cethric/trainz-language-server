@@ -2041,7 +2041,7 @@ dependencies = [
 name = "trainz-hover"
 version = "0.1.0"
 dependencies = [
- "log",
+ "rayon",
  "shadow-rs",
  "tower-lsp-server",
  "trainz-ast",
@@ -2051,7 +2051,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "trainz-lsp"
+name = "trainz-language-server"
 version = "0.1.0"
 dependencies = [
  "async-recursion",

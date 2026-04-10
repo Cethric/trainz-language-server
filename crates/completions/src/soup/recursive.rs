@@ -56,6 +56,12 @@ pub fn find_completions_recursive(
     }
 
     for kv in kvs {
+        let rule = current_validator_to_use.as_ref().and_then(|cv| {
+            cv.rules
+                .par_iter()
+                .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
+        });
+
         // If we are on the key itself, check if the cursor is within the value's range first.
         if let Some(value) = &kv.value {
             let range = value.range();
@@ -82,10 +88,6 @@ pub fn find_completions_recursive(
                                     .find_first(|v| v.container_name.eq_ignore_ascii_case(tn))
                             })
                         } else {
-                            let rule = cv
-                                .rules
-                                .par_iter()
-                                .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key));
                             if let Some(rule) = rule {
                                 let mut found_validator = None;
                                 if let Some(type_name) = &rule.type_name {
@@ -130,7 +132,14 @@ pub fn find_completions_recursive(
                 }
 
                 // If not handled by recursion, compute value completions for this key
-                add_value_completions(&kv.key, Some(value), position, validators, &mut completions);
+                add_value_completions(
+                    &kv.key,
+                    Some(value),
+                    position,
+                    validators,
+                    rule,
+                    &mut completions,
+                );
                 if !completions.is_empty() {
                     return completions;
                 }
@@ -155,6 +164,7 @@ pub fn find_completions_recursive(
                     kv.value.as_ref(),
                     position,
                     validators,
+                    None,
                     &mut completions,
                 );
                 if !completions.is_empty() {
@@ -180,6 +190,7 @@ pub fn find_completions_recursive(
                         kv.value.as_ref(),
                         position,
                         validators,
+                        None,
                         &mut completions,
                     );
                 } else {
@@ -213,7 +224,7 @@ pub fn find_completions_recursive(
             // If there's no value yet, suggest values for this key
             if kv.value.is_none() {
                 debug!("No value for key '{}', suggesting values", kv.key);
-                add_value_completions(&kv.key, None, position, validators, &mut completions);
+                add_value_completions(&kv.key, None, position, validators, None, &mut completions);
                 if !completions.is_empty() {
                     return completions;
                 }

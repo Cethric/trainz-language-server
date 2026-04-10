@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::gs::trainz_folding_range;
+    use rayon::prelude::*;
     use trainz_ast::gs::process::process_trainz_ast;
     use trainz_parser::gs::parse;
 
@@ -18,12 +19,16 @@ mod tests {
 
         // Class body should be lines 0-4
         assert!(
-            ranges.iter().any(|r| r.start_line == 0 && r.end_line == 4),
+            ranges
+                .par_iter()
+                .any(|r| r.start_line == 0 && r.end_line == 4),
             "Class body folding range not found"
         );
         // Method body should be lines 1-3
         assert!(
-            ranges.iter().any(|r| r.start_line == 1 && r.end_line == 3),
+            ranges
+                .par_iter()
+                .any(|r| r.start_line == 1 && r.end_line == 3),
             "Method body folding range not found"
         );
     }
@@ -65,7 +70,7 @@ mod tests {
         assert!(ranges.len() >= 1);
 
         // Method body (exact line numbers depend on formatting/parsing)
-        assert!(ranges.iter().any(|r| r.start_line == 1));
+        assert!(ranges.par_iter().any(|r| r.start_line == 1));
     }
 
     #[test]
@@ -103,18 +108,26 @@ mod tests {
         }
 
         // 1. Method body (lines 1-18)
-        assert!(ranges.iter().any(|r| r.start_line == 1));
+        assert!(ranges.par_iter().any(|r| r.start_line == 1));
 
         // 2. if block (lines 2-5)
-        assert!(ranges.iter().any(|r| r.start_line == 2 && r.end_line == 5));
+        assert!(
+            ranges
+                .par_iter()
+                .any(|r| r.start_line == 2 && r.end_line == 5)
+        );
 
         // 3. while block (lines 6-9)
-        assert!(ranges.iter().any(|r| r.start_line == 6 && r.end_line == 9));
+        assert!(
+            ranges
+                .par_iter()
+                .any(|r| r.start_line == 6 && r.end_line == 9)
+        );
 
         // 4. for block (lines 11-14)
         assert!(
             ranges
-                .iter()
+                .par_iter()
                 .any(|r| r.start_line == 11 && r.end_line == 14)
         );
 
@@ -152,8 +165,8 @@ mod tests {
         // The newline is at index 5.
         // We want end_character to be 5 (points just after '}').
         let method_range = ranges
-            .iter()
-            .find(|r| r.start_line == 1)
+            .par_iter()
+            .find_first(|r| r.start_line == 1)
             .expect("Method range not found");
         assert_eq!(method_range.end_line, 2);
         assert_eq!(method_range.end_character, Some(5));
@@ -182,8 +195,8 @@ mod tests {
         // Method m() ends on line 2 at '}'. Content: "    }"
         // '}' is at index 4. end_character should be 5.
         let method_range_no_nl = ranges
-            .iter()
-            .find(|r| r.start_line == 1)
+            .par_iter()
+            .find_first(|r| r.start_line == 1)
             .expect("Method range not found");
         assert_eq!(method_range_no_nl.end_line, 2);
         assert_eq!(method_range_no_nl.end_character, Some(5));
@@ -210,8 +223,8 @@ mod tests {
         // Line 4 content is "        }\n" (8 spaces + '}')
         // '}' is at index 8. end_character should be 9.
         let if_range = ranges
-            .iter()
-            .find(|r| r.start_line == 2)
+            .par_iter()
+            .find_first(|r| r.start_line == 2)
             .expect("If block range not found");
         assert_eq!(if_range.end_line, 4);
         assert_eq!(if_range.end_character, Some(9));
@@ -239,7 +252,9 @@ mod tests {
         // 2. Method body (lines 5-7)
 
         assert!(
-            ranges.iter().any(|r| r.start_line == 0 && r.end_line == 2),
+            ranges
+                .par_iter()
+                .any(|r| r.start_line == 0 && r.end_line == 2),
             "Missing includes folding"
         );
     }
@@ -275,25 +290,33 @@ class SecondClass {
 
         // 1. FirstClass body (lines 1-5)
         assert!(
-            ranges.iter().any(|r| r.start_line == 1 && r.end_line == 5),
+            ranges
+                .par_iter()
+                .any(|r| r.start_line == 1 && r.end_line == 5),
             "FirstClass body folding range not found"
         );
 
         // 2. SecondClass body (lines 7-11)
         assert!(
-            ranges.iter().any(|r| r.start_line == 7 && r.end_line == 11),
+            ranges
+                .par_iter()
+                .any(|r| r.start_line == 7 && r.end_line == 11),
             "SecondClass body folding range not found"
         );
 
         // 3. first_method body (lines 2-4)
         assert!(
-            ranges.iter().any(|r| r.start_line == 2 && r.end_line == 4),
+            ranges
+                .par_iter()
+                .any(|r| r.start_line == 2 && r.end_line == 4),
             "first_method body folding range not found"
         );
 
         // 4. second_method body (lines 8-10)
         assert!(
-            ranges.iter().any(|r| r.start_line == 8 && r.end_line == 10),
+            ranges
+                .par_iter()
+                .any(|r| r.start_line == 8 && r.end_line == 10),
             "second_method body folding range not found"
         );
 
