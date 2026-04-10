@@ -56,7 +56,7 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --profile release
 
       - uses: taiki-e/install-action@nextest
 
@@ -76,7 +76,7 @@ jobs:
                 "enabled": true,
                 "action": "convert",
                 "options": {
-                  "output": "./ctrf-reports/ctrf-report.json",
+                  "output": 'target/nextest/ci/junit.json'
                   "toolname": "junit-to-ctrf",
                   "useSuiteName": false,
                   "env": {
@@ -89,7 +89,7 @@ jobs:
       - name: Publish Rust test dashboard
         uses: ctrf-io/github-test-reporter@v1
         with:
-          report-path: "./ctrf-reports/ctrf-report.json"
+          report-path: 'target/nextest/ci/junit.json'
           summary-report: true
           failed-report: true
           test-report: true
@@ -110,8 +110,14 @@ jobs:
       - name: Create archive
         run: |
           mkdir -p artifacts
-          tar -czf artifacts/trainz-language-server-${{ matrix.os }}-${{ github.sha }}.tar.gz target/debug/trainz-language-server target/debug/trainz-fmt
-        if: success()
+          tar -czf artifacts/trainz-language-server-${{ matrix.os }}-${{ github.sha }}.tar.gz target/release/trainz-language-server target/release/trainz-fmt
+        if: success() && matrix.os != 'windows-latest'
+
+      - name: Create archive
+        run: |
+          mkdir -p artifacts
+          tar -czf artifacts/trainz-language-server-${{ matrix.os }}-${{ github.sha }}.tar.gz target/release/trainz-language-server.exe target/release/trainz-fmt.exe
+        if: success() && matrix.os == 'windows-latest'
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

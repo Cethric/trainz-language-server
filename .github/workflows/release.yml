@@ -53,8 +53,14 @@ jobs:
       - name: Create archive
         run: |
           mkdir -p artifacts
-          tar -czf artifacts/trainz-language-server-${{ matrix.os }}-${{ github.sha }}.tar.gz target/debug/trainz-language-server target/debug/trainz-fmt
-        if: success()
+          tar -czf artifacts/trainz-language-server-${{ matrix.os }}-${{ github.sha }}.tar.gz target/release/trainz-language-server target/release/trainz-fmt
+        if: success() && matrix.os != 'windows-latest'
+
+      - name: Create archive
+        run: |
+          mkdir -p artifacts
+          tar -czf artifacts/trainz-language-server-${{ matrix.os }}-${{ github.sha }}.tar.gz target/release/trainz-language-server.exe target/release/trainz-fmt.exe
+        if: success() && matrix.os == 'windows-latest'
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
