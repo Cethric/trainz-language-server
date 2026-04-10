@@ -207,11 +207,13 @@ impl LanguageServer for GameScriptLanguageServer {
             if let Some(progress) = &progress {
                 progress.report_with_message("Loading validators", 50).await;
             }
+            debug!("Loading validators from {:?}", validation_path);
             let validators = load_validators(validation_path);
             if let Some(progress) = &progress {
                 progress.report_with_message("Loaded validators", 75).await;
             }
             let _ = self.validators.set(validators);
+            debug!("Validators loaded");
         }
 
         if let Some(progress) = progress {

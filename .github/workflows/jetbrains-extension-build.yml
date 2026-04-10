@@ -2,12 +2,12 @@ name: JetBrains Extension Build
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
     paths:
       - 'extensions/trainz-idea/**'
       - '.github/workflows/jetbrains-extension-build.yml'
   pull_request:
-    branches: [main, develop]
+    branches: [ main, develop ]
     paths:
       - 'extensions/trainz-idea/**'
       - '.github/workflows/jetbrains-extension-build.yml'

@@ -39,8 +39,10 @@ function getOuterMostWorkspaceFolder(folder: WorkspaceFolder): WorkspaceFolder {
 }
 
 export function activate(context: ExtensionContext) {
-  const config = workspace.getConfiguration('language-server');
-  let command = config.get<string>('serverPath') || 'language-server';
+  const config = workspace.getConfiguration('trainz-language-server');
+  let command = config.get<string>('server-bin') || 'trainz-language-server';
+  let validation = config.get<string>('validation-path') || undefined;
+  let search = config.get<string[]>('search-paths') || undefined;
 
 
   const outputChannel: LogOutputChannel = window.createOutputChannel('language-server', {log: true});
@@ -51,8 +53,8 @@ export function activate(context: ExtensionContext) {
     options: {
       env: {
         ...process.env,
-        TRAINZ_LANGUAGE_SERVER_SCRIPT_SEARCH_PATHS: "/Users/rogan/Developer/gs-lsp-test/scripts;/Users/rogan/Developer/gs-lsp-test/ScriptLib_2.5",
-        TRAINZ_LANGUAGE_SERVER_SOUP_VALIDATION_PATH: "/Users/rogan/Developer/gs-lsp-test/validation",
+        TRAINZ_LANGUAGE_SERVER_SCRIPT_SEARCH_PATHS: search,
+        TRAINZ_LANGUAGE_SERVER_SOUP_VALIDATION_PATH: validation,
         RUST_LOG: "debug"
       }
     }
