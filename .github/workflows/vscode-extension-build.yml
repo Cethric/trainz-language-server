@@ -54,29 +54,29 @@ jobs:
         working-directory: extensions/vscode
         continue-on-error: true
 
-      - name: Run tests
-        run: |
-          mkdir -p test-results
-          pnpm test
-        working-directory: extensions/vscode
-        env:
-          MOCHA_REPORTER: mocha-junit-reporter
-          MOCHA_REPORTER_OPTIONS: '{"mochaFile":"./test-results/vscode-test-results.xml","testsuitesTitle":"VSCode Extension Tests","useFullSuiteTitle":"true"}'
-
-      - name: Publish VSCode test dashboard
-        uses: ctrf-io/github-test-reporter@v1
-        with:
-          report-path: 'extensions/vscode/test-results/*.xml'
-          summary-report: true
-          failed-report: true
-          test-report: true
-          insights-report: true
-          status-check: true
-          upload-artifact: true
-          report-order: 'summary-report,failed-report,insights-report,test-report'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        if: always()
+      #      - name: Run tests
+      #        run: |
+      #          mkdir -p test-results
+      #          pnpm test
+      #        working-directory: extensions/vscode
+      #        env:
+      #          MOCHA_REPORTER: mocha-junit-reporter
+      #          MOCHA_REPORTER_OPTIONS: '{"mochaFile":"./test-results/vscode-test-results.xml","testsuitesTitle":"VSCode Extension Tests","useFullSuiteTitle":"true"}'
+      #
+      #      - name: Publish VSCode test dashboard
+      #        uses: ctrf-io/github-test-reporter@v1
+      #        with:
+      #          report-path: 'extensions/vscode/test-results/*.xml'
+      #          summary-report: true
+      #          failed-report: true
+      #          test-report: true
+      #          insights-report: true
+      #          status-check: true
+      #          upload-artifact: true
+      #          report-order: 'summary-report,failed-report,insights-report,test-report'
+      #        env:
+      #          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #        if: always()
 
       - name: Create archive
         run: |

@@ -7,78 +7,112 @@ on:
 concurrency: release
 
 jobs:
-  build-binaries:
+  build-language-server:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact_suffix: linux-x86_64
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact_suffix: macos-x86_64
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            artifact_suffix: macos-aarch64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact_suffix: windows-x86_64
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        rust: [ stable ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          lfs: true
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
-          targets: ${{ matrix.target }}
+          toolchain: ${{ matrix.rust }}
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache cargo index
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache cargo build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: target
-          key: ${{ runner.os }}-${{ matrix.target }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build release binaries
-        run: cargo build --verbose --release --target ${{ matrix.target }}
+      - name: Build
+        run: cargo build --verbose
 
-      - name: Create release directory
-        shell: bash
-        run: mkdir -p release-artifacts
+      - name: Check formatting
+        run: cargo fmt -- --check
 
-      - name: Package binaries (Unix)
-        if: runner.os != 'Windows'
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Create archive
         run: |
-          tar -czf release-artifacts/trainz-language-server-${{ matrix.artifact_suffix }}.tar.gz \
-            -C target/${{ matrix.target }}/release trainz-language-server trainz-fmt
+          mkdir -p artifacts
+          tar -czf artifacts/trainz-language-server-${{ matrix.os }}-${{ github.sha }}.tar.gz target/debug/trainz-language-server target/debug/trainz-fmt
+        if: success()
 
-      - name: Package binaries (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          7z a -tzip release-artifacts/trainz-language-server-${{ matrix.artifact_suffix }}.zip \
-            target/${{ matrix.target }}/release/trainz-language-server.exe \
-            target/${{ matrix.target }}/release/trainz-fmt.exe
-
-      - name: Upload artifact
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: binaries-${{ matrix.artifact_suffix }}
-          path: release-artifacts/
+          name: lsp-build-${{ matrix.os }}
+          path: artifacts/
+          retention-days: 30
+        if: success()
 
-  build-extensions:
+  build-jetbrains-plugin:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Set up JDK 24
+        uses: actions/setup-java@v5
+        with:
+          java-version: '24'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x extensions/trainz-idea/gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build
+        working-directory: extensions/trainz-idea
+
+      - name: Verify plugin
+        run: ./gradlew verifyPlugin
+        working-directory: extensions/trainz-idea
+        continue-on-error: true
+
+      - name: Create archive
+        run: |
+          mkdir -p artifacts
+          tar -czf artifacts/trainz-idea-${{ github.sha }}.tar.gz build/distributions/
+        working-directory: extensions/trainz-idea
+        if: always()
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: jetbrains-build
+          path: extensions/trainz-idea/artifacts/
+          retention-days: 30
+        if: always()
+
+  build-vscode-extension:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        node: [ '20', '22' ]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -92,40 +126,45 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: ${{ matrix.node }}
           cache: 'pnpm'
           cache-dependency-path: 'extensions/vscode/pnpm-lock.yaml'
 
-      - name: Build VSCode extension
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: extensions/vscode
+
+      - name: Build
+        run: pnpm build
+        working-directory: extensions/vscode
+
+      - name: Lint
+        run: pnpm lint
+        working-directory: extensions/vscode
+        continue-on-error: true
+
+      - name: Type check
+        run: pnpm typecheck
+        working-directory: extensions/vscode
+        continue-on-error: true
+
+      - name: Create archive
         run: |
-          cd extensions/vscode
-          pnpm install --frozen-lockfile
-          pnpm build
-          mkdir -p ../../release-artifacts
-          tar -czf ../../release-artifacts/trainz-language-server-vscode.tar.gz out/
+          mkdir -p artifacts
+          tar -czf artifacts/trainz-language-server-vscode-${{ matrix.os }}-node${{ matrix.node }}-${{ github.sha }}.tar.gz out/
+        working-directory: extensions/vscode
+        if: success()
 
-      - name: Set up JDK
-        uses: actions/setup-java@v5
-        with:
-          java-version: '24'
-          distribution: 'temurin'
-
-      - name: Build JetBrains extension
-        run: |
-          cd extensions/trainz-idea
-          chmod +x gradlew
-          ./gradlew build
-          mkdir -p ../../release-artifacts
-          tar -czf ../../release-artifacts/trainz-idea-plugin.tar.gz build/distributions/
-
-      - name: Upload artifact
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: extensions
-          path: release-artifacts/
+          name: vscode-build-${{ matrix.os }}-node${{ matrix.node }}
+          path: extensions/vscode/artifacts/
+          retention-days: 30
+        if: success()
 
   release:
-    needs: [ build-binaries, build-extensions ]
+    needs: [ build-language-server, build-jetbrains-plugin, build-vscode-extension ]
     runs-on: ubuntu-latest
     permissions:
       contents: write

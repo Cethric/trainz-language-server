@@ -58,17 +58,17 @@ jobs:
       - name: Build
         run: cargo build --verbose
 
+      - uses: taiki-e/install-action@nextest
+
       - name: Run tests
         shell: bash
         run: |
-          mkdir -p target/test-results
-          set -o pipefail
-          cargo test --message-format=json | cargo2junit > target/test-results/cargo-test-results.xml
+          cargo nextest run --profile ci
 
       - name: Publish Rust test dashboard
         uses: ctrf-io/github-test-reporter@v1
         with:
-          report-path: 'target/test-results/*.xml'
+          report-path: 'target/nextest/ci/junit.xml'
           summary-report: true
           failed-report: true
           test-report: true
