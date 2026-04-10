@@ -1,5 +1,5 @@
 use tower_lsp_server::ls_types::{CompletionItem, CompletionParams};
-use trainz_ast::soup::soup::Soup;
+use trainz_ast::soup::base::Soup;
 use trainz_soup_validators::Validators;
 
 pub mod keys;

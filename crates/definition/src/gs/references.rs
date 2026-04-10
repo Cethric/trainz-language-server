@@ -21,22 +21,21 @@ pub fn gs_find_references(
 
     // Check for includes first
     for include in &program.includes {
-        if position_in_range(position, include.range)
+        if (position_in_range(position, include.range)
             || include
                 .path_range
-                .map_or(false, |r| position_in_range(position, r))
+                .is_some_and(|r| position_in_range(position, r)))
+            && let Some(path) = &include.path
         {
-            if let Some(path) = &include.path {
-                include_target_uri = Some(Uri::from_file_path(path).unwrap());
-                break;
-            }
+            include_target_uri = Some(Uri::from_file_path(path).unwrap());
+            break;
         }
     }
 
-    if include_target_uri.is_none() {
-        if let Some(id) = find_id_at_position(&program, position) {
-            target_identifier = Some(id.name.to_string());
-        }
+    if include_target_uri.is_none()
+        && let Some(id) = find_id_at_position(&program, position)
+    {
+        target_identifier = Some(id.name.to_string());
     }
 
     if let Some(target_uri) = include_target_uri {
@@ -52,7 +51,7 @@ pub fn gs_find_references(
                 let file_program = entry.value();
                 let file_uri = Uri::from_file_path(file_uri_str).unwrap();
 
-                find_references_in_program(&file_program, &target, &file_uri)
+                find_references_in_program(file_program, &target, &file_uri)
             })
             .collect();
 
@@ -85,13 +84,13 @@ fn find_include_references(
 
             let mut file_locations = vec![];
             for include in &file_program.includes {
-                if let Some(include_path) = &include.path {
-                    if *include_path == target_path {
-                        file_locations.push(Location {
-                            uri: file_uri.clone(),
-                            range: include.range,
-                        });
-                    }
+                if let Some(include_path) = &include.path
+                    && *include_path == target_path
+                {
+                    file_locations.push(Location {
+                        uri: file_uri.clone(),
+                        range: include.range,
+                    });
                 }
             }
             file_locations
@@ -264,13 +263,13 @@ fn find_references_in_stmt(stmt: &Stmt, target: &str, uri: &Uri) -> Vec<Location
             locations.extend(find_references_in_block(&wait_stmt.body, target, uri));
         }
         Stmt::On(on_stmt) => {
-            if let Some(id) = &on_stmt.identifier {
-                if id.name == target {
-                    locations.push(Location {
-                        uri: uri.clone(),
-                        range: id.range,
-                    });
-                }
+            if let Some(id) = &on_stmt.identifier
+                && id.name == target
+            {
+                locations.push(Location {
+                    uri: uri.clone(),
+                    range: id.range,
+                });
             }
             locations.extend(find_references_in_block(&on_stmt.body, target, uri));
         }

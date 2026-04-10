@@ -74,12 +74,8 @@ pub fn collect_expr_tokens(
 
             if is_expr_call {
                 if let Expr::Identifier(id) = &**expr {
-                    let (token_type, modifiers) = if id.name == "isclass" {
-                        (
-                            SemanticTokenType::METHOD,
-                            vec![SemanticTokenModifier::DEFAULT_LIBRARY],
-                        )
-                    } else if id.name == "inherited" {
+                    let (token_type, modifiers) = if id.name == "isclass" || id.name == "inherited"
+                    {
                         (
                             SemanticTokenType::METHOD,
                             vec![SemanticTokenModifier::DEFAULT_LIBRARY],
@@ -161,12 +157,7 @@ pub fn collect_expr_tokens(
                     SemanticTokenType::KEYWORD,
                     vec![SemanticTokenModifier::READONLY],
                 )
-            } else if id.name == "isclass" {
-                (
-                    SemanticTokenType::METHOD,
-                    vec![SemanticTokenModifier::DEFAULT_LIBRARY],
-                )
-            } else if id.name == "inherited" {
+            } else if id.name == "isclass" || id.name == "inherited" {
                 (
                     SemanticTokenType::METHOD,
                     vec![SemanticTokenModifier::DEFAULT_LIBRARY],

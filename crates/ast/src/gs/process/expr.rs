@@ -62,19 +62,16 @@ pub fn process_expr(pair: Pair<Rule>) -> Expr {
         Rule::primary_expr
         | Rule::array_literal
         | Rule::inherited_method
-        | Rule::statement_method => {
-            let res = process_primary_expr(pair);
-            res
-        }
+        | Rule::statement_method => process_primary_expr(pair),
         Rule::variable => {
             let mut inner = pair.clone().into_inner();
-            if let Some(first) = inner.next() {
-                if first.as_rule() == Rule::identifier {
-                    return Expr::Identifier(crate::gs::literal::Identifier {
-                        name: first.as_str().to_string(),
-                        range: pair_to_range(&first),
-                    });
-                }
+            if let Some(first) = inner.next()
+                && first.as_rule() == Rule::identifier
+            {
+                return Expr::Identifier(crate::gs::literal::Identifier {
+                    name: first.as_str().to_string(),
+                    range: pair_to_range(&first),
+                });
             }
             let str = pair.as_str().to_string();
             Expr::Identifier(crate::gs::literal::Identifier { name: str, range })
@@ -378,9 +375,9 @@ fn process_unary_expr(pair: Pair<Rule>) -> Expr {
             };
 
             // Re-iterate from start to find the operand
-            let mut inner = pair.into_inner();
+            let inner = pair.into_inner();
             let mut next_pair = None;
-            while let Some(p) = inner.next() {
+            for p in inner {
                 let r = p.as_rule();
                 if r != Rule::operator_unary_lhs
                     && r != Rule::operator_unary_not

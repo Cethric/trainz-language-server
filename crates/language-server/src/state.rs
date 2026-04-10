@@ -64,17 +64,15 @@ impl GameScriptLanguageServer {
     }
 
     pub async fn workspace_folders(&self) -> Vec<PathBuf> {
-        if let Some(workspace_folders) = self.client.workspace_folders().await.ok() {
-            if let Some(workspace_folders) = workspace_folders {
-                workspace_folders
-                    .par_iter()
-                    .map(|folder| folder.uri.to_file_path())
-                    .filter_map(|path| path)
-                    .map(|path| path.to_path_buf())
-                    .collect::<Vec<PathBuf>>()
-            } else {
-                vec![]
-            }
+        if let Ok(workspace_folders) = self.client.workspace_folders().await
+            && let Some(workspace_folders) = workspace_folders
+        {
+            workspace_folders
+                .par_iter()
+                .map(|folder| folder.uri.to_file_path())
+                .filter_map(|path| path)
+                .map(|path| path.to_path_buf())
+                .collect::<Vec<PathBuf>>()
         } else {
             vec![]
         }

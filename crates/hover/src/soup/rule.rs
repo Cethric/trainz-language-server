@@ -20,10 +20,10 @@ pub fn create_hover_from_rule(rule: &ContainerRule, range: &trainz_ast::Range) -
     } else if let Some(k) = &rule.kind {
         doc.push_str(&format!("**Kind**: `{}`\n\n", k));
     }
-    if let Some(d) = &rule.description {
-        if !d.is_empty() {
-            doc.push_str(&format!("**Description**: {}\n\n", d));
-        }
+    if let Some(d) = &rule.description
+        && !d.is_empty()
+    {
+        doc.push_str(&format!("**Description**: {}\n\n", d));
     }
 
     let mut validation_rules = Vec::new();
@@ -46,10 +46,10 @@ pub fn create_hover_from_rule(rule: &ContainerRule, range: &trainz_ast::Range) -
     if let Some(f) = &rule.filter {
         validation_rules.push(format!("**Filter**: `{}`", f));
     }
-    if let Some(dis) = &rule.disabled {
-        if *dis {
-            validation_rules.push("**Disabled**: `true`".to_string());
-        }
+    if let Some(dis) = &rule.disabled
+        && *dis
+    {
+        validation_rules.push("**Disabled**: `true`".to_string());
     }
 
     if !validation_rules.is_empty() {
@@ -65,6 +65,6 @@ pub fn create_hover_from_rule(rule: &ContainerRule, range: &trainz_ast::Range) -
             kind: MarkupKind::Markdown,
             value: doc,
         }),
-        range: Some((*range).into()),
+        range: Some(*range),
     })
 }

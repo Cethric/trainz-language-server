@@ -1,10 +1,11 @@
+use crate::soup::validate_simple_value::validate_simple_value;
 use crate::soup::{validate_container, validate_value};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::path::Path;
 use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity};
+use trainz_ast::soup::base::Soup;
 use trainz_ast::soup::key_value_pair::KeyValuePair;
-use trainz_ast::soup::soup::Soup;
 use trainz_ast::soup::value::Value;
 use trainz_ast::{Position, Range};
 use trainz_soup_validators::Validators;
@@ -81,8 +82,7 @@ pub fn soup_diagnostics(
                             base_path,
                         );
                     }
-                } else if sub.compulsory.map_or(false, |c| c >= 1.0)
-                    && !sub.disabled.unwrap_or(false)
+                } else if sub.compulsory.is_some_and(|c| c >= 1.0) && !sub.disabled.unwrap_or(false)
                 {
                     diagnostics.push(Diagnostic {
                         range: Range {
@@ -132,7 +132,7 @@ pub fn soup_diagnostics(
                             base_path,
                         );
                     }
-                } else if rule.compulsory.map_or(false, |c| c >= 1.0)
+                } else if rule.compulsory.is_some_and(|c| c >= 1.0)
                     && !rule.disabled.unwrap_or(false)
                 {
                     diagnostics.push(Diagnostic {
@@ -195,23 +195,23 @@ pub fn soup_diagnostics(
     }
 
     // Simple validators
-    // for soup_kv in &soup.key_value_pairs {
-    //     if soup_kv.key.eq_ignore_ascii_case("kind") {
-    //         continue;
-    //     }
-    //     if let Some(validation_values) = validators.simple.get(&soup_kv.key) {
-    //         if let Some(value) = &soup_kv.value {
-    //             validate_simple_value(value, &soup_kv.key, &validation_values, &mut diagnostics);
-    //         }
-    //     }
-    // }
+    for soup_kv in &soup.key_value_pairs {
+        if soup_kv.key.eq_ignore_ascii_case("kind") {
+            continue;
+        }
+        if let Some(validation_values) = validators.simple.get(&soup_kv.key)
+            && let Some(value) = &soup_kv.value
+        {
+            validate_simple_value(value, &soup_kv.key, validation_values, &mut diagnostics);
+        }
+    }
 
     // Container validators
     for validator in &validators.containers {
-        if let Some(name) = &kind_validator_name {
-            if validator.container_name.eq_ignore_ascii_case(name) {
-                continue;
-            }
+        if let Some(name) = &kind_validator_name
+            && validator.container_name.eq_ignore_ascii_case(name)
+        {
+            continue;
         }
         for soup_kv in &soup.key_value_pairs {
             if soup_kv.key.eq_ignore_ascii_case(&validator.container_name) {

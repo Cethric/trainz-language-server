@@ -227,7 +227,6 @@ impl LanguageServer for GameScriptLanguageServer {
                 name: String::from("Trainz LSP"),
                 version: Some(self.version.clone()),
             }),
-            ..Default::default()
         })
     }
 
@@ -299,10 +298,10 @@ impl LanguageServer for GameScriptLanguageServer {
 
             trace!("did_close {:?} {:?}", path, document_path);
 
-            if let Some(mut exists) = self.parsed_files.get_mut(&path) {
-                if exists.count > 0 {
-                    exists.count -= 1;
-                }
+            if let Some(mut exists) = self.parsed_files.get_mut(&path)
+                && exists.count > 0
+            {
+                exists.count -= 1;
             }
         }
 
@@ -319,13 +318,13 @@ impl LanguageServer for GameScriptLanguageServer {
             self.ast_cache.bust(&document_path);
 
             let path = document_path.to_string_lossy().to_string();
-            let text = params.content_changes.iter().next().unwrap().text.as_str();
+            let text = params.content_changes.first().unwrap().text.as_str();
 
             let workspace_folders = self.workspace_folders().await;
 
             let progress = self
                 .client
-                .progress(ProgressToken::String(String::from(path)), "Updating file")
+                .progress(ProgressToken::String(path), "Updating file")
                 .with_percentage(0)
                 .with_message(format!("Updating file: {:?}", document_path.file_name()))
                 .begin()
@@ -581,7 +580,7 @@ impl LanguageServer for GameScriptLanguageServer {
             .text_document
             .uri
             .to_file_path()
-            .ok_or_else(|| Error::invalid_request());
+            .ok_or_else(Error::invalid_request);
 
         let document_path = match document_path {
             Ok(p) => p,
@@ -661,7 +660,7 @@ impl LanguageServer for GameScriptLanguageServer {
             .text_document
             .uri
             .to_file_path()
-            .ok_or_else(|| Error::invalid_request());
+            .ok_or_else(Error::invalid_request);
 
         let document_path = match document_path {
             Ok(p) => p,
@@ -683,30 +682,27 @@ impl LanguageServer for GameScriptLanguageServer {
         trace!("document_link {:?} {:?}", path, document_path);
 
         let mut result = None;
-        if let Some(document) = self.parsed_files.get(&path) {
-            if let ParsedFileType::GameScript(program) = &document.parsed {
-                let links = program
-                    .includes
-                    .par_iter()
-                    .map(|include| DocumentLink {
-                        range: include.range,
-                        target: include
+        if let Some(document) = self.parsed_files.get(&path)
+            && let ParsedFileType::GameScript(program) = &document.parsed
+        {
+            let links = program
+                .includes
+                .par_iter()
+                .map(|include| DocumentLink {
+                    range: include.range,
+                    target: include.path.clone().and_then(Uri::from_file_path),
+                    tooltip: Some(format!(
+                        "Path: {}",
+                        include
                             .path
                             .clone()
-                            .and_then(|path| Uri::from_file_path(path)),
-                        tooltip: Some(format!(
-                            "Path: {}",
-                            include
-                                .path
-                                .clone()
-                                .map(|path| path.to_str().unwrap_or(&include.name).to_string())
-                                .unwrap_or(include.name.clone())
-                        )),
-                        data: None,
-                    })
-                    .collect();
-                result = Some(links);
-            }
+                            .map(|path| path.to_str().unwrap_or(&include.name).to_string())
+                            .unwrap_or(include.name.clone())
+                    )),
+                    data: None,
+                })
+                .collect();
+            result = Some(links);
         }
 
         if let Some(progress) = progress {
@@ -746,7 +742,7 @@ impl LanguageServer for GameScriptLanguageServer {
             .text_document
             .uri
             .to_file_path()
-            .ok_or_else(|| Error::invalid_request());
+            .ok_or_else(Error::invalid_request);
 
         let document_path = match document_path {
             Ok(p) => p,
@@ -823,7 +819,7 @@ impl LanguageServer for GameScriptLanguageServer {
             .text_document
             .uri
             .to_file_path()
-            .ok_or_else(|| Error::invalid_request());
+            .ok_or_else(Error::invalid_request);
 
         let document_path = match document_path {
             Ok(p) => p,
@@ -926,7 +922,7 @@ impl LanguageServer for GameScriptLanguageServer {
             .text_document
             .uri
             .to_file_path()
-            .ok_or_else(|| Error::invalid_request());
+            .ok_or_else(Error::invalid_request);
 
         let document_path = match document_path {
             Ok(p) => p,
@@ -1026,21 +1022,20 @@ impl LanguageServer for GameScriptLanguageServer {
             .uri
             .to_file_path();
 
-        if let Some(path) = &document_path {
-            if let Some(document) = self.parsed_files.get(&path.to_string_lossy().to_string()) {
-                if let ParsedFileType::Soup(soup) = &document.parsed {
-                    if let Some(progress) = &progress {
-                        progress
-                            .report_with_message("Searching Soup file", 25)
-                            .await;
-                    }
-                    if let Some(validators) = self.validators.get() {
-                        hover_result = soup_hover(soup, params.clone(), validators);
-                    } else if let Some(validation_path) = &self.validation_path {
-                        let validators = load_validators(validation_path);
-                        hover_result = soup_hover(soup, params.clone(), &validators);
-                    }
-                }
+        if let Some(path) = &document_path
+            && let Some(document) = self.parsed_files.get(&path.to_string_lossy().to_string())
+            && let ParsedFileType::Soup(soup) = &document.parsed
+        {
+            if let Some(progress) = &progress {
+                progress
+                    .report_with_message("Searching Soup file", 25)
+                    .await;
+            }
+            if let Some(validators) = self.validators.get() {
+                hover_result = soup_hover(soup, params.clone(), validators);
+            } else if let Some(validation_path) = &self.validation_path {
+                let validators = load_validators(validation_path);
+                hover_result = soup_hover(soup, params.clone(), &validators);
             }
         }
 
@@ -1086,91 +1081,89 @@ impl LanguageServer for GameScriptLanguageServer {
                 }
             };
 
-            if let Some((target_uri, target_range)) = target {
-                if let Some(target_path) = target_uri.to_file_path() {
-                    let path_str = target_path.to_string_lossy().to_string();
-                    if let Some(document) = self.parsed_files.get(&path_str) {
-                        use trainz_ast::find::HasRange;
-                        let comments = &document.comments;
-                        let definition_line = target_range.start.line;
+            if let Some((target_uri, target_range)) = target
+                && let Some(target_path) = target_uri.to_file_path()
+            {
+                let path_str = target_path.to_string_lossy().to_string();
+                if let Some(document) = self.parsed_files.get(&path_str) {
+                    use trainz_ast::find::HasRange;
+                    let comments = &document.comments;
+                    let definition_line = target_range.start.line;
 
-                        let mut preceding_comment = None;
-                        if definition_line == 0 {
-                            if let Some(first_comment) = comments.comments.first() {
-                                // Assume it's the "file comment" if it starts within the first 2 lines
-                                if first_comment.range().start.line <= 2 {
-                                    preceding_comment = Some(first_comment);
-                                }
+                    let mut preceding_comment = None;
+                    if definition_line == 0 {
+                        if let Some(first_comment) = comments.comments.first() {
+                            // Assume it's the "file comment" if it starts within the first 2 lines
+                            if first_comment.range().start.line <= 2 {
+                                preceding_comment = Some(first_comment);
                             }
-                        } else {
-                            for comment in &comments.comments {
-                                let range = comment.range();
-                                if range.end.line < definition_line {
-                                    preceding_comment = Some(comment);
-                                } else {
-                                    if range.start.line >= definition_line {
-                                        break;
-                                    }
+                        }
+                    } else {
+                        for comment in &comments.comments {
+                            let range = comment.range();
+                            if range.end.line < definition_line {
+                                preceding_comment = Some(comment);
+                            } else {
+                                if range.start.line >= definition_line {
+                                    break;
                                 }
                             }
                         }
+                    }
 
-                        if let Some(comment) = preceding_comment {
-                            // Only include if it is immediately preceding (e.g. within 2 lines)
-                            let range = comment.range();
-                            if definition_line == 0
-                                || definition_line.saturating_sub(range.end.line) <= 2
-                            {
-                                let raw_text = match comment {
-                                    trainz_ast::comments::Comment::LineComment(c) => c.text.clone(),
-                                    trainz_ast::comments::Comment::BlockComment(c) => {
-                                        c.text.clone()
+                    if let Some(comment) = preceding_comment {
+                        // Only include if it is immediately preceding (e.g. within 2 lines)
+                        let range = comment.range();
+                        if definition_line == 0
+                            || definition_line.saturating_sub(range.end.line) <= 2
+                        {
+                            let raw_text = match comment {
+                                trainz_ast::comments::Comment::LineComment(c) => c.text.clone(),
+                                trainz_ast::comments::Comment::BlockComment(c) => c.text.clone(),
+                                trainz_ast::comments::Comment::GroupComment(c) => c
+                                    .comments
+                                    .par_iter()
+                                    .map(|lc| lc.text.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join("\n"),
+                            };
+
+                            let text = raw_text
+                                .lines()
+                                .filter_map(|line| {
+                                    let mut t = line.trim();
+                                    if t.starts_with("/*") {
+                                        t = t[2..].trim_start();
                                     }
-                                    trainz_ast::comments::Comment::GroupComment(c) => c
-                                        .comments
-                                        .par_iter()
-                                        .map(|lc| lc.text.as_str())
-                                        .collect::<Vec<_>>()
-                                        .join("\n"),
-                                };
+                                    if t.ends_with("*/") {
+                                        t = t[..t.len() - 2].trim_end();
+                                    }
+                                    if t.starts_with("//!") {
+                                        t = t[3..].trim_start();
+                                    } else if t.starts_with("//") {
+                                        t = t[2..].trim_start();
+                                    } else if t.starts_with('*') {
+                                        t = t[1..].trim_start();
+                                    }
 
-                                let text = raw_text
-                                    .lines()
-                                    .filter_map(|line| {
-                                        let mut t = line.trim();
-                                        if t.starts_with("/*") {
-                                            t = t[2..].trim_start();
-                                        }
-                                        if t.ends_with("*/") {
-                                            t = t[..t.len() - 2].trim_end();
-                                        }
-                                        if t.starts_with("//!") {
-                                            t = t[3..].trim_start();
-                                        } else if t.starts_with("//") {
-                                            t = t[2..].trim_start();
-                                        } else if t.starts_with('*') {
-                                            t = t[1..].trim_start();
-                                        }
+                                    let t = t.trim();
+                                    if !t.is_empty() && t.chars().all(|c| c == '=') {
+                                        return None;
+                                    }
+                                    Some(t)
+                                })
+                                .collect::<Vec<&str>>()
+                                .join("\n\n");
 
-                                        let t = t.trim();
-                                        if !t.is_empty() && t.chars().all(|c| c == '=') {
-                                            return None;
-                                        }
-                                        Some(t)
-                                    })
-                                    .collect::<Vec<&str>>()
-                                    .join("\n\n");
-
-                                hover_result = Some(Hover {
-                                    contents: tower_lsp_server::ls_types::HoverContents::Markup(
-                                        tower_lsp_server::ls_types::MarkupContent {
-                                            kind: tower_lsp_server::ls_types::MarkupKind::Markdown,
-                                            value: text,
-                                        },
-                                    ),
-                                    range: origin_range,
-                                });
-                            }
+                            hover_result = Some(Hover {
+                                contents: tower_lsp_server::ls_types::HoverContents::Markup(
+                                    tower_lsp_server::ls_types::MarkupContent {
+                                        kind: tower_lsp_server::ls_types::MarkupKind::Markdown,
+                                        value: text,
+                                    },
+                                ),
+                                range: origin_range,
+                            });
                         }
                     }
                 }
@@ -1192,29 +1185,28 @@ impl LanguageServer for GameScriptLanguageServer {
 
         for diagnostic in &params.context.diagnostics {
             if let Some(tower_lsp_server::ls_types::NumberOrString::String(code)) = &diagnostic.code
+                && code == "invalid-kind-lib"
             {
-                if code == "invalid-kind-lib" {
-                    let mut changes = std::collections::HashMap::new();
-                    changes.insert(
-                        params.text_document.uri.clone(),
-                        vec![TextEdit {
-                            range: diagnostic.range,
-                            new_text: "\"library\"".to_string(),
-                        }],
-                    );
+                let mut changes = std::collections::HashMap::new();
+                changes.insert(
+                    params.text_document.uri.clone(),
+                    vec![TextEdit {
+                        range: diagnostic.range,
+                        new_text: "\"library\"".to_string(),
+                    }],
+                );
 
-                    actions.push(CodeActionOrCommand::CodeAction(CodeAction {
-                        title: "Change \"lib\" to \"library\"".to_string(),
-                        kind: Some(CodeActionKind::QUICKFIX),
-                        diagnostics: Some(vec![diagnostic.clone()]),
-                        edit: Some(WorkspaceEdit {
-                            changes: Some(changes),
-                            ..Default::default()
-                        }),
-                        is_preferred: Some(true),
+                actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                    title: "Change \"lib\" to \"library\"".to_string(),
+                    kind: Some(CodeActionKind::QUICKFIX),
+                    diagnostics: Some(vec![diagnostic.clone()]),
+                    edit: Some(WorkspaceEdit {
+                        changes: Some(changes),
                         ..Default::default()
-                    }));
-                }
+                    }),
+                    is_preferred: Some(true),
+                    ..Default::default()
+                }));
             }
         }
 
@@ -1247,7 +1239,7 @@ impl LanguageServer for GameScriptLanguageServer {
             .text_document
             .uri
             .to_file_path()
-            .ok_or_else(|| Error::invalid_request());
+            .ok_or_else(Error::invalid_request);
 
         let document_path = match document_path {
             Ok(p) => p,

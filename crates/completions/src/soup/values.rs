@@ -46,7 +46,7 @@ pub fn add_value_completions(
     if filter_text.contains(';') {
         filter_text = filter_text
             .split(';')
-            .last()
+            .next_back()
             .unwrap_or("")
             .trim()
             .to_string();
@@ -60,59 +60,59 @@ pub fn add_value_completions(
     );
 
     // Named validators from the rule
-    if let Some(rule) = rule {
-        if let Some(validations) = &rule.validation {
-            for validation in validations {
-                if let trainz_soup_validators::Validation::Named(name) = validation {
-                    // Try mapping named validation to simple validator key
-                    let simple_key = match name.as_str() {
-                        "IsValidCategoryEra" => Some("category-era"),
-                        "IsValidCategoryRegion" => Some("category-region"),
-                        "IsValidCategoryClass" => Some("category-class"),
-                        _ => None,
-                    };
+    if let Some(rule) = rule
+        && let Some(validations) = &rule.validation
+    {
+        for validation in validations {
+            if let trainz_soup_validators::Validation::Named(name) = validation {
+                // Try mapping named validation to simple validator key
+                let simple_key = match name.as_str() {
+                    "IsValidCategoryEra" => Some("category-era"),
+                    "IsValidCategoryRegion" => Some("category-region"),
+                    "IsValidCategoryClass" => Some("category-class"),
+                    _ => None,
+                };
 
-                    if let Some(s_key) = simple_key {
-                        if let Some(options) = validators.simple.get(s_key) {
-                            for (value_str, description) in options {
-                                if selected_values.contains(&value_str.to_lowercase())
-                                    && filter_text.is_empty()
-                                {
-                                    continue;
-                                }
-                                let label = value_str.clone();
-                                let detail = description.clone();
-                                completions.push(CompletionItem {
-                                    label,
-                                    detail,
-                                    kind: Some(CompletionItemKind::ENUM_MEMBER),
-                                    insert_text: Some(value_str.to_string()),
-                                    insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
-                                    insert_text_mode: Some(InsertTextMode::AS_IS),
-                                    ..Default::default()
-                                });
-                            }
+                if let Some(s_key) = simple_key
+                    && let Some(options) = validators.simple.get(s_key)
+                {
+                    for (value_str, description) in options {
+                        if selected_values.contains(&value_str.to_lowercase())
+                            && filter_text.is_empty()
+                        {
+                            continue;
                         }
-                    } else {
-                        // Treat as comma-separated list of values
-                        let values = name.split(',');
-                        for val in values {
-                            let val = val.trim();
-                            if val.is_empty()
-                                || (selected_values.contains(&val.to_lowercase())
-                                    && filter_text.is_empty())
-                            {
-                                continue;
-                            }
-                            completions.push(CompletionItem {
-                                label: val.to_string(),
-                                kind: Some(CompletionItemKind::ENUM_MEMBER),
-                                insert_text: Some(val.to_string()),
-                                insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
-                                insert_text_mode: Some(InsertTextMode::AS_IS),
-                                ..Default::default()
-                            });
+                        let label = value_str.clone();
+                        let detail = description.clone();
+                        completions.push(CompletionItem {
+                            label,
+                            detail,
+                            kind: Some(CompletionItemKind::ENUM_MEMBER),
+                            insert_text: Some(value_str.to_string()),
+                            insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+                            insert_text_mode: Some(InsertTextMode::AS_IS),
+                            ..Default::default()
+                        });
+                    }
+                } else {
+                    // Treat as comma-separated list of values
+                    let values = name.split(',');
+                    for val in values {
+                        let val = val.trim();
+                        if val.is_empty()
+                            || (selected_values.contains(&val.to_lowercase())
+                                && filter_text.is_empty())
+                        {
+                            continue;
                         }
+                        completions.push(CompletionItem {
+                            label: val.to_string(),
+                            kind: Some(CompletionItemKind::ENUM_MEMBER),
+                            insert_text: Some(val.to_string()),
+                            insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+                            insert_text_mode: Some(InsertTextMode::AS_IS),
+                            ..Default::default()
+                        });
                     }
                 }
             }
@@ -164,7 +164,7 @@ pub fn add_value_completions(
         if filter_text.contains(';') {
             filter_text = filter_text
                 .split(';')
-                .last()
+                .next_back()
                 .unwrap_or("")
                 .trim()
                 .to_string();

@@ -100,25 +100,25 @@ pub fn validate_value(
             });
         }
 
-        if type_name == "filepathedit" && !type_mismatch {
-            if let Some(base_path) = base_path {
-                if let Value::String(s, _) = value {
-                    let file_path = if let Some(parent) = base_path.parent() {
-                        parent.join(s)
-                    } else {
-                        Path::new(s).to_path_buf()
-                    };
+        if type_name == "filepathedit"
+            && !type_mismatch
+            && let Some(base_path) = base_path
+            && let Value::String(s, _) = value
+        {
+            let file_path = if let Some(parent) = base_path.parent() {
+                parent.join(s)
+            } else {
+                Path::new(s).to_path_buf()
+            };
 
-                    if !file_path.exists() {
-                        diagnostics.push(Diagnostic {
-                            range: value.range(),
-                            severity: Some(DiagnosticSeverity::ERROR),
-                            message: format!("File '{}' for key '{}' does not exist.", s, rule.key),
-                            source: Some(String::from("soup-validator")),
-                            ..Default::default()
-                        });
-                    }
-                }
+            if !file_path.exists() {
+                diagnostics.push(Diagnostic {
+                    range: value.range(),
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    message: format!("File '{}' for key '{}' does not exist.", s, rule.key),
+                    source: Some(String::from("soup-validator")),
+                    ..Default::default()
+                });
             }
         }
     }
@@ -126,55 +126,52 @@ pub fn validate_value(
     if let Some(validations) = &rule.validation {
         for validation in validations {
             if let Validation::Named(name) = validation {
-                if name == "IsValidCategoryClass" {
-                    if let Some(allowed_values) = all_validators.simple.get("category-class") {
-                        if let Value::String(s, _) = value {
-                            crate::soup::validate_simple_value::validate_simple_value_str(
-                                value.range(),
-                                s,
-                                "category-class",
-                                allowed_values,
-                                diagnostics,
-                            );
+                if name == "IsValidCategoryClass"
+                    && let Some(allowed_values) = all_validators.simple.get("category-class")
+                    && let Value::String(s, _) = value
+                {
+                    validate_simple_value::validate_simple_value_str(
+                        value.range(),
+                        s,
+                        "category-class",
+                        allowed_values,
+                        diagnostics,
+                    );
+                } else if name == "IsValidCategoryRegion"
+                    && let Some(allowed_values) = all_validators.simple.get("category-region")
+                    && let Value::String(s, _) = value
+                {
+                    validate_simple_value::validate_simple_value_str(
+                        value.range(),
+                        s,
+                        "category-region",
+                        allowed_values,
+                        diagnostics,
+                    );
+                } else if name == "IsValidCategoryEra"
+                    && let Some(allowed_values) = all_validators.simple.get("category-era")
+                    && let Value::String(s, _) = value
+                {
+                    for era in s.split(';') {
+                        if era.is_empty() {
+                            continue;
                         }
-                    }
-                } else if name == "IsValidCategoryRegion" {
-                    if let Some(allowed_values) = all_validators.simple.get("category-region") {
-                        if let Value::String(s, _) = value {
-                            crate::soup::validate_simple_value::validate_simple_value_str(
-                                value.range(),
-                                s,
-                                "category-region",
-                                allowed_values,
-                                diagnostics,
-                            );
-                        }
-                    }
-                } else if name == "IsValidCategoryEra" {
-                    if let Some(allowed_values) = all_validators.simple.get("category-era") {
-                        if let Value::String(s, _) = value {
-                            for era in s.split(';') {
-                                if era.is_empty() {
-                                    continue;
-                                }
-                                if !allowed_values.contains_key(era) {
-                                    diagnostics.push(Diagnostic {
-                                        range: value.range(),
-                                        severity: Some(DiagnosticSeverity::ERROR),
-                                        message: format!(
-                                            "Invalid value(s) '{}' for key 'category-era'. Allowed values are: {}",
-                                            era,
-                                            allowed_values
-                                                .keys()
-                                                .map(|k| k.to_string())
-                                                .collect::<Vec<_>>()
-                                                .join(", ")
-                                        ),
-                                        source: Some(String::from("soup-validator")),
-                                        ..Default::default()
-                                    });
-                                }
-                            }
+                        if !allowed_values.contains_key(era) {
+                            diagnostics.push(Diagnostic {
+                                range: value.range(),
+                                severity: Some(DiagnosticSeverity::ERROR),
+                                message: format!(
+                                    "Invalid value(s) '{}' for key 'category-era'. Allowed values are: {}",
+                                    era,
+                                    allowed_values
+                                        .keys()
+                                        .map(|k| k.to_string())
+                                        .collect::<Vec<_>>()
+                                        .join(", ")
+                                ),
+                                source: Some(String::from("soup-validator")),
+                                ..Default::default()
+                            });
                         }
                     }
                 }
@@ -199,21 +196,20 @@ pub fn validate_value(
                         base_path,
                     );
                 }
-            } else if let Some(type_name) = &rule.type_name {
-                if let Some(validator) = all_validators
+            } else if let Some(type_name) = &rule.type_name
+                && let Some(validator) = all_validators
                     .containers
                     .par_iter()
                     .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name))
-                {
-                    validate_container(
-                        container_kv,
-                        validator,
-                        all_validators,
-                        diagnostics,
-                        None,
-                        base_path,
-                    );
-                }
+            {
+                validate_container(
+                    container_kv,
+                    validator,
+                    all_validators,
+                    diagnostics,
+                    None,
+                    base_path,
+                );
             }
         }
         Value::String(s, _) | Value::Variable(s, _) => {
@@ -223,7 +219,7 @@ pub fn validate_value(
                         validate_simple_value::validate_simple_value(
                             value,
                             &rule.key,
-                            &validator,
+                            validator,
                             diagnostics,
                         );
                     }
@@ -239,7 +235,7 @@ pub fn validate_value(
                                 value.range(),
                                 entry,
                                 &rule.key,
-                                &validator,
+                                validator,
                                 diagnostics,
                             );
                         }
@@ -248,24 +244,24 @@ pub fn validate_value(
                     validate_simple_value::validate_simple_value(
                         value,
                         &rule.key,
-                        &validator,
+                        validator,
                         diagnostics,
                     );
                 }
             }
-            if let Some(filter) = &rule.filter {
-                if !s.to_lowercase().contains(&filter.to_lowercase()) {
-                    diagnostics.push(Diagnostic {
-                        range: value.range(),
-                        severity: Some(DiagnosticSeverity::ERROR),
-                        message: format!(
-                            "Value '{}' for key '{}' does not match filter '{}'.",
-                            s, rule.key, filter
-                        ),
-                        source: Some(String::from("soup-validator")),
-                        ..Default::default()
-                    });
-                }
+            if let Some(filter) = &rule.filter
+                && !s.to_lowercase().contains(&filter.to_lowercase())
+            {
+                diagnostics.push(Diagnostic {
+                    range: value.range(),
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    message: format!(
+                        "Value '{}' for key '{}' does not match filter '{}'.",
+                        s, rule.key, filter
+                    ),
+                    source: Some(String::from("soup-validator")),
+                    ..Default::default()
+                });
             }
             if let Some(validations) = &rule.validation {
                 for validator in validations {

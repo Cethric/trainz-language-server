@@ -206,15 +206,15 @@ pub(crate) fn process_block(body: &Block) -> Vec<DocumentSymbol> {
                 });
             }
             Stmt::Block(block) => {
-                symbols.extend(process_block(&block));
+                symbols.extend(process_block(block));
             }
             Stmt::Expr(expr) => {
-                symbols.extend(process_expr(&expr));
+                symbols.extend(process_expr(expr));
             }
             Stmt::Return(expr, _, range) => {
                 let mut children = vec![];
                 if let Some(expr) = expr {
-                    children.extend(process_expr(&expr));
+                    children.extend(process_expr(expr));
                 }
                 symbols.extend(children.clone());
                 symbols.push(DocumentSymbol {

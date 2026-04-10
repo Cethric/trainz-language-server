@@ -1,8 +1,8 @@
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind};
 use trainz_ast::soup::Value;
+use trainz_ast::soup::base::Soup;
 use trainz_ast::soup::key_value_pair::KeyValuePair;
-use trainz_ast::soup::soup::Soup;
 use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validators};
 
 #[allow(deprecated)]
@@ -50,49 +50,46 @@ fn process_key_value_symbol(
 
     let is_deprecated = rule.and_then(|r| r.obsolete_tag).unwrap_or(false);
 
-    if let Some(value) = &kv.value {
-        match value {
-            Value::Container(kv_pairs, _, _) => {
-                for inner_kv in kv_pairs {
-                    let inner_validator = rule
-                        .and_then(|r| r.type_name.as_ref())
-                        .and_then(|type_name| {
-                            all_validators.and_then(|vs| {
-                                vs.containers.par_iter().find_first(|v| {
-                                    v.container_name.eq_ignore_ascii_case(type_name)
+    if let Some(value) = &kv.value
+        && let Value::Container(kv_pairs, _, _) = value
+    {
+        for inner_kv in kv_pairs {
+            let inner_validator = rule
+                .and_then(|r| r.type_name.as_ref())
+                .and_then(|type_name| {
+                    all_validators.and_then(|vs| {
+                        vs.containers
+                            .par_iter()
+                            .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name))
+                    })
+                })
+                .or_else(|| {
+                    validator
+                        .and_then(|v| v.array_element.as_ref())
+                        .and_then(|ae| {
+                            let type_name = match ae {
+                                ArrayElementType::Array(s) => Some(s),
+                                ArrayElementType::Tuple(types) => inner_kv
+                                    .key
+                                    .parse::<usize>()
+                                    .ok()
+                                    .and_then(|idx| types.get(idx)),
+                            };
+                            type_name.and_then(|tn| {
+                                all_validators.and_then(|vs| {
+                                    vs.containers
+                                        .par_iter()
+                                        .find_first(|v| v.container_name.eq_ignore_ascii_case(tn))
                                 })
                             })
                         })
-                        .or_else(|| {
-                            validator
-                                .and_then(|v| v.array_element.as_ref())
-                                .and_then(|ae| {
-                                    let type_name = match ae {
-                                        ArrayElementType::Array(s) => Some(s),
-                                        ArrayElementType::Tuple(types) => inner_kv
-                                            .key
-                                            .parse::<usize>()
-                                            .ok()
-                                            .and_then(|idx| types.get(idx)),
-                                    };
-                                    type_name.and_then(|tn| {
-                                        all_validators.and_then(|vs| {
-                                            vs.containers.par_iter().find_first(|v| {
-                                                v.container_name.eq_ignore_ascii_case(tn)
-                                            })
-                                        })
-                                    })
-                                })
-                        });
+                });
 
-                    children.push(process_key_value_symbol(
-                        inner_kv,
-                        inner_validator,
-                        all_validators,
-                    ));
-                }
-            }
-            _ => {}
+            children.push(process_key_value_symbol(
+                inner_kv,
+                inner_validator,
+                all_validators,
+            ));
         }
     }
 

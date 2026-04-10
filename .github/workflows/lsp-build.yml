@@ -65,10 +65,31 @@ jobs:
         run: |
           cargo nextest run --profile ci
 
-      - name: Publish Rust test dashboard
+
+      - name: Publish Test Report
         uses: ctrf-io/github-test-reporter@v1
         with:
           report-path: 'target/nextest/ci/junit.xml'
+          integrations-config: |
+            {
+              "junit-to-ctrf": {
+                "enabled": true,
+                "action": "convert",
+                "options": {
+                  "output": "./ctrf-reports/ctrf-report.json",
+                  "toolname": "junit-to-ctrf",
+                  "useSuiteName": false,
+                  "env": {
+                    "appName": "my-app"
+                  }
+                }
+              }
+            }
+        if: always()
+      - name: Publish Rust test dashboard
+        uses: ctrf-io/github-test-reporter@v1
+        with:
+          report-path: "./ctrf-reports/ctrf-report.json"
           summary-report: true
           failed-report: true
           test-report: true

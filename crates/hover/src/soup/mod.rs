@@ -1,7 +1,7 @@
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::{Hover, HoverParams, MarkupContent, MarkupKind, Position};
+use trainz_ast::soup::base::Soup;
 use trainz_ast::soup::key_value_pair::KeyValuePair;
-use trainz_ast::soup::soup::Soup;
 use trainz_ast::soup::value::Value;
 use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validators};
 
@@ -68,23 +68,21 @@ pub fn find_hover_recursive(
                     .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key));
                 if let Some(rule) = rule {
                     let mut hover = create_hover_from_rule(rule, &kv.key_range);
-                    if let Some(h) = &mut hover {
-                        if let Some(kind_name) = &rule.kind {
-                            let wiki_name = get_wiki_container_name(kind_name);
-                            if let tower_lsp_server::ls_types::HoverContents::Markup(markup) =
-                                &mut h.contents
-                            {
-                                if validators
-                                    .containers
-                                    .par_iter()
-                                    .any(|v| v.container_name.eq_ignore_ascii_case(kind_name))
-                                {
-                                    markup.value.push_str(&format!(
-                                        "**Wiki**: [\"{}\" container](https://online.ts2009.com/mediaWiki/index.php/\"{}\"_container)\n\n",
-                                        wiki_name, wiki_name
-                                    ));
-                                }
-                            }
+                    if let Some(h) = &mut hover
+                        && let Some(kind_name) = &rule.kind
+                    {
+                        let wiki_name = get_wiki_container_name(kind_name);
+                        if let tower_lsp_server::ls_types::HoverContents::Markup(markup) =
+                            &mut h.contents
+                            && validators
+                                .containers
+                                .par_iter()
+                                .any(|v| v.container_name.eq_ignore_ascii_case(kind_name))
+                        {
+                            markup.value.push_str(&format!(
+                                "**Wiki**: [\"{}\" container](https://online.ts2009.com/mediaWiki/index.php/\"{}\"_container)\n\n",
+                                wiki_name, wiki_name
+                            ));
                         }
                     }
                     return hover;
@@ -92,26 +90,26 @@ pub fn find_hover_recursive(
 
                 // Check if current container is a TagArray and if it has a type rule
 
-                if let Some(tag_array) = &validator.tag_array {
-                    if let Some(type_name) = &tag_array.type_name {
-                        let type_validator = validators
-                            .containers
-                            .par_iter()
-                            .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name));
-                        if let Some(type_validator) = type_validator {
-                            return Some(Hover {
-                                contents: tower_lsp_server::ls_types::HoverContents::Markup(
-                                    MarkupContent {
-                                        kind: MarkupKind::Markdown,
-                                        value: format!(
-                                            "### TagArray Entry: `{}`\n\n**Validated against**: `{}`",
-                                            kv.key, type_validator.container_name
-                                        ),
-                                    },
-                                ),
-                                range: Some(kv.key_range.into()),
-                            });
-                        }
+                if let Some(tag_array) = &validator.tag_array
+                    && let Some(type_name) = &tag_array.type_name
+                {
+                    let type_validator = validators
+                        .containers
+                        .par_iter()
+                        .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name));
+                    if let Some(type_validator) = type_validator {
+                        return Some(Hover {
+                            contents: tower_lsp_server::ls_types::HoverContents::Markup(
+                                MarkupContent {
+                                    kind: MarkupKind::Markdown,
+                                    value: format!(
+                                        "### TagArray Entry: `{}`\n\n**Validated against**: `{}`",
+                                        kv.key, type_validator.container_name
+                                    ),
+                                },
+                            ),
+                            range: Some(kv.key_range),
+                        });
                     }
                 }
             } else {
@@ -137,7 +135,7 @@ pub fn find_hover_recursive(
                                     ),
                                 },
                             ),
-                            range: Some(kv.key_range.into()),
+                            range: Some(kv.key_range),
                         });
                     }
                 }
@@ -159,7 +157,7 @@ pub fn find_hover_recursive(
                                 ),
                             },
                         ),
-                        range: Some(kv.key_range.into()),
+                        range: Some(kv.key_range),
                     });
                 }
             }
@@ -203,7 +201,7 @@ pub fn find_hover_recursive(
                                 if let Some(tag_array) = &cv.tag_array {
                                     if let Some(type_name) = &tag_array.type_name {
                                         validators.containers.par_iter().find_first(|v| {
-                                            v.container_name.eq_ignore_ascii_case(&type_name)
+                                            v.container_name.eq_ignore_ascii_case(type_name)
                                         })
                                     } else {
                                         None
@@ -250,7 +248,7 @@ pub fn find_hover_recursive(
                                     ),
                                 },
                             ),
-                            range: Some(value_range.into()),
+                            range: Some(value_range),
                         });
                     }
                 }

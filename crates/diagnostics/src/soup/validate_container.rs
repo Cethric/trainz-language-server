@@ -13,39 +13,41 @@ fn validate_compulsory_keys(
 ) {
     // Check compulsory keys in rules
     for rule in &validator.rules {
-        if rule.compulsory.map_or(false, |c| c >= 1.0) && !rule.disabled.unwrap_or(false) {
-            if !found_keys.contains(&rule.key.to_lowercase()) {
-                let range = container_kv.first().map(|kv| kv.range).unwrap_or_default();
-                diagnostics.push(Diagnostic {
-                    range,
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    message: format!(
-                        "Compulsory key '{}' is missing in container '{}'.",
-                        rule.key, validator.container_name
-                    ),
-                    source: Some(String::from("soup-validator")),
-                    ..Default::default()
-                });
-            }
+        if rule.compulsory.is_some_and(|c| c >= 1.0)
+            && !rule.disabled.unwrap_or(false)
+            && !found_keys.contains(&rule.key.to_lowercase())
+        {
+            let range = container_kv.first().map(|kv| kv.range).unwrap_or_default();
+            diagnostics.push(Diagnostic {
+                range,
+                severity: Some(DiagnosticSeverity::ERROR),
+                message: format!(
+                    "Compulsory key '{}' is missing in container '{}'.",
+                    rule.key, validator.container_name
+                ),
+                source: Some(String::from("soup-validator")),
+                ..Default::default()
+            });
         }
     }
 
     // Check compulsory keys in subpossibilities
     for rule in &validator.sub_possibilities {
-        if rule.compulsory.map_or(false, |c| c >= 1.0) && !rule.disabled.unwrap_or(false) {
-            if !found_keys.contains(&rule.key.to_lowercase()) {
-                let range = container_kv.first().map(|kv| kv.range).unwrap_or_default();
-                diagnostics.push(Diagnostic {
-                    range,
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    message: format!(
-                        "Compulsory key '{}' is missing in container '{}'.",
-                        rule.key, validator.container_name
-                    ),
-                    source: Some(String::from("soup-validator")),
-                    ..Default::default()
-                });
-            }
+        if rule.compulsory.is_some_and(|c| c >= 1.0)
+            && !rule.disabled.unwrap_or(false)
+            && !found_keys.contains(&rule.key.to_lowercase())
+        {
+            let range = container_kv.first().map(|kv| kv.range).unwrap_or_default();
+            diagnostics.push(Diagnostic {
+                range,
+                severity: Some(DiagnosticSeverity::ERROR),
+                message: format!(
+                    "Compulsory key '{}' is missing in container '{}'.",
+                    rule.key, validator.container_name
+                ),
+                source: Some(String::from("soup-validator")),
+                ..Default::default()
+            });
         }
     }
 }
@@ -59,7 +61,7 @@ pub fn validate_container(
     base_path: Option<&Path>,
 ) {
     let mut found_keys = std::collections::HashSet::new();
-    let unique_names = validator.validation.as_ref().map_or(false, |v| {
+    let unique_names = validator.validation.as_ref().is_some_and(|v| {
         v.par_iter().any(|val| matches!(val, Validation::Named(name) if name.eq_ignore_ascii_case("UniqueNames") || name.eq_ignore_ascii_case("SubPossibilities")))
     });
 
@@ -82,7 +84,7 @@ pub fn validate_container(
 
     validate_compulsory_keys(container_kv, &found_keys, validator, diagnostics);
 
-    let is_tag_array = validator.tag_array.is_some() || validator.validation.as_ref().map_or(false, |v| {
+    let is_tag_array = validator.tag_array.is_some() || validator.validation.as_ref().is_some_and(|v| {
         v.par_iter().any(|val| matches!(val, Validation::Named(name) if name.eq_ignore_ascii_case("tagarray") || name.eq_ignore_ascii_case("tag-array")))
     });
 
@@ -91,7 +93,7 @@ pub fn validate_container(
             if let Some(value) = &kv.value {
                 validate_value(
                     value,
-                    &tag_array,
+                    tag_array,
                     all_validators,
                     diagnostics,
                     &validator.container_name,
@@ -110,7 +112,7 @@ pub fn validate_container(
                     for kv in container_kv {
                         if let Some(Value::Container(value, _, _)) = &kv.value {
                             validate_container(
-                                &value,
+                                value,
                                 element_validator,
                                 all_validators,
                                 diagnostics,
@@ -127,21 +129,18 @@ pub fn validate_container(
                     if let Some(kv) = container_kv
                         .par_iter()
                         .find_first(|kv| kv.key.eq_ignore_ascii_case(&key))
+                        && let Some(Value::Container(value, _, _)) = &kv.value
+                        && let Some(element_validator) =
+                            all_validators.container_map.get(&array_type.to_lowercase())
                     {
-                        if let Some(Value::Container(value, _, _)) = &kv.value {
-                            if let Some(element_validator) =
-                                all_validators.container_map.get(&array_type.to_lowercase())
-                            {
-                                validate_container(
-                                    &value,
-                                    element_validator,
-                                    all_validators,
-                                    diagnostics,
-                                    key_to_ignore,
-                                    base_path,
-                                );
-                            }
-                        }
+                        validate_container(
+                            value,
+                            element_validator,
+                            all_validators,
+                            diagnostics,
+                            key_to_ignore,
+                            base_path,
+                        );
                     } else {
                         // Diagnostic: missing element at index
                     }
@@ -151,10 +150,10 @@ pub fn validate_container(
     }
 
     for kv in container_kv {
-        if let Some(ignore) = key_to_ignore {
-            if kv.key.eq_ignore_ascii_case(ignore) {
-                continue;
-            }
+        if let Some(ignore) = key_to_ignore
+            && kv.key.eq_ignore_ascii_case(ignore)
+        {
+            continue;
         }
         if kv.key.eq_ignore_ascii_case("tagarray") || kv.key.eq_ignore_ascii_case("tag-array") {
             continue;
@@ -163,11 +162,10 @@ pub fn validate_container(
         if validator
             .array_element
             .as_ref()
-            .map_or(false, |ae| matches!(ae, ArrayElementType::Tuple(_)))
+            .is_some_and(|ae| matches!(ae, ArrayElementType::Tuple(_)))
+            && kv.key.parse::<usize>().is_ok()
         {
-            if kv.key.parse::<usize>().is_ok() {
-                continue;
-            }
+            continue;
         }
         let rule = validator
             .rules
@@ -179,7 +177,7 @@ pub fn validate_container(
                     .par_iter()
                     .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
             })
-            .or_else(|| validator.tag_array.as_ref());
+            .or(validator.tag_array.as_ref());
 
         match rule {
             Some(rule) => {
@@ -281,39 +279,41 @@ pub fn validate_container(
 
     // Check compulsory keys in rules
     for rule in &validator.rules {
-        if rule.compulsory.map_or(false, |c| c >= 1.0) && !rule.disabled.unwrap_or(false) {
-            if !found_keys.contains(&rule.key.to_lowercase()) {
-                let range = container_kv.first().map(|kv| kv.range).unwrap_or_default();
-                diagnostics.push(Diagnostic {
-                    range,
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    message: format!(
-                        "Compulsory key '{}' is missing in container '{}'.",
-                        rule.key, validator.container_name
-                    ),
-                    source: Some(String::from("soup-validator")),
-                    ..Default::default()
-                });
-            }
+        if rule.compulsory.is_some_and(|c| c >= 1.0)
+            && !rule.disabled.unwrap_or(false)
+            && !found_keys.contains(&rule.key.to_lowercase())
+        {
+            let range = container_kv.first().map(|kv| kv.range).unwrap_or_default();
+            diagnostics.push(Diagnostic {
+                range,
+                severity: Some(DiagnosticSeverity::ERROR),
+                message: format!(
+                    "Compulsory key '{}' is missing in container '{}'.",
+                    rule.key, validator.container_name
+                ),
+                source: Some(String::from("soup-validator")),
+                ..Default::default()
+            });
         }
     }
 
     // Check compulsory keys in subpossibilities
     for rule in &validator.sub_possibilities {
-        if rule.compulsory.map_or(false, |c| c >= 1.0) && !rule.disabled.unwrap_or(false) {
-            if !found_keys.contains(&rule.key.to_lowercase()) {
-                let range = container_kv.first().map(|kv| kv.range).unwrap_or_default();
-                diagnostics.push(Diagnostic {
-                    range,
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    message: format!(
-                        "Compulsory key '{}' is missing in container '{}'.",
-                        rule.key, validator.container_name
-                    ),
-                    source: Some(String::from("soup-validator")),
-                    ..Default::default()
-                });
-            }
+        if rule.compulsory.is_some_and(|c| c >= 1.0)
+            && !rule.disabled.unwrap_or(false)
+            && !found_keys.contains(&rule.key.to_lowercase())
+        {
+            let range = container_kv.first().map(|kv| kv.range).unwrap_or_default();
+            diagnostics.push(Diagnostic {
+                range,
+                severity: Some(DiagnosticSeverity::ERROR),
+                message: format!(
+                    "Compulsory key '{}' is missing in container '{}'.",
+                    rule.key, validator.container_name
+                ),
+                source: Some(String::from("soup-validator")),
+                ..Default::default()
+            });
         }
     }
 
@@ -367,20 +367,19 @@ pub fn validate_container(
                 }
                 // Check for extraneous keys that are numeric
                 for &index in &indices {
-                    if index >= types.len() {
-                        if let Some(kv) = container_kv.iter().find(|kv| kv.key == index.to_string())
-                        {
-                            diagnostics.push(Diagnostic {
-                                range: kv.range,
-                                severity: Some(DiagnosticSeverity::ERROR),
-                                message: format!(
-                                    "Index '{}' out of bounds for tuple in container '{}'. Max index is '{}'.",
-                                    index, validator.container_name, types.len() - 1
-                                ),
-                                source: Some(String::from("soup-validator")),
-                                ..Default::default()
-                            });
-                        }
+                    if index >= types.len()
+                        && let Some(kv) = container_kv.iter().find(|kv| kv.key == index.to_string())
+                    {
+                        diagnostics.push(Diagnostic {
+                            range: kv.range,
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            message: format!(
+                                "Index '{}' out of bounds for tuple in container '{}'. Max index is '{}'.",
+                                index, validator.container_name, types.len() - 1
+                            ),
+                            source: Some(String::from("soup-validator")),
+                            ..Default::default()
+                        });
                     }
                 }
             }

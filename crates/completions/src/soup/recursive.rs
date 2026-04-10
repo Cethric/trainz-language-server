@@ -32,18 +32,14 @@ pub fn find_completions_recursive(
     if let Some(kind_kv) = kvs
         .par_iter()
         .find_first(|kv| kv.key.eq_ignore_ascii_case("kind"))
+        && let Some(Value::String(kind_val, _)) = &kind_kv.value
+        && let Some(v) = validators
+            .containers
+            .par_iter()
+            .find_first(|v| v.container_name.eq_ignore_ascii_case(kind_val))
     {
-        if let Some(Value::String(kind_val, _)) = &kind_kv.value {
-            debug!("Found kind '{}' at current level", kind_val);
-            if let Some(v) = validators
-                .containers
-                .par_iter()
-                .find_first(|v| v.container_name.eq_ignore_ascii_case(kind_val))
-            {
-                debug!("Using validator for kind '{}'", kind_val);
-                current_validator_to_use = Some(v);
-            }
-        }
+        debug!("Using validator for kind '{}'", kind_val);
+        current_validator_to_use = Some(v);
     }
 
     if let Some(v) = current_validator_to_use {

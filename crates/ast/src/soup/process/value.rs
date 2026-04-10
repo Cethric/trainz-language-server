@@ -6,15 +6,14 @@ use trainz_common::range::{pair_to_range, pos_to_range};
 use trainz_parser::soup::grammar::Rule;
 
 pub fn process_value(pair: Pair<Rule>) -> Value {
-    let range = pair_to_range(&pair);
     let inner = pair
         .into_inner()
         .find(|p| p.as_rule() != Rule::double_quote)
         .unwrap();
-    process_value_inner(inner, range)
+    process_value_inner(inner)
 }
 
-fn process_value_inner(inner: Pair<Rule>, range: tower_lsp_server::ls_types::Range) -> Value {
+fn process_value_inner(inner: Pair<Rule>) -> Value {
     let inner_range = pair_to_range(&inner);
     match inner.as_rule() {
         Rule::array_value => {
@@ -26,7 +25,7 @@ fn process_value_inner(inner: Pair<Rule>, range: tower_lsp_server::ls_types::Ran
         }
         Rule::numeric_value => {
             let num_inner = inner.into_inner().next().unwrap();
-            process_value_inner(num_inner, range)
+            process_value_inner(num_inner)
         }
         Rule::float => {
             let s = inner.as_str();

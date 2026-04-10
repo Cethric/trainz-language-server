@@ -33,10 +33,10 @@ fn find_postfix_in_class(class: &ClassDef, pos: Position) -> Option<(&Expr, usiz
 
 fn find_postfix_in_block(block: &Block, pos: Position) -> Option<(&Expr, usize)> {
     for stmt in &block.statements {
-        if position_in_range(pos, stmt.range()) {
-            if let Some(res) = find_postfix_in_stmt(stmt, pos) {
-                return Some(res);
-            }
+        if position_in_range(pos, stmt.range())
+            && let Some(res) = find_postfix_in_stmt(stmt, pos)
+        {
+            return Some(res);
         }
     }
     None
@@ -192,10 +192,10 @@ pub fn find_local_var_type_in_block(
         match stmt {
             Stmt::Decl(decl) => {
                 for name in &decl.names {
-                    if name.name == var_name {
-                        if let Type::Named(id) = &decl.ty {
-                            last_seen = Some(id.name.clone());
-                        }
+                    if name.name == var_name
+                        && let Type::Named(id) = &decl.ty
+                    {
+                        last_seen = Some(id.name.clone());
                     }
                 }
             }
@@ -203,24 +203,24 @@ pub fn find_local_var_type_in_block(
                 if let Some(res) = find_local_var_type_in_block(&if_stmt.then_block, var_name, pos)
                 {
                     last_seen = Some(res);
-                } else if let Some(else_block) = &if_stmt.else_block {
-                    if let Some(res) = find_local_var_type_in_block(else_block, var_name, pos) {
-                        last_seen = Some(res);
-                    }
+                } else if let Some(else_block) = &if_stmt.else_block
+                    && let Some(res) = find_local_var_type_in_block(else_block, var_name, pos)
+                {
+                    last_seen = Some(res);
                 }
             }
             Stmt::While(while_stmt) => {
-                if let LoopBody::Block(b) = &while_stmt.body {
-                    if let Some(res) = find_local_var_type_in_block(b, var_name, pos) {
-                        last_seen = Some(res);
-                    }
+                if let LoopBody::Block(b) = &while_stmt.body
+                    && let Some(res) = find_local_var_type_in_block(b, var_name, pos)
+                {
+                    last_seen = Some(res);
                 }
             }
             Stmt::For(for_stmt) => {
-                if let LoopBody::Block(b) = &for_stmt.body {
-                    if let Some(res) = find_local_var_type_in_block(b, var_name, pos) {
-                        last_seen = Some(res);
-                    }
+                if let LoopBody::Block(b) = &for_stmt.body
+                    && let Some(res) = find_local_var_type_in_block(b, var_name, pos)
+                {
+                    last_seen = Some(res);
                 }
             }
             Stmt::Wait(wait_stmt) => {
@@ -239,10 +239,10 @@ pub fn find_local_var_type_in_block(
                         last_seen = Some(res);
                     }
                 }
-                if let Some(default_block) = &switch_stmt.default {
-                    if let Some(res) = find_local_var_type_in_block(default_block, var_name, pos) {
-                        last_seen = Some(res);
-                    }
+                if let Some(default_block) = &switch_stmt.default
+                    && let Some(res) = find_local_var_type_in_block(default_block, var_name, pos)
+                {
+                    last_seen = Some(res);
                 }
             }
             Stmt::Block(b) => {
@@ -266,10 +266,10 @@ pub fn find_local_var_type_in_method(
     }
 
     for param in &method.params {
-        if param.name.name == var_name {
-            if let Type::Named(id) = &param.ty {
-                return Some(id.name.clone());
-            }
+        if param.name.name == var_name
+            && let Type::Named(id) = &param.ty
+        {
+            return Some(id.name.clone());
         }
     }
 

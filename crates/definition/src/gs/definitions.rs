@@ -12,10 +12,10 @@ use trainz_ast::gs::program::Program;
 use trainz_ast::gs::{Expr, PostfixOp, Type};
 
 fn parse_uri_or_path(s: &str) -> Option<Uri> {
-    if let Ok(uri) = s.parse::<Uri>() {
-        if uri.scheme().as_str() != "" {
-            return Some(uri);
-        }
+    if let Ok(uri) = s.parse::<Uri>()
+        && uri.scheme().as_str() != ""
+    {
+        return Some(uri);
     }
     Uri::from_file_path(s)
 }
@@ -42,48 +42,46 @@ fn find_member_type(
             }
         }
 
-        if class_def.is_none() {
-            if let Some((cls, _)) = parsed_files.par_iter().find_map_any(|entry| {
+        if class_def.is_none()
+            && let Some((cls, _)) = parsed_files.par_iter().find_map_any(|entry| {
                 entry
                     .value()
                     .classes
                     .par_iter()
                     .find_first(|c| c.name.name == cls_name)
                     .map(|c| (c.clone(), ()))
-            }) {
-                class_def = Some(cls);
-            }
+            })
+        {
+            class_def = Some(cls);
         }
 
         if let Some(cls) = class_def {
             // Check fields
             for f in &cls.fields {
                 for name in &f.names {
-                    if name.name == member_name {
-                        if let Type::Named(tid) = &f.ty {
-                            return Some(tid.name.clone());
-                        }
+                    if name.name == member_name
+                        && let Type::Named(tid) = &f.ty
+                    {
+                        return Some(tid.name.clone());
                     }
                 }
             }
             // Check methods
             for m in &cls.methods {
-                if m.name.name == member_name {
-                    if let trainz_ast::gs::types::TypeOrVoid::Type(Type::Named(tid)) =
+                if m.name.name == member_name
+                    && let trainz_ast::gs::types::TypeOrVoid::Type(Type::Named(tid)) =
                         &m.return_type
-                    {
-                        return Some(tid.name.clone());
-                    }
+                {
+                    return Some(tid.name.clone());
                 }
             }
             // Check native methods
             for m in &cls.native_methods {
-                if m.name.name == member_name {
-                    if let trainz_ast::gs::types::TypeOrVoid::Type(Type::Named(tid)) =
+                if m.name.name == member_name
+                    && let trainz_ast::gs::types::TypeOrVoid::Type(Type::Named(tid)) =
                         &m.return_type
-                    {
-                        return Some(tid.name.clone());
-                    }
+                {
+                    return Some(tid.name.clone());
                 }
             }
 
@@ -149,10 +147,10 @@ fn infer_receiver_type(
                 }
             }
         }
-        Expr::NewObject { ty, .. } => match ty {
-            Type::Named(id) => Some(id.name.clone()),
-            _ => None,
-        },
+        Expr::NewObject {
+            ty: Type::Named(id),
+            ..
+        } => Some(id.name.clone()),
         _ => None,
     };
 
@@ -207,20 +205,19 @@ pub fn gs_goto_definition(
                 "Checking position {:?} in include range {:?} or path_range {:?}",
                 position, include.range, include.path_range
             );
-            if position_in_range(position, include.range)
+            if (position_in_range(position, include.range)
                 || include
                     .path_range
-                    .map_or(false, |r| position_in_range(position, r))
+                    .is_some_and(|r| position_in_range(position, r)))
+                && let Some(path) = &include.path
             {
-                if let Some(path) = &include.path {
-                    let target_uri = Uri::from_file_path(path).unwrap();
-                    return Some(GotoDefinitionResponse::Link(vec![LocationLink {
-                        origin_selection_range: Some(include.range),
-                        target_uri,
-                        target_range: tower_lsp_server::ls_types::Range::default(),
-                        target_selection_range: tower_lsp_server::ls_types::Range::default(),
-                    }]));
-                }
+                let target_uri = Uri::from_file_path(path).unwrap();
+                return Some(GotoDefinitionResponse::Link(vec![LocationLink {
+                    origin_selection_range: Some(include.range),
+                    target_uri,
+                    target_range: tower_lsp_server::ls_types::Range::default(),
+                    target_selection_range: tower_lsp_server::ls_types::Range::default(),
+                }]));
             }
         }
     }
@@ -349,8 +346,8 @@ pub fn gs_goto_definition(
                                 }
                             }
 
-                            if class_def.is_none() {
-                                if let Some((cls, uri)) =
+                            if class_def.is_none()
+                                && let Some((cls, uri)) =
                                     parsed_files.par_iter().find_map_any(|entry| {
                                         let included_uri_str = entry.key();
                                         let included_program = entry.value();
@@ -362,10 +359,9 @@ pub fn gs_goto_definition(
                                                 (c.clone(), parse_uri_or_path(included_uri_str))
                                             })
                                     })
-                                {
-                                    class_def = Some(cls);
-                                    class_uri = uri;
-                                }
+                            {
+                                class_def = Some(cls);
+                                class_uri = uri;
                             }
 
                             if let Some(cls) = class_def {
@@ -461,19 +457,19 @@ pub fn gs_goto_definition(
         }
 
         let mut expected_receiver_class = None;
-        if let Some((postfix_expr, idx)) = find_postfix_at_position(&program, position) {
-            if let Expr::Postfix { expr, ops, .. } = postfix_expr {
-                let ops_before = &ops[..idx];
-                expected_receiver_class = infer_receiver_type(
-                    &program,
-                    parsed_files,
-                    expr,
-                    ops_before,
-                    current_class.as_deref(),
-                    current_method.as_ref(),
-                    position,
-                );
-            }
+        if let Some((postfix_expr, idx)) = find_postfix_at_position(&program, position)
+            && let Expr::Postfix { expr, ops, .. } = postfix_expr
+        {
+            let ops_before = &ops[..idx];
+            expected_receiver_class = infer_receiver_type(
+                &program,
+                parsed_files,
+                expr,
+                ops_before,
+                current_class.as_deref(),
+                current_method.as_ref(),
+                position,
+            );
         }
 
         // First, look in the current file.
@@ -492,10 +488,10 @@ pub fn gs_goto_definition(
         let mut local_definitions = vec![];
 
         for cls in &program.classes {
-            if let Some(expected) = &expected_receiver_class {
-                if cls.name.name != *expected {
-                    continue;
-                }
+            if let Some(expected) = &expected_receiver_class
+                && cls.name.name != *expected
+            {
+                continue;
             }
             // trace!("gs_goto_definition checking class: {}", cls.name.name);
             if expected_receiver_class.is_none() && cls.name.name == target {
@@ -548,27 +544,25 @@ pub fn gs_goto_definition(
                     let included_uri_str = entry.key();
                     let included_program = entry.value();
                     for class in &included_program.classes {
-                        if class.name.name == target {
-                            if let Some(target_uri) = parse_uri_or_path(included_uri_str) {
-                                trace!(
-                                    "gs_goto_definition checking included target_uri: {:?}",
-                                    target_uri
-                                );
-                                if target_uri != uri {
-                                    return Some(GotoDefinitionResponse::Link(vec![
-                                        LocationLink {
-                                            origin_selection_range,
-                                            target_uri,
-                                            target_range: class.range,
-                                            target_selection_range: class.name.range,
-                                        },
-                                    ]));
-                                }
-                                return Some(GotoDefinitionResponse::Array(vec![Location {
-                                    uri: target_uri,
-                                    range: class.name.range,
+                        if class.name.name == target
+                            && let Some(target_uri) = parse_uri_or_path(included_uri_str)
+                        {
+                            trace!(
+                                "gs_goto_definition checking included target_uri: {:?}",
+                                target_uri
+                            );
+                            if target_uri != uri {
+                                return Some(GotoDefinitionResponse::Link(vec![LocationLink {
+                                    origin_selection_range,
+                                    target_uri,
+                                    target_range: class.range,
+                                    target_selection_range: class.name.range,
                                 }]));
                             }
+                            return Some(GotoDefinitionResponse::Array(vec![Location {
+                                uri: target_uri,
+                                range: class.name.range,
+                            }]));
                         }
                     }
                     None
@@ -611,8 +605,8 @@ pub fn gs_goto_definition(
                             }
                         }
 
-                        if class_def.is_none() {
-                            if let Some((cls, uri)) =
+                        if class_def.is_none()
+                            && let Some((cls, uri)) =
                                 parsed_files.par_iter().find_map_any(|entry| {
                                     let included_uri_str = entry.key();
                                     let included_program = entry.value();
@@ -624,83 +618,82 @@ pub fn gs_goto_definition(
                                             (class.clone(), parse_uri_or_path(included_uri_str))
                                         })
                                 })
-                            {
-                                class_def = Some(cls);
-                                class_uri = uri;
-                            }
+                        {
+                            class_def = Some(cls);
+                            class_uri = uri;
                         }
 
                         if let Some(cls) = class_def {
                             // Check methods
                             for method in &cls.methods {
-                                if method.name.name == target {
-                                    if let Some(target_uri) = class_uri {
-                                        if target_uri != uri {
-                                            return Some(GotoDefinitionResponse::Link(vec![
-                                                LocationLink {
-                                                    origin_selection_range,
-                                                    target_uri,
-                                                    target_range: method.range,
-                                                    target_selection_range: method.name.range,
-                                                },
-                                            ]));
-                                        }
-
-                                        locations.push(Location {
-                                            uri: target_uri,
-                                            range: method.name.range,
-                                        });
-                                        return Some(GotoDefinitionResponse::Array(locations));
+                                if method.name.name == target
+                                    && let Some(target_uri) = class_uri
+                                {
+                                    if target_uri != uri {
+                                        return Some(GotoDefinitionResponse::Link(vec![
+                                            LocationLink {
+                                                origin_selection_range,
+                                                target_uri,
+                                                target_range: method.range,
+                                                target_selection_range: method.name.range,
+                                            },
+                                        ]));
                                     }
+
+                                    locations.push(Location {
+                                        uri: target_uri,
+                                        range: method.name.range,
+                                    });
+                                    return Some(GotoDefinitionResponse::Array(locations));
                                 }
                             }
 
                             // Check native methods
                             for method in &cls.native_methods {
-                                if method.name.name == target {
-                                    if let Some(target_uri) = class_uri {
-                                        if target_uri != uri {
-                                            return Some(GotoDefinitionResponse::Link(vec![
-                                                LocationLink {
-                                                    origin_selection_range,
-                                                    target_uri,
-                                                    target_range: method.range,
-                                                    target_selection_range: method.name.range,
-                                                },
-                                            ]));
-                                        }
-
-                                        locations.push(Location {
-                                            uri: target_uri,
-                                            range: method.name.range,
-                                        });
-                                        return Some(GotoDefinitionResponse::Array(locations));
+                                if method.name.name == target
+                                    && let Some(target_uri) = class_uri
+                                {
+                                    if target_uri != uri {
+                                        return Some(GotoDefinitionResponse::Link(vec![
+                                            LocationLink {
+                                                origin_selection_range,
+                                                target_uri,
+                                                target_range: method.range,
+                                                target_selection_range: method.name.range,
+                                            },
+                                        ]));
                                     }
+
+                                    locations.push(Location {
+                                        uri: target_uri,
+                                        range: method.name.range,
+                                    });
+                                    return Some(GotoDefinitionResponse::Array(locations));
                                 }
                             }
 
                             // Check fields
                             for field in &cls.fields {
                                 for name in &field.names {
-                                    if name.name == target {
-                                        if let Some(target_uri) = class_uri {
-                                            if target_uri != uri {
-                                                return Some(GotoDefinitionResponse::Link(vec![
-                                                    LocationLink {
-                                                        origin_selection_range,
-                                                        target_uri,
-                                                        target_range: field.range,
-                                                        target_selection_range: name.range,
-                                                    },
-                                                ]));
-                                            }
-
-                                            locations.push(Location {
-                                                uri: target_uri,
-                                                range: name.range,
-                                            });
-                                            return Some(GotoDefinitionResponse::Array(locations));
+                                    if name.name == target
+                                        && let Some(target_uri) = class_uri
+                                    {
+                                        if target_uri != uri {
+                                            return Some(GotoDefinitionResponse::Link(vec![
+                                                LocationLink {
+                                                    origin_selection_range,
+                                                    target_uri,
+                                                    target_range: field.range,
+                                                    target_selection_range: name.range,
+                                                },
+                                            ]));
                                         }
+
+                                        locations.push(Location {
+                                            uri: target_uri,
+                                            range: name.range,
+                                        });
+                                        return Some(GotoDefinitionResponse::Array(locations));
                                     }
                                 }
                             }

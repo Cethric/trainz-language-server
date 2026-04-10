@@ -25,12 +25,12 @@ pub fn format_program(program: &Program) -> String {
                 ClassModifier::Obsolete(None) => String::from("obsolete"),
             };
             buffer.push_str(str.as_str());
-            buffer.push_str(" ");
+            buffer.push(' ');
         }
         buffer.push_str(&format!(
             "class {}{} {{\n",
             klass.name.name,
-            if klass.superclasses.len() > 0 {
+            if !klass.superclasses.is_empty() {
                 format!(
                     " isclass {}",
                     klass

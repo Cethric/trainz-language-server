@@ -1,8 +1,8 @@
 pub mod kuid;
 pub mod value;
 
+use crate::soup::base::Soup;
 use crate::soup::key_value_pair::KeyValuePair;
-use crate::soup::soup::Soup;
 use pest::iterators::{Pair, Pairs};
 use tower_lsp_server::ls_types::Range;
 use trainz_common::range::{pair_to_range, pos_to_range};

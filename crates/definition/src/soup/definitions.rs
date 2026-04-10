@@ -2,8 +2,8 @@ use rayon::prelude::*;
 use std::path::Path;
 use tower_lsp_server::ls_types::{Location, Position, Range, Uri};
 use trainz_ast::soup::Value;
+use trainz_ast::soup::base::Soup;
 use trainz_ast::soup::key_value_pair::KeyValuePair;
-use trainz_ast::soup::soup::Soup;
 use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validators};
 
 pub fn soup_goto_definition(
@@ -14,14 +14,8 @@ pub fn soup_goto_definition(
     base_path: Option<&Path>,
 ) -> Option<Vec<Location>> {
     // Search for a key or a filepathedit value at position
-    let result = find_definition_recursive(
-        &soup.key_value_pairs,
-        position,
-        validators,
-        None,
-        base_path,
-        &uri,
-    );
+    let result =
+        find_definition_recursive(&soup.key_value_pairs, position, validators, None, base_path);
 
     if let Some(res) = result {
         match res {
@@ -50,7 +44,6 @@ fn find_definition_recursive(
     validators: &Validators,
     current_validator: Option<&ContainerValidator>,
     base_path: Option<&Path>,
-    current_uri: &Uri,
 ) -> Option<DefinitionResult> {
     for kv in kvs {
         // Check if cursor is over key
@@ -71,30 +64,30 @@ fn find_definition_recursive(
                         .rules
                         .par_iter()
                         .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key));
-                    if let Some(r) = rule {
-                        if let Some(type_name) = &r.type_name {
-                            next_validator = validators
-                                .containers
-                                .par_iter()
-                                .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name));
-                        }
+                    if let Some(r) = rule
+                        && let Some(type_name) = &r.type_name
+                    {
+                        next_validator = validators
+                            .containers
+                            .par_iter()
+                            .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name));
                     }
 
-                    if next_validator.is_none() {
-                        if let Some(array_element_type) = &cv.array_element {
-                            let type_name = match array_element_type {
-                                ArrayElementType::Array(s) => Some(s),
-                                ArrayElementType::Tuple(types) => {
-                                    kv.key.parse::<usize>().ok().and_then(|idx| types.get(idx))
-                                }
-                            };
-                            next_validator = type_name.and_then(|tn| {
-                                validators
-                                    .containers
-                                    .par_iter()
-                                    .find_first(|v| v.container_name.eq_ignore_ascii_case(tn))
-                            });
-                        }
+                    if next_validator.is_none()
+                        && let Some(array_element_type) = &cv.array_element
+                    {
+                        let type_name = match array_element_type {
+                            ArrayElementType::Array(s) => Some(s),
+                            ArrayElementType::Tuple(types) => {
+                                kv.key.parse::<usize>().ok().and_then(|idx| types.get(idx))
+                            }
+                        };
+                        next_validator = type_name.and_then(|tn| {
+                            validators
+                                .containers
+                                .par_iter()
+                                .find_first(|v| v.container_name.eq_ignore_ascii_case(tn))
+                        });
                     }
                 } else {
                     // Top-level
@@ -104,41 +97,33 @@ fn find_definition_recursive(
                         .find_first(|cv| cv.container_name.eq_ignore_ascii_case(&kv.key));
 
                     // If not a container, check simple validators
-                    if next_validator.is_none() {
-                        if let Some(_) = validators.simple.get(&kv.key) {
-                            rule = validators
-                                .containers
-                                .par_iter()
-                                .find_first(|c| c.container_name.eq_ignore_ascii_case(&kv.key))
-                                .and_then(|container| {
-                                    container
-                                        .rules
-                                        .par_iter()
-                                        .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
-                                });
-                        }
+                    if next_validator.is_none() && validators.simple.contains_key(&kv.key) {
+                        rule = validators
+                            .containers
+                            .par_iter()
+                            .find_first(|c| c.container_name.eq_ignore_ascii_case(&kv.key))
+                            .and_then(|container| {
+                                container
+                                    .rules
+                                    .par_iter()
+                                    .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
+                            });
                     }
                 }
 
                 // Check for filepathedit
-                if let Some(r) = rule {
-                    if let Some(type_name_str) = &r.type_name {
-                        if type_name_str.eq_ignore_ascii_case("filepathedit") {
-                            if let Value::String(path_str, _) = value {
-                                if let Some(base) = base_path {
-                                    let full_path = base.join(path_str);
-                                    if full_path.exists() {
-                                        return Some(DefinitionResult::Location(Location {
-                                            uri: Uri::from_file_path(
-                                                full_path.canonicalize().unwrap(),
-                                            )
-                                            .unwrap(),
-                                            range: Range::default(),
-                                        }));
-                                    }
-                                }
-                            }
-                        }
+                if let Some(r) = rule
+                    && let Some(type_name_str) = &r.type_name
+                    && type_name_str.eq_ignore_ascii_case("filepathedit")
+                    && let Value::String(path_str, _) = value
+                    && let Some(base) = base_path
+                {
+                    let full_path = base.join(path_str);
+                    if full_path.exists() {
+                        return Some(DefinitionResult::Location(Location {
+                            uri: Uri::from_file_path(full_path.canonicalize().unwrap()).unwrap(),
+                            range: Range::default(),
+                        }));
                     }
                 }
 
@@ -150,7 +135,6 @@ fn find_definition_recursive(
                         validators,
                         next_validator,
                         base_path,
-                        current_uri,
                     );
                 }
             }

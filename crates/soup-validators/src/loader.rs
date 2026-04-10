@@ -228,15 +228,15 @@ fn parse_validation(validators: &Vec<KeyValuePair>) -> Option<Vec<Validation>> {
     Some(validations)
 }
 
+type SimpleValidators = HashMap<String, HashMap<String, Option<String>>>;
+type ContainerValidators = Vec<ContainerValidator>;
+
 fn process_file(
     filename: &str,
     validator_content: &str,
-) -> Option<(
-    HashMap<String, HashMap<String, Option<String>>>,
-    Vec<ContainerValidator>,
-)> {
-    if let Ok(pairs) = parse_soup(&validator_content) {
-        let validator_soup = process_soup_ast(pairs, &validator_content);
+) -> Option<(SimpleValidators, ContainerValidators)> {
+    if let Ok(pairs) = parse_soup(validator_content) {
+        let validator_soup = process_soup_ast(pairs, validator_content);
 
         // Look for existing container name or create new
         let is_container_style = validator_soup
@@ -244,9 +244,8 @@ fn process_file(
             .par_iter()
             .any(|kv| matches!(kv.value, Some(Value::Container(_, _, _))));
 
-        let mut simple_validators: HashMap<String, HashMap<String, Option<String>>> =
-            HashMap::new();
-        let mut container_validators = vec![];
+        let mut simple_validators: SimpleValidators = HashMap::new();
+        let mut container_validators: ContainerValidators = vec![];
 
         if is_container_style {
             for kv in validator_soup.key_value_pairs {
@@ -266,14 +265,14 @@ fn process_file(
                                 if rule_kv.key.eq_ignore_ascii_case("array-element") {
                                     let mut types = Vec::new();
                                     for detail in rule_details {
-                                        if detail.key.starts_with("container-type") {
-                                            if let Some(val) = match detail.value {
+                                        if detail.key.starts_with("container-type")
+                                            && let Some(val) = match detail.value {
                                                 Some(Value::String(s, _))
                                                 | Some(Value::Variable(s, _)) => Some(s),
                                                 _ => None,
-                                            } {
-                                                types.push((detail.key.clone(), val));
                                             }
+                                        {
+                                            types.push((detail.key.clone(), val));
                                         }
                                     }
                                     // Sort by the numeric suffix of container-typeN
@@ -363,14 +362,13 @@ fn process_file(
                                     _ => {}
                                 }
                             }
-                            Some(Value::Array(v, _)) => match rule_kv.key.to_lowercase().as_str() {
-                                "top-level" => {
-                                    if let Some(numeric_value) = v.first() {
-                                        top_level = parse_numeric_as_bool(numeric_value);
-                                    }
+                            Some(Value::Array(v, _)) => {
+                                if rule_kv.key.to_lowercase().as_str() == "top-level"
+                                    && let Some(numeric_value) = v.first()
+                                {
+                                    top_level = parse_numeric_as_bool(numeric_value);
                                 }
-                                _ => {}
-                            },
+                            }
                             _ => {}
                         }
                     }
@@ -400,8 +398,8 @@ fn process_file(
 }
 
 pub fn load_validators(validation_path: &Path) -> Validators {
-    let mut simple_validators: HashMap<String, HashMap<String, Option<String>>> = HashMap::new();
-    let mut container_validators = vec![];
+    let mut simple_validators: SimpleValidators = HashMap::new();
+    let mut container_validators: ContainerValidators = vec![];
 
     if !validation_path.exists() || !validation_path.is_dir() {
         return Validators {
@@ -431,20 +429,19 @@ pub fn load_validators(validation_path: &Path) -> Validators {
                 continue;
             }
 
-            if let Ok(validator_content) = fs::read_to_string(&path) {
-                if let Some((parsed_simple_validators, parsed_container_validators)) =
+            if let Ok(validator_content) = fs::read_to_string(&path)
+                && let Some((parsed_simple_validators, parsed_container_validators)) =
                     process_file(filename, &validator_content)
-                {
-                    simple_validators.extend(parsed_simple_validators);
-                    container_validators.extend(parsed_container_validators);
-                }
+            {
+                simple_validators.extend(parsed_simple_validators);
+                container_validators.extend(parsed_container_validators);
             }
         }
     }
 
     let trainz_build = include_str!("custom-validators/trainz-build.txt");
     if let Some((parsed_simple_validators, parsed_container_validators)) =
-        process_file("trainz-build", &trainz_build)
+        process_file("trainz-build", trainz_build)
     {
         simple_validators.extend(parsed_simple_validators);
         container_validators.extend(parsed_container_validators);

@@ -34,7 +34,7 @@ pub fn validate_simple_value_str(
 ) {
     if !allowed_values.contains_key(value) {
         diagnostics.push(Diagnostic {
-            range: range,
+            range,
             severity: Some(DiagnosticSeverity::ERROR),
             message: format!(
                 "Invalid value(s) '{}' for key '{}'. Allowed values are: {}",
@@ -45,7 +45,7 @@ pub fn validate_simple_value_str(
                     .map(|(k, v)| if let Some(v) = v {
                         format!("{}: {}", k, v)
                     } else {
-                        format!("{}", k)
+                        k.to_string()
                     })
                     .collect::<Vec<_>>()
                     .join(", ")

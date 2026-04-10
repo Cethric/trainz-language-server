@@ -43,22 +43,20 @@ pub fn process_raw_tokens(
     unique_lines.sort_by(|a, b| b.cmp(a)); // Descending
 
     for line in unique_lines {
-        if *line_is_only_comment.get(&line).unwrap_or(&false) {
-            if *line_has_decl.get(&(line + 1)).unwrap_or(&false)
-                || documentation_lines.contains(&(line + 1))
-            {
-                documentation_lines.insert(line);
-            }
+        if *line_is_only_comment.get(&line).unwrap_or(&false)
+            && *line_has_decl.get(&(line + 1)).unwrap_or(&false)
+            || documentation_lines.contains(&(line + 1))
+        {
+            documentation_lines.insert(line);
         }
     }
 
     for (range, token_type, modifiers) in &mut raw_tokens {
         if *token_type == SemanticTokenType::COMMENT
             && documentation_lines.contains(&range.start.line)
+            && !modifiers.contains(&SemanticTokenModifier::DOCUMENTATION)
         {
-            if !modifiers.contains(&SemanticTokenModifier::DOCUMENTATION) {
-                modifiers.push(SemanticTokenModifier::DOCUMENTATION);
-            }
+            modifiers.push(SemanticTokenModifier::DOCUMENTATION);
         }
     }
 

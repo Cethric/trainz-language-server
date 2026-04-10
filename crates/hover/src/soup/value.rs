@@ -79,6 +79,6 @@ pub fn get_hover_for_simple_validator(
             kind: MarkupKind::Markdown,
             value: value_doc,
         }),
-        range: Some((*value_range).into()),
+        range: Some(*value_range),
     })
 }

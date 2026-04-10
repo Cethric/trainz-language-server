@@ -3,7 +3,7 @@ use rayon::iter::IntoParallelRefIterator;
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::FoldingRange;
 use trainz_ast::soup::Value;
-use trainz_ast::soup::soup::Soup;
+use trainz_ast::soup::base::Soup;
 
 #[cfg(test)]
 mod tests;
@@ -11,13 +11,7 @@ mod tests;
 pub fn soup_folding_range(soup: &Soup) -> Vec<FoldingRange> {
     soup.key_value_pairs
         .par_iter()
-        .filter_map(|pair| {
-            if let Some(value) = &pair.value {
-                Some(collect_key_value_folding_ranges(value))
-            } else {
-                None
-            }
-        })
+        .filter_map(|pair| pair.value.as_ref().map(collect_key_value_folding_ranges))
         .flatten()
         .collect::<Vec<FoldingRange>>()
 }
@@ -27,13 +21,7 @@ fn collect_key_value_folding_ranges(value: &Value) -> Vec<FoldingRange> {
         let range = *full_range;
         let mut folding = pairs
             .par_iter()
-            .filter_map(|p| {
-                if let Some(val) = &p.value {
-                    Some(collect_key_value_folding_ranges(val))
-                } else {
-                    None
-                }
-            })
+            .filter_map(|p| p.value.as_ref().map(collect_key_value_folding_ranges))
             .flatten()
             .collect::<Vec<FoldingRange>>();
         if let Some(range) =

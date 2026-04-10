@@ -142,7 +142,7 @@ fn get_offset(src: &str, pos: tower_lsp_server::ls_types::Position) -> usize {
             line += 1;
             character = 0;
         } else {
-            character += c.len_utf16() as usize;
+            character += c.len_utf16();
         }
     }
     src.len()

@@ -12,6 +12,12 @@ pub struct AstCache {
     cache_dir: PathBuf,
 }
 
+impl Default for AstCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AstCache {
     pub fn new() -> Self {
         let mut cache_dir = std::env::temp_dir();

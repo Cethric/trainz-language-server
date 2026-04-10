@@ -17,7 +17,7 @@ pub trait ProcessGS {
         &self,
         path: &Path,
         content: &str,
-        workspace_folders: &Vec<PathBuf>,
+        workspace_folders: &[PathBuf],
         changed: bool,
         progress: &OngoingProgress<Bounded, NotCancellable>,
     ) -> impl Future<Output = ()> + Send;
@@ -28,7 +28,7 @@ impl ProcessGS for GameScriptLanguageServer {
         &self,
         path: &Path,
         content: &str,
-        workspace_folders: &Vec<PathBuf>,
+        workspace_folders: &[PathBuf],
         changed: bool,
         progress: &OngoingProgress<Bounded, NotCancellable>,
     ) {
@@ -52,7 +52,7 @@ impl ProcessGS for GameScriptLanguageServer {
 fn find_include_path(
     include: &str,
     base_path: &Path,
-    workspace_folders: &Vec<PathBuf>,
+    workspace_folders: &[PathBuf],
     search_paths: &Vec<PathBuf>,
 ) -> Option<PathBuf> {
     let mut paths: Vec<PathBuf> = search_paths
@@ -82,7 +82,7 @@ impl GameScriptLanguageServer {
     async fn process_gs_include(
         &self,
         include: Include,
-        workspace_folders: &Vec<PathBuf>,
+        workspace_folders: &[PathBuf],
         progress: &OngoingProgress<Bounded, NotCancellable>,
     ) {
         if let Some(path) = include.path {
@@ -151,7 +151,7 @@ impl GameScriptLanguageServer {
         &self,
         path: &Path,
         content: &str,
-        workspace_folders: &Vec<PathBuf>,
+        workspace_folders: &[PathBuf],
         changed: bool,
         progress: &OngoingProgress<Bounded, NotCancellable>,
     ) {
