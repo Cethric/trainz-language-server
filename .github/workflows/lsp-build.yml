@@ -76,7 +76,7 @@ jobs:
                 "enabled": true,
                 "action": "convert",
                 "options": {
-                  "output": 'target/nextest/ci/junit.json'
+                  "output": "target/nextest/ci/junit.json",
                   "toolname": "junit-to-ctrf",
                   "useSuiteName": false,
                   "env": {
