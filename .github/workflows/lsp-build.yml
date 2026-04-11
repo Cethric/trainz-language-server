@@ -56,14 +56,14 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build
-        run: cargo build --profile release --release
+        run: cargo build --profile release
 
       - uses: taiki-e/install-action@nextest
 
       - name: Run tests
         shell: bash
         run: |
-          cargo nextest run --profile ci --release --tests --max-fail=all --no-pager --no-test warn
+          cargo nextest run --profile ci --tests --max-fail=all --no-pager --no-test warn
 
 
       - name: Publish Test Report
