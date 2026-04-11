@@ -23,6 +23,13 @@
     "Programming Languages",
     "Other"
   ],
+  "keywords": [
+    "Trainz",
+    "GS",
+    "Soup",
+    "Language Server",
+    "LSP"
+  ],
   "activationEvents": [
     "onLanguage:game-script",
     "onLanguage:soup"
@@ -30,7 +37,7 @@
   "main": "./dist/extension.js",
   "preview": true,
   "sponsor": {
-    "bymeacoffee": "https://buymeacoffee.com/cethric"
+    "url": "https://buymeacoffee.com/cethric"
   },
   "contributes": {
     "languages": [
