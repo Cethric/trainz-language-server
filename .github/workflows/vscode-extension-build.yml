@@ -41,7 +41,7 @@ jobs:
         working-directory: extensions/vscode
 
       - name: Build
-        run: pnpm build
+        run: pnpm compile
         working-directory: extensions/vscode
 
       - name: Lint
