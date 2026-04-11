@@ -1,0 +1,54 @@
+{
+  "id": "trainz_language_server",
+  "name": "Trainz Language Server",
+  "executeOnStartServer": false,
+  "check": {
+    "exec": {
+      "name": "Trying current command",
+      "command": "${server.command}",
+      "timeout": 2000
+    }
+  },
+  "run": {
+    "download": {
+      "name": "Download Trainz Language Server",
+      "github": {
+        "owner": "Cethric",
+        "repository": "trainz-language-server",
+        "prerelease": true,
+        "asset": {
+          "windows": {
+            "amd64": "trainz-language-server-windows-latest-*.7z",
+            "arm64": "trainz-language-server-windows-11-arm-*.7z"
+          },
+          "unix": {
+            "amd64": "trainz-language-server-ubuntu-latest-*.tar.gz",
+            "arm64": "trainz-language-server-ubuntu-24.04-arm-*.tar.gz"
+          },
+          "mac": {
+            "amd64": "trainz-language-server-macos-26-intel-*.tar.gz",
+            "arm64": "trainz-language-server-macos-latest-*.tar.gz"
+          }
+        }
+      },
+      "output": {
+        "dir": "$USER_HOME$/.lsp4ij/lsp/trainz-language-server",
+        "file": {
+          "name": {
+            "windows": "release/trainz-language-server.exe",
+            "unix": "release/trainz-language-server",
+            "mac": "release/trainz-language-server"
+          },
+          "executable": true
+        }
+      },
+      "onSuccess": {
+        "configureServer": {
+          "name": "Configure Trainz Language Server command",
+          "command": "${output.dir}/${output.file.name}",
+          "update": true
+        }
+      }
+    }
+  }
+}

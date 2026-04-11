@@ -1,0 +1,24 @@
+{
+  "name": "Trainz LSP",
+  "programArgs": {
+    "default": "$USER_HOME$/.lsp4ij/lsp/trainz-language-server/target/release/trainz-language-server"
+  },
+  "fileTypeMappings": [
+    {
+      "fileType": {
+        "patterns": [
+          "*.gs"
+        ]
+      },
+      "languageId": "game-script"
+    },
+    {
+      "fileType": {
+        "patterns": [
+          "*.txt"
+        ]
+      },
+      "languageId": "soup"
+    }
+  ]
+}
