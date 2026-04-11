@@ -23,7 +23,7 @@ if (extName === 'vscode') {
     if (fs.existsSync(packageJsonPath)) {
         let content = fs.readFileSync(packageJsonPath, 'utf8');
         // Replace "version": "x.y.z"
-        content = content.replace(/"version": "[\d\.\-SNAPSHOT]+"/, `"version": "${newVersion}"`);
+        content = content.replace(/"version": "[^"]+"/, `"version": "${newVersion}"`);
         fs.writeFileSync(packageJsonPath, content);
         console.log(`Updated extensions/vscode/package.json`);
     } else {
@@ -35,7 +35,7 @@ if (extName === 'vscode') {
     if (fs.existsSync(gradleKtsPath)) {
         let content = fs.readFileSync(gradleKtsPath, 'utf8');
         // Replace version = "..."
-        content = content.replace(/version = "[\d\.\-SNAPSHOT]+"/, `version = "${newVersion}"`);
+        content = content.replace(/version = "[^"]+"/, `version = "${newVersion}"`);
         fs.writeFileSync(gradleKtsPath, content);
         console.log(`Updated extensions/trainz-idea/build.gradle.kts`);
     } else {

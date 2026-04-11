@@ -7,7 +7,45 @@ on:
 concurrency: release
 
 jobs:
+  prepare-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.final-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Calculate Version
+        id: version
+        uses: PaulHatch/semantic-version@v6.0.2
+        with:
+          tag_prefix: "v"
+          search_commit_body: true
+          enable_prerelease_mode: true
+
+      - name: Determine Final Version
+        id: final-version
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ "${{ github.ref_name }}" == "develop" ]]; then
+            # The semantic-version action outputs increment
+            VERSION="${VERSION}-dev.${{ steps.version.outputs.increment }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Cancel if Unchanged
+        if: ${{ ! fromJSON(steps.version.outputs.changed) }}
+        run: |
+          gh run cancel ${{ github.run_id }}
+          gh run watch ${{ github.run_id }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build-language-server:
+    needs: [ prepare-version ]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -41,6 +79,13 @@ jobs:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Update Version
+        run: |
+          node scripts/update-root-versions.js ${{ needs.prepare-version.outputs.version }}
+          for crate in ast common formatter formatter-cli diagnostics language-server parser semantic-tokens symboliser completions folding hover definition soup-validators; do
+            node scripts/update-crate-version.js $crate ${{ needs.prepare-version.outputs.version }}
+          done
+
       - name: Build
         run: cargo build --profile release
 
@@ -71,11 +116,22 @@ jobs:
         if: success()
 
   build-jetbrains-plugin:
+    needs: [ prepare-version ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Update Version
+        run: |
+          node scripts/update-root-versions.js ${{ needs.prepare-version.outputs.version }}
+          node scripts/update-extension-version.js trainz-idea ${{ needs.prepare-version.outputs.version }}
 
       - name: Set up JDK 24
         uses: actions/setup-java@v5
@@ -114,11 +170,22 @@ jobs:
         if: always()
 
   build-vscode-extension:
+    needs: [ prepare-version ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Update Version
+        run: |
+          node scripts/update-root-versions.js ${{ needs.prepare-version.outputs.version }}
+          node scripts/update-extension-version.js vscode ${{ needs.prepare-version.outputs.version }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
@@ -161,7 +228,7 @@ jobs:
         if: success()
 
   release:
-    needs: [ build-language-server, build-jetbrains-plugin, build-vscode-extension ]
+    needs: [ prepare-version, build-language-server, build-jetbrains-plugin, build-vscode-extension ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -172,14 +239,6 @@ jobs:
         with:
           lfs: true
           fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-
-      - name: Install dependencies
-        run: npm install --no-save
 
       - name: Download all artifacts
         uses: actions/download-artifact@v5
@@ -195,7 +254,17 @@ jobs:
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git tag v${{ needs.prepare-version.outputs.version }}
+          git push origin v${{ needs.prepare-version.outputs.version }}
+          ARGS='--generate-notes --latest --discussion-category "General" --fail-on-no-commits'
+          if [[ "${{ github.ref_name }}" == "develop" ]]; then
+            ARGS='--prerelease --fail-on-no-commits'
+          fi
+
+          gh release create v${{ needs.prepare-version.outputs.version }} --generate-notes --discussion-category "General" $ARGS final-artifacts/*
 
       - name: Upload final artifacts as run artifacts
         uses: actions/upload-artifact@v4

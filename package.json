@@ -1,46 +1,11 @@
 {
   "name": "trainz-language-server",
-  "version": "0.0.0-semantically-released",
+  "version": "0.1.0",
   "description": "Language Server Protocol implementation for the GS (Game Script) and Soup languages used in Trainz",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/Cethric/trainz-language-server"
-  },
-  "devDependencies": {
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/exec": "^6.0.3",
-    "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^9.2.1",
-    "semantic-release": "^23.0.0"
-  },
-  "release": {
-    "branches": [
-      {
-        "name": "main",
-        "channel": false
-      },
-      {
-        "name": "develop",
-        "channel": "next",
-        "prerelease": true
-      }
-    ],
-    "plugins": [
-      "@semantic-release/commit-analyzer",
-      "@semantic-release/release-notes-generator",
-      "@semantic-release/changelog",
-      "@semantic-release/github",
-      [
-        "@semantic-release/git",
-        {
-          "assets": [
-            "final-artifacts/*.tar.gz"
-          ],
-          "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-        }
-      ]
-    ]
   },
   "scripts": {
     "update-crate-version": "node scripts/update-crate-version.js",

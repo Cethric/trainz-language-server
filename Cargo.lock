@@ -856,7 +856,7 @@ checksum = "2984d1cd16c883d7935b9e07e44071dca8d917fd52ecc02c04d5fa0b5a3f191c"
 dependencies = [
  "displaydoc",
  "potential_utf",
-    "utf8_iter",
+ "utf8_iter",
  "yoke",
  "zerofrom",
  "zerovec",
@@ -964,7 +964,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9"
 dependencies = [
  "equivalent",
-    "hashbrown 0.17.0",
+ "hashbrown 0.17.0",
  "serde",
  "serde_core",
 ]
@@ -2108,7 +2108,7 @@ version = "0.1.0"
 dependencies = [
  "log",
  "rayon",
-    "shadow-rs",
+ "shadow-rs",
  "trainz-ast",
  "trainz-parser",
 ]

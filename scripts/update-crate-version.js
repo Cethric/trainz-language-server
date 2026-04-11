@@ -23,7 +23,7 @@ if (fs.existsSync(crateCargoPath)) {
     let content = fs.readFileSync(crateCargoPath, 'utf8');
     // Be more specific: only replace version in [package] section
     // Replace version = "x.y.z"
-    content = content.replace(/^version = "[\d\.]+"/m, `version = "${newVersion}"`);
+    content = content.replace(/^version = "[^"]+"/m, `version = "${newVersion}"`);
     fs.writeFileSync(crateCargoPath, content);
     console.log(`Updated crates/${crateName}/Cargo.toml`);
 } else {
@@ -38,7 +38,7 @@ if (fs.existsSync(rootCargoPath)) {
     // Find the line with 'trainz-<crateName> = { path = "crates/<crateName>", version = "..." }'
     const dependencyKey = `trainz-${crateName}`;
     // Regex to match the version inside the dependency definition
-    const regex = new RegExp(`(${dependencyKey}\\s*=\\s*\\{.*version\\s*=\\s*")([\\d\\.]+)"`, 'g');
+    const regex = new RegExp(`(${dependencyKey}\\s*=\\s*\\{.*version\\s*=\\s*")([^"]+)"`, 'g');
 
     if (regex.test(content)) {
         content = content.replace(regex, `$1${newVersion}"`);
