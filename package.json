@@ -2,6 +2,7 @@
   "name": "trainz-language-server",
   "version": "0.0.0-semantically-released",
   "description": "Language Server Protocol implementation for the GS (Game Script) and Soup languages used in Trainz",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/Cethric/trainz-language-server"
@@ -40,5 +41,10 @@
         }
       ]
     ]
+  },
+  "scripts": {
+    "update-crate-version": "node scripts/update-crate-version.js",
+    "update-extension-version": "node scripts/update-extension-version.js",
+    "update-root-version": "node scripts/update-root-versions.js"
   }
 }

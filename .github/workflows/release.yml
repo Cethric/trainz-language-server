@@ -54,7 +54,7 @@ jobs:
         run: |
           mkdir -p artifacts
           tar -czf artifacts/trainz-language-server-${{ matrix.os }}-${{ github.sha }}.tar.gz target/release/trainz-language-server target/release/trainz-fmt
-        if: success() && (matrix.os != 'windows-latest' || matrix.os != 'windows-11-arm')
+        if: success() && (matrix.os != 'windows-latest' && matrix.os != 'windows-11-arm')
 
       - name: Create archive
         run: |
@@ -155,7 +155,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: vscode-build-${{ matrix.os }}-node${{ matrix.node }}
+          name: vscode-build
           path: extensions/vscode/artifacts/
           retention-days: 30
         if: success()
@@ -189,7 +189,7 @@ jobs:
       - name: Organize artifacts
         run: |
           mkdir -p final-artifacts
-          find release-artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} final-artifacts/ \;
+          find release-artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.7z" \) -exec cp {} final-artifacts/ \;
           ls -la final-artifacts/
 
       - name: Create GitHub Release

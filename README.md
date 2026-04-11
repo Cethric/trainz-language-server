@@ -97,7 +97,11 @@ The `scripts/` directory contains helper scripts for development and release man
 
 - **[scripts/create-commit.sh](scripts/create-commit.sh)**: Helper for creating conventional commit messages
 - **[scripts/commit-agent.sh](scripts/commit-agent.sh)**: Automated commit script with quality checks
-- **[scripts/update-cargo-versions.js](scripts/update-cargo-versions.js)**: Version updater for semantic releases
+- **[scripts/update-crate-version.js](scripts/update-crate-version.js)**: Update a specific crate's version and its
+  workspace dependency version
+- **[scripts/update-extension-version.js](scripts/update-extension-version.js)**: Update a specific extension's version
+- **[scripts/update-root-versions.js](scripts/update-root-versions.js)**: Update the root project version in
+  package.json and Cargo.toml
 
 See [scripts/README.md](scripts/README.md) for detailed usage instructions.
 

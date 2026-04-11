@@ -111,7 +111,7 @@ jobs:
         run: |
           mkdir -p artifacts
           tar -czf artifacts/trainz-language-server-${{ matrix.os }}-${{ github.sha }}.tar.gz target/release/trainz-language-server target/release/trainz-fmt
-        if: success() && (matrix.os != 'windows-latest' || matrix.os != 'windows-11-arm')
+        if: success() && (matrix.os != 'windows-latest' && matrix.os != 'windows-11-arm')
 
       - name: Create archive
         run: |

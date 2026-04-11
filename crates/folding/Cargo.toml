@@ -1,7 +1,16 @@
 [package]
 name = "trainz-folding"
 version = "0.1.0"
+build = "build.rs"
+
 edition.workspace = true
+repository.workspace = true
+readme.workspace = true
+authors.workspace = true
+categories.workspace = true
+homepage.workspace = true
+license.workspace = true
+description.workspace = true
 
 [dependencies]
 shadow-rs = { workspace = true }
