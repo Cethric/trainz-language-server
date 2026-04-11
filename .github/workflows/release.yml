@@ -82,9 +82,7 @@ jobs:
       - name: Update Version
         run: |
           node scripts/update-root-versions.js ${{ needs.prepare-version.outputs.version }}
-          for crate in ast common formatter formatter-cli diagnostics language-server parser semantic-tokens symboliser completions folding hover definition soup-validators; do
-            node scripts/update-crate-version.js $crate ${{ needs.prepare-version.outputs.version }}
-          done
+          node scripts/update-all-crates.js ${{ needs.prepare-version.outputs.version }}
 
       - name: Build
         run: cargo build --profile release
