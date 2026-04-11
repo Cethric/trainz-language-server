@@ -11,7 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        os: [ ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-26-intel, windows-latest, windows-11-arm ]
         rust: [ stable ]
     steps:
       - uses: actions/checkout@v6
@@ -54,13 +54,13 @@ jobs:
         run: |
           mkdir -p artifacts
           tar -czf artifacts/trainz-language-server-${{ matrix.os }}-${{ github.sha }}.tar.gz target/release/trainz-language-server target/release/trainz-fmt
-        if: success() && matrix.os != 'windows-latest'
+        if: success() && (matrix.os != 'windows-latest' || matrix.os != 'windows-11-arm')
 
       - name: Create archive
         run: |
           mkdir -p artifacts
           tar -czf artifacts/trainz-language-server-${{ matrix.os }}-${{ github.sha }}.tar.gz target/release/trainz-language-server.exe target/release/trainz-fmt.exe
-        if: success() && matrix.os == 'windows-latest'
+        if: success() && (matrix.os != 'windows-latest' || matrix.os != 'windows-11-arm')
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -148,7 +148,7 @@ jobs:
       - name: Create archive
         run: |
           mkdir -p artifacts
-          tar -czf artifacts/trainz-language-server-vscode-node22-${{ github.sha }}.tar.gz dist/
+          tar -czf artifacts/trainz-vscode-${{ github.sha }}.tar.gz dist/
         working-directory: extensions/vscode
         if: success()
 
