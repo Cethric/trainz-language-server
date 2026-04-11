@@ -41,7 +41,7 @@ jobs:
         working-directory: extensions/vscode
 
       - name: Build
-        run: pnpm compile
+        run: pnpm run package
         working-directory: extensions/vscode
 
       - name: Lint
@@ -76,7 +76,8 @@ jobs:
       - name: Create archive
         run: |
           mkdir -p artifacts
-          tar -C dist -czf artifacts/trainz-language-server-vscode-${{ matrix.os }}-node${{ matrix.node }}-${{ github.sha }}.tar.gz .
+          npx @vscode/vsce package --no-dependencies
+          mv *.vsix artifacts/
         working-directory: extensions/vscode
         if: success()
 

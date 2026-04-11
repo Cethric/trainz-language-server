@@ -202,7 +202,7 @@ jobs:
         working-directory: extensions/vscode
 
       - name: Build
-        run: pnpm compile
+        run: pnpm run package
         working-directory: extensions/vscode
 
       - name: Lint
@@ -213,7 +213,8 @@ jobs:
       - name: Create archive
         run: |
           mkdir -p artifacts
-          tar -czf artifacts/trainz-vscode-${{ github.sha }}.tar.gz dist/
+          npx @vscode/vsce package --no-dependencies
+          mv *.vsix artifacts/
         working-directory: extensions/vscode
         if: success()
 
@@ -225,8 +226,29 @@ jobs:
           retention-days: 30
         if: success()
 
+  build-lsp4ij:
+    needs: [ prepare-version ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Create archive
+        run: |
+          mkdir -p artifacts
+          tar -czf artifacts/trainz-lsp4ij-${{ github.sha }}.tar.gz -C extensions/lsp4ij .
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lsp4ij-build
+          path: artifacts/
+          retention-days: 30
+        if: success()
+
   release:
-    needs: [ prepare-version, build-language-server, build-jetbrains-plugin, build-vscode-extension ]
+    needs: [ prepare-version, build-language-server, build-jetbrains-plugin, build-vscode-extension, build-lsp4ij ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -246,7 +268,7 @@ jobs:
       - name: Organize artifacts
         run: |
           mkdir -p final-artifacts
-          find release-artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.7z" \) -exec cp {} final-artifacts/ \;
+          find release-artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.7z" -o -name "*.vsix" \) -exec cp {} final-artifacts/ \;
           ls -la final-artifacts/
 
       - name: Create GitHub Release
