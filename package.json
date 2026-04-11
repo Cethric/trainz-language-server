@@ -16,6 +16,10 @@
   "release": {
     "branches": [
       {
+        "name": "main",
+        "channel": false
+      },
+      {
         "name": "develop",
         "channel": "next",
         "prerelease": true
