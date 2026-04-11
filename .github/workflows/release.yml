@@ -114,11 +114,7 @@ jobs:
         if: always()
 
   build-vscode-extension:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
-        node: [ '22' ]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
@@ -132,7 +128,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 22
           cache: 'pnpm'
           cache-dependency-path: 'extensions/vscode/pnpm-lock.yaml'
 
@@ -152,7 +148,7 @@ jobs:
       - name: Create archive
         run: |
           mkdir -p artifacts
-          tar -czf artifacts/trainz-language-server-vscode-${{ matrix.os }}-node${{ matrix.node }}-${{ github.sha }}.tar.gz out/
+          tar -czf artifacts/trainz-language-server-vscode-node22-${{ github.sha }}.tar.gz out/
         working-directory: extensions/vscode
         if: success()
 

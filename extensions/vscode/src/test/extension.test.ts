@@ -6,11 +6,12 @@ suite('Extension Test Suite', () => {
     vscode.window.showInformationMessage('Start all tests.');
 
     test('Extension should be present', () => {
-        assert.ok(vscode.extensions.getExtension('gs-lsp.gs-lsp-vscode'));
+        vscode.window.showInformationMessage(`Extensions: ${vscode.extensions.all.map(e => e.id).filter(x => x.includes("trainz")).join(" ; ")}`);
+        assert.ok(vscode.extensions.getExtension('cethric.trainz-language-server'));
     });
 
     test('Should activate extension', async () => {
-        const ext = vscode.extensions.getExtension('gs-lsp.gs-lsp-vscode');
+        const ext = vscode.extensions.getExtension('cethric.trainz-language-server');
         await ext?.activate();
         assert.strictEqual(ext?.isActive, true);
     });
@@ -30,9 +31,9 @@ suite('Extension Test Suite', () => {
     test('Should provide folding ranges for GS', async function () {
         this.timeout(20000); // Increase timeout for LSP startup
 
-        const serverPath = '/Users/rogan/Developer/sources/gs-lsp/target/release/gs-lsp';
-        const config = vscode.workspace.getConfiguration('gs-lsp');
-        await config.update('serverPath', serverPath, vscode.ConfigurationTarget.Global);
+        const serverPath = '/Users/rogan/Developer/sources/gs-lsp/target/release/trainz-language-server';
+        const config = vscode.workspace.getConfiguration('trainz-language-server');
+        await config.update('lsp-bin', serverPath, vscode.ConfigurationTarget.Global);
 
         const content = 'class Test {\n  void foo() {\n  }\n};';
         const doc = await vscode.workspace.openTextDocument({content, language: 'game-script'});
