@@ -1,0 +1,26 @@
+name: Bug Report - VSCode Extension
+about: Report a bug for the VSCode extension
+title: "[Bug][VSCode Extension]: "
+labels: [ "bug", "vscode-extension" ]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The version number of the VSCode extension (or commit hash)
+    validations:
+      required: true
+  - type: input
+    id: branch
+    attributes:
+      label: Branch
+      description: The branch name you are currently using
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true

@@ -268,7 +268,24 @@ jobs:
       - name: Organize artifacts
         run: |
           mkdir -p final-artifacts
-          find release-artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.7z" -o -name "*.vsix" \) -exec cp {} final-artifacts/ \;
+          
+          # Language Server
+          cp release-artifacts/lsp-build-ubuntu-latest/*.tar.gz final-artifacts/Linux-AMD-Language-Server.tar.gz || true
+          cp release-artifacts/lsp-build-ubuntu-24.04-arm/*.tar.gz final-artifacts/Linux-ARM-Language-Server.tar.gz || true
+          cp release-artifacts/lsp-build-macos-latest/*.tar.gz final-artifacts/macOS-MSeries-Language-Server.tar.gz || true
+          cp release-artifacts/lsp-build-macos-26-intel/*.tar.gz final-artifacts/macOS-Intel-Language-Server.tar.gz || true
+          cp release-artifacts/lsp-build-windows-latest/*.7z final-artifacts/Windows-AMD-Language-Server.7z || true
+          cp release-artifacts/lsp-build-windows-11-arm/*.7z final-artifacts/Windows-ARM-Language-Server.7z || true
+          
+          # JetBrains
+          cp release-artifacts/jetbrains-build/artifacts/*.tar.gz final-artifacts/JetBrains-Plugin.tar.gz || true
+          
+          # VSCode
+          cp release-artifacts/vscode-build/*.vsix final-artifacts/VSCode-Extension.vsix || true
+          
+          # LSP4IJ
+          cp release-artifacts/lsp4ij-build/*.tar.gz final-artifacts/LSP4IJ.tar.gz || true
+          
           ls -la final-artifacts/
 
       - name: Create GitHub Release
