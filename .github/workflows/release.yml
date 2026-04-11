@@ -148,7 +148,7 @@ jobs:
       - name: Create archive
         run: |
           mkdir -p artifacts
-          tar -czf artifacts/trainz-language-server-vscode-node22-${{ github.sha }}.tar.gz out/
+          tar -czf artifacts/trainz-language-server-vscode-node22-${{ github.sha }}.tar.gz dist/
         working-directory: extensions/vscode
         if: success()
 
