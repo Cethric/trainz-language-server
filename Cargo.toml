@@ -20,6 +20,14 @@ resolver = "3"
 [workspace.package]
 edition = "2024"
 version = "0.1.0"
+repository = "https://github.com/Cethric/trainz-language-server"
+readme = "README.md"
+authors = ["Cethric"]
+categories = ["command-line-utilities", "development-tools"]
+homepage = "https://github.com/Cethric/trainz-language-server"
+license = "Apache-2.0"
+description = "Language Server Protocol implementation for the GS (Game Script) and Soup languages used in Trainz"
+
 [workspace.dependencies]
 # External dependencies
 shadow-rs = { version = "1.7", default-features = false }
