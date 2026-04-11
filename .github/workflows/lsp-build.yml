@@ -63,7 +63,7 @@ jobs:
       - name: Run tests
         shell: bash
         run: |
-          cargo nextest run --profile ci --tests --max-fail=all --no-pager --no-test warn
+          cargo nextest run --profile ci --tests --max-fail=all --no-pager --no-tests warn
 
 
       - name: Publish Test Report

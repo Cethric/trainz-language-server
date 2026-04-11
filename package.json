@@ -4,7 +4,7 @@
   "description": "Language Server Protocol implementation for the GS (Game Script) and Soup languages used in Trainz",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/gs-lsp.git"
+    "url": "https://github.com/Cethric/trainz-language-server"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",
@@ -29,21 +29,12 @@
       "@semantic-release/commit-analyzer",
       "@semantic-release/release-notes-generator",
       "@semantic-release/changelog",
-      [
-        "@semantic-release/github",
-        {
-          "successComment": "🎉 This issue has been resolved in version ${nextRelease.version}",
-          "failTitle": "The automated release failed"
-        }
-      ],
+      "@semantic-release/github",
       [
         "@semantic-release/git",
         {
           "assets": [
-            "package.json",
-            "CHANGELOG.md",
-            "crates/*/Cargo.toml",
-            "extensions/vscode/package.json"
+            "final-artifacts/*.tar.gz"
           ],
           "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
         }
