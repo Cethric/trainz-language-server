@@ -1309,3 +1309,72 @@ category-era "era1;invalid"
     std::fs::remove_dir_all(temp_dir).unwrap();
     std::fs::remove_file(path).unwrap();
 }
+
+#[tokio::test]
+async fn test_workspace_folders_initialization() {
+    let (service, _) =
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+
+    let root_path = std::env::current_dir().unwrap().join("test_workspace");
+    let root_uri = Uri::from_file_path(&root_path).unwrap();
+
+    let params = InitializeParams {
+        workspace_folders: Some(vec![WorkspaceFolder {
+            uri: root_uri.clone(),
+            name: "test".to_string(),
+        }]),
+        ..Default::default()
+    };
+
+    service.inner().initialize(params).await.unwrap();
+
+    let folders = service.inner().workspace_folders();
+    assert_eq!(folders.len(), 1);
+    assert_eq!(folders[0], root_path);
+}
+
+#[tokio::test]
+async fn test_did_change_workspace_folders() {
+    let (service, _) =
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+
+    // Initial state: empty
+    assert_eq!(service.inner().workspace_folders().len(), 0);
+
+    let root_path = std::env::current_dir().unwrap().join("test_workspace_2");
+    let root_uri = Uri::from_file_path(&root_path).unwrap();
+
+    // Add folder
+    service
+        .inner()
+        .did_change_workspace_folders(DidChangeWorkspaceFoldersParams {
+            event: WorkspaceFoldersChangeEvent {
+                added: vec![WorkspaceFolder {
+                    uri: root_uri.clone(),
+                    name: "test2".to_string(),
+                }],
+                removed: vec![],
+            },
+        })
+        .await;
+
+    let folders = service.inner().workspace_folders();
+    assert_eq!(folders.len(), 1);
+    assert_eq!(folders[0], root_path);
+
+    // Remove folder
+    service
+        .inner()
+        .did_change_workspace_folders(DidChangeWorkspaceFoldersParams {
+            event: WorkspaceFoldersChangeEvent {
+                added: vec![],
+                removed: vec![WorkspaceFolder {
+                    uri: root_uri.clone(),
+                    name: "test2".to_string(),
+                }],
+            },
+        })
+        .await;
+
+    assert_eq!(service.inner().workspace_folders().len(), 0);
+}

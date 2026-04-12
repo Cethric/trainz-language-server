@@ -2,33 +2,40 @@ use crate::process::gs::ProcessGS;
 use crate::process::soup::ProcessSoup;
 use crate::state::{GameScriptLanguageServer, ParsedFileType};
 use dashmap::DashMap;
-use log::{debug, error, trace};
+use ls_types::CodeActionProviderCapability;
 use rayon::prelude::*;
+use std::fs;
+use std::path::PathBuf;
 use std::str::FromStr;
-use tower_lsp_server::LanguageServer;
 use tower_lsp_server::jsonrpc::Error;
 use tower_lsp_server::ls_types::{
-    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeActionResponse,
-    CompletionOptions, CompletionOptionsCompletionItem, CompletionParams, CompletionResponse,
-    DefinitionOptions, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
-    DocumentLink, DocumentLinkOptions, DocumentLinkParams, DocumentSymbolOptions,
-    DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
-    FoldingRangeProviderCapability, FullDocumentDiagnosticReport, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverOptions, HoverParams, HoverProviderCapability,
-    InitializeParams, InitializeResult, InitializedParams, InlineCompletionOptions, Location,
-    MessageType, OneOf, PositionEncodingKind, ProgressToken, ReferenceOptions, ReferenceParams,
-    RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport, SaveOptions,
-    SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
-    SemanticTokensParams, SemanticTokensResult, SemanticTokensServerCapabilities,
-    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
+    CodeAction, CodeActionKind, CodeActionOptions, CodeActionOrCommand, CodeActionParams,
+    CodeActionResponse, CompletionOptions, CompletionOptionsCompletionItem, CompletionParams,
+    CompletionResponse, CreateFilesParams, DefinitionOptions, DeleteFilesParams, Diagnostic,
+    DiagnosticOptions, DiagnosticServerCapabilities, DidChangeConfigurationParams,
+    DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentDiagnosticParams,
+    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentFilter, DocumentLink,
+    DocumentLinkOptions, DocumentLinkParams, DocumentSymbolOptions, DocumentSymbolParams,
+    DocumentSymbolResponse, FoldingRange, FoldingRangeParams, FoldingRangeProviderCapability,
+    FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverOptions, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult,
+    InitializedParams, InlineCompletionOptions, Location, MessageType, OneOf, PositionEncodingKind,
+    ProgressToken, ReferenceOptions, ReferenceParams, RelatedFullDocumentDiagnosticReport,
+    RelatedUnchangedDocumentDiagnosticReport, RenameFilesParams, SaveOptions, SemanticTokens,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensResult, SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo,
+    SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
     StaticTextDocumentColorProviderOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TextEdit,
     UnchangedDocumentDiagnosticReport, Uri, WorkDoneProgressOptions, WorkspaceDiagnosticParams,
-    WorkspaceDiagnosticReport, WorkspaceDiagnosticReportResult, WorkspaceEdit, WorkspaceSymbol,
-    WorkspaceSymbolOptions, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    WorkspaceDiagnosticReport, WorkspaceDiagnosticReportResult, WorkspaceEdit,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    WorkspaceServerCapabilities, WorkspaceSymbol, WorkspaceSymbolOptions, WorkspaceSymbolParams,
+    WorkspaceSymbolResponse,
 };
+use tower_lsp_server::{LanguageServer, ls_types};
+use tracing::{debug, error, trace};
 use trainz_completions::soup::soup_completions;
 use trainz_definition::gs::definitions::gs_goto_definition;
 use trainz_definition::gs::references::gs_find_references;
@@ -47,6 +54,7 @@ const GAME_SCRIPT_LANGUAGE_ID: &str = "game-script";
 const SOUP_LANGUAGE_ID: &str = "soup";
 
 impl LanguageServer for GameScriptLanguageServer {
+    #[tracing::instrument]
     async fn initialize(
         &self,
         params: InitializeParams,
@@ -97,6 +105,21 @@ impl LanguageServer for GameScriptLanguageServer {
             PositionEncodingKind::UTF16
         };
 
+        #[allow(deprecated)]
+        if let Some(folders) = params.workspace_folders {
+            for folder in folders {
+                if let Some(path) = folder.uri.to_file_path() {
+                    self.workspace_folders.insert(path.to_path_buf());
+                }
+            }
+        } else if let Some(root_uri) = params.root_uri {
+            if let Some(path) = root_uri.to_file_path() {
+                self.workspace_folders.insert(path.to_path_buf());
+            }
+        } else if let Some(root_path) = params.root_path {
+            self.workspace_folders.insert(PathBuf::from(root_path));
+        }
+
         let capabilities = ServerCapabilities {
             position_encoding: Some(encoding),
             text_document_sync: Some(TextDocumentSyncCapability::Options(
@@ -110,8 +133,24 @@ impl LanguageServer for GameScriptLanguageServer {
                     })),
                 },
             )),
+            workspace: Some(WorkspaceServerCapabilities {
+                workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+                    supported: Some(true),
+                    change_notifications: Some(OneOf::Right(String::from(
+                        "trainz-language-server",
+                    ))),
+                }),
+                file_operations: Some(WorkspaceFileOperationsServerCapabilities {
+                    did_create: None,
+                    will_create: None,
+                    did_delete: None,
+                    will_delete: None,
+                    did_rename: None,
+                    will_rename: None,
+                }),
+            }),
             diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
-                identifier: Some("game-script".to_string()),
+                identifier: Some("trainz-language-server".to_string()),
                 inter_file_dependencies: true,
                 workspace_diagnostics: true,
                 work_done_progress_options: WorkDoneProgressOptions {
@@ -136,7 +175,7 @@ impl LanguageServer for GameScriptLanguageServer {
                 }),
             ),
             document_symbol_provider: Some(OneOf::Right(DocumentSymbolOptions {
-                label: Some(String::from("GameScript")),
+                label: Some(String::from("Trainz")),
                 work_done_progress_options: WorkDoneProgressOptions {
                     work_done_progress: Some(true),
                 },
@@ -148,7 +187,7 @@ impl LanguageServer for GameScriptLanguageServer {
                 },
             }),
             completion_provider: Some(CompletionOptions {
-                resolve_provider: Some(false),
+                resolve_provider: Some(true),
                 trigger_characters: None,
                 all_commit_characters: None,
                 work_done_progress_options: WorkDoneProgressOptions {
@@ -180,9 +219,13 @@ impl LanguageServer for GameScriptLanguageServer {
                     work_done_progress: Some(true),
                 },
             })),
-            code_action_provider: Some(
-                tower_lsp_server::ls_types::CodeActionProviderCapability::Simple(true),
-            ),
+            code_action_provider: Some(CodeActionProviderCapability::Options(CodeActionOptions {
+                code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                work_done_progress_options: WorkDoneProgressOptions {
+                    work_done_progress: Some(true),
+                },
+                resolve_provider: Some(true),
+            })),
             references_provider: Some(OneOf::Right(ReferenceOptions {
                 work_done_progress_options: WorkDoneProgressOptions {
                     work_done_progress: Some(true),
@@ -190,8 +233,19 @@ impl LanguageServer for GameScriptLanguageServer {
             })),
             folding_range_provider: Some(FoldingRangeProviderCapability::Options(
                 StaticTextDocumentColorProviderOptions {
-                    document_selector: None,
-                    id: None,
+                    document_selector: Some(vec![
+                        DocumentFilter {
+                            language: Some(GAME_SCRIPT_LANGUAGE_ID.to_string()),
+                            scheme: Some(String::from("file")),
+                            pattern: Some(String::from("config.txt")),
+                        },
+                        DocumentFilter {
+                            language: Some(SOUP_LANGUAGE_ID.to_string()),
+                            scheme: Some(String::from("file")),
+                            pattern: Some(String::from("*.gs")),
+                        },
+                    ]),
+                    id: Some(String::from("trainz-language-server")),
                 },
             )),
             workspace_symbol_provider: Some(OneOf::Right(WorkspaceSymbolOptions {
@@ -230,6 +284,7 @@ impl LanguageServer for GameScriptLanguageServer {
         })
     }
 
+    #[tracing::instrument]
     async fn initialized(&self, _: InitializedParams) {
         trace!("gs lsp initialised");
 
@@ -238,12 +293,14 @@ impl LanguageServer for GameScriptLanguageServer {
             .await;
     }
 
+    #[tracing::instrument]
     async fn shutdown(&self) -> tower_lsp_server::jsonrpc::Result<()> {
         trace!("Shutting down");
         self.parsed_files.clear();
         Ok(())
     }
 
+    #[tracing::instrument]
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let document_path = params.text_document.uri.to_file_path();
         if let Some(document_path) = document_path {
@@ -260,7 +317,7 @@ impl LanguageServer for GameScriptLanguageServer {
                 exists.count += 1;
             }
 
-            let workspace_folders = self.workspace_folders().await;
+            let workspace_folders = self.workspace_folders();
 
             let progress = self
                 .client
@@ -288,6 +345,7 @@ impl LanguageServer for GameScriptLanguageServer {
         }
     }
 
+    #[tracing::instrument]
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         let document_path = params.text_document.uri.to_file_path();
         if let Some(document_path) = document_path {
@@ -308,6 +366,7 @@ impl LanguageServer for GameScriptLanguageServer {
         self.parsed_files.retain(|_, val| val.count > 0);
     }
 
+    #[tracing::instrument]
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         if let Some(document_path) = params.text_document.uri.to_file_path() {
             if !document_path.exists() {
@@ -320,7 +379,7 @@ impl LanguageServer for GameScriptLanguageServer {
             let path = document_path.to_string_lossy().to_string();
             let text = params.content_changes.first().unwrap().text.as_str();
 
-            let workspace_folders = self.workspace_folders().await;
+            let workspace_folders = self.workspace_folders();
 
             let progress = self
                 .client
@@ -355,6 +414,121 @@ impl LanguageServer for GameScriptLanguageServer {
         }
     }
 
+    #[tracing::instrument]
+    async fn did_create_files(&self, params: CreateFilesParams) {
+        debug!("did_create_files {:?}", params);
+    }
+
+    #[tracing::instrument]
+    async fn did_rename_files(&self, params: RenameFilesParams) {
+        debug!("did_rename_files {:?}", params);
+
+        for event in params.files {
+            trace!("did_rename_files {:?}", event);
+
+            if let Some(mut exists) = self.parsed_files.get_mut(&event.old_uri) {
+                let new_file = (*exists.value()).clone();
+                exists.count = 0;
+
+                debug!("did_rename_files {:?}", new_file.count);
+                self.parsed_files.insert(event.new_uri, new_file);
+            }
+        }
+
+        self.parsed_files.retain(|_, val| val.count > 0);
+    }
+
+    #[tracing::instrument]
+    async fn did_delete_files(&self, params: DeleteFilesParams) {
+        debug!("did_delete_files {:?}", params);
+
+        for event in params.files {
+            let document_path = event.uri;
+
+            trace!("did_delete_files {:?}", document_path);
+
+            if let Some(mut exists) = self.parsed_files.get_mut(&document_path) {
+                exists.count = 0;
+            }
+        }
+
+        self.parsed_files.retain(|_, val| val.count > 0);
+    }
+
+    #[tracing::instrument]
+    async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
+        for event in params.changes {
+            if let Some(document_path) = event.uri.to_file_path() {
+                if !document_path.exists() {
+                    return;
+                }
+
+                // Bust cache
+                self.ast_cache.bust(&document_path);
+
+                let path = document_path.to_string_lossy().to_string();
+
+                if let Ok(document) = fs::read(path.clone()) {
+                    let source = String::from_utf8_lossy(&document);
+
+                    let workspace_folders = self.workspace_folders();
+
+                    let progress = self
+                        .client
+                        .progress(ProgressToken::String(path), "Updating file")
+                        .with_percentage(0)
+                        .with_message(format!("Updating file: {:?}", document_path.file_name()))
+                        .begin()
+                        .await;
+                    if let Some(path_str) = document_path.to_str() {
+                        let file_type = {
+                            let file = self.parsed_files.get(path_str);
+                            file.map(|f| f.parsed.clone())
+                        };
+                        if let Some(file_type) = file_type {
+                            if let ParsedFileType::Soup(_soup) = file_type {
+                                self.process_soup_file(&document_path, &source, true, &progress)
+                                    .await;
+                            } else if let ParsedFileType::GameScript(_program) = file_type {
+                                self.process_gs_file(
+                                    &document_path,
+                                    &source,
+                                    &workspace_folders,
+                                    true,
+                                    &progress,
+                                )
+                                .await;
+                            }
+                        }
+                    }
+                    trace!("did_change_watched_files {:?}", document_path);
+                    progress.finish().await;
+                }
+            }
+        }
+    }
+
+    #[tracing::instrument]
+    async fn did_change_workspace_folders(&self, params: DidChangeWorkspaceFoldersParams) {
+        trace!("did_change_workspace_folders {:?}", params.event);
+        for folder in params.event.removed {
+            if let Some(path) = folder.uri.to_file_path() {
+                self.workspace_folders.remove(&*path);
+            }
+        }
+        for folder in params.event.added {
+            if let Some(path) = folder.uri.to_file_path() {
+                self.workspace_folders.insert(path.to_path_buf());
+            }
+        }
+    }
+
+    #[tracing::instrument]
+    async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
+        debug!("did_change_configuration {:?}", params.settings);
+    }
+
+    #[tracing::instrument]
     async fn diagnostic(
         &self,
         params: DocumentDiagnosticParams,
@@ -458,6 +632,7 @@ impl LanguageServer for GameScriptLanguageServer {
         ))
     }
 
+    #[tracing::instrument]
     async fn workspace_diagnostic(
         &self,
         _params: WorkspaceDiagnosticParams,
@@ -467,6 +642,7 @@ impl LanguageServer for GameScriptLanguageServer {
         ))
     }
 
+    #[tracing::instrument]
     async fn semantic_tokens_full(
         &self,
         params: SemanticTokensParams,
@@ -558,6 +734,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
+    #[tracing::instrument]
     async fn document_symbol(
         &self,
         params: DocumentSymbolParams,
@@ -638,6 +815,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
+    #[tracing::instrument]
     async fn document_link(
         &self,
         params: DocumentLinkParams,
@@ -712,6 +890,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
+    #[tracing::instrument]
     async fn document_link_resolve(
         &self,
         _params: DocumentLink,
@@ -719,6 +898,7 @@ impl LanguageServer for GameScriptLanguageServer {
         todo!()
     }
 
+    #[tracing::instrument]
     async fn completion(
         &self,
         params: CompletionParams,
@@ -796,6 +976,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
+    #[tracing::instrument]
     async fn references(
         &self,
         params: ReferenceParams,
@@ -874,6 +1055,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
+    #[tracing::instrument]
     async fn signature_help(
         &self,
         params: SignatureHelpParams,
@@ -899,6 +1081,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(None)
     }
 
+    #[tracing::instrument]
     async fn goto_definition(
         &self,
         params: GotoDefinitionParams,
@@ -998,6 +1181,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
+    #[tracing::instrument]
     async fn hover(&self, params: HoverParams) -> tower_lsp_server::jsonrpc::Result<Option<Hover>> {
         trace!("Hover {:?}", params);
 
@@ -1049,7 +1233,7 @@ impl LanguageServer for GameScriptLanguageServer {
         let definition_params = GotoDefinitionParams {
             text_document_position_params: params.text_document_position_params.clone(),
             work_done_progress_params: params.work_done_progress_params.clone(),
-            partial_result_params: tower_lsp_server::ls_types::PartialResultParams::default(),
+            partial_result_params: ls_types::PartialResultParams::default(),
         };
 
         if let Some(progress) = &progress {
@@ -1065,14 +1249,12 @@ impl LanguageServer for GameScriptLanguageServer {
                     .await;
             }
             let (target, origin_range) = match goto_response {
-                tower_lsp_server::ls_types::GotoDefinitionResponse::Scalar(loc) => {
-                    (Some((loc.uri, loc.range)), None)
-                }
-                tower_lsp_server::ls_types::GotoDefinitionResponse::Array(locs) => {
+                ls_types::GotoDefinitionResponse::Scalar(loc) => (Some((loc.uri, loc.range)), None),
+                ls_types::GotoDefinitionResponse::Array(locs) => {
                     let loc = locs.into_iter().next();
                     (loc.clone().map(|l| (l.uri, l.range)), None)
                 }
-                tower_lsp_server::ls_types::GotoDefinitionResponse::Link(links) => {
+                ls_types::GotoDefinitionResponse::Link(links) => {
                     let link = links.into_iter().next();
                     (
                         link.clone().map(|l| (l.target_uri, l.target_range)),
@@ -1156,9 +1338,9 @@ impl LanguageServer for GameScriptLanguageServer {
                                 .join("\n\n");
 
                             hover_result = Some(Hover {
-                                contents: tower_lsp_server::ls_types::HoverContents::Markup(
-                                    tower_lsp_server::ls_types::MarkupContent {
-                                        kind: tower_lsp_server::ls_types::MarkupKind::Markdown,
+                                contents: ls_types::HoverContents::Markup(
+                                    ls_types::MarkupContent {
+                                        kind: ls_types::MarkupKind::Markdown,
                                         value: text,
                                     },
                                 ),
@@ -1177,6 +1359,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(hover_result)
     }
 
+    #[tracing::instrument]
     async fn code_action(
         &self,
         params: CodeActionParams,
@@ -1184,7 +1367,7 @@ impl LanguageServer for GameScriptLanguageServer {
         let mut actions = vec![];
 
         for diagnostic in &params.context.diagnostics {
-            if let Some(tower_lsp_server::ls_types::NumberOrString::String(code)) = &diagnostic.code
+            if let Some(ls_types::NumberOrString::String(code)) = &diagnostic.code
                 && code == "invalid-kind-lib"
             {
                 let mut changes = std::collections::HashMap::new();
@@ -1217,6 +1400,7 @@ impl LanguageServer for GameScriptLanguageServer {
         }
     }
 
+    #[tracing::instrument]
     async fn folding_range(
         &self,
         params: FoldingRangeParams,
@@ -1292,6 +1476,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
+    #[tracing::instrument]
     async fn symbol(
         &self,
         params: WorkspaceSymbolParams,
@@ -1334,9 +1519,10 @@ impl LanguageServer for GameScriptLanguageServer {
     }
 }
 
+#[tracing::instrument]
 fn collect_matching_symbols(
     symbols: &mut Vec<WorkspaceSymbol>,
-    symbol: &tower_lsp_server::ls_types::DocumentSymbol,
+    symbol: &ls_types::DocumentSymbol,
     query: &str,
     file_path: &str,
 ) {
