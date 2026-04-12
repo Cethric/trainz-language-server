@@ -3,6 +3,7 @@ use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind};
 use trainz_ast::soup::Value;
 use trainz_ast::soup::base::Soup;
 use trainz_ast::soup::key_value_pair::KeyValuePair;
+use trainz_common::range::clamp_range;
 use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validators};
 
 #[allow(deprecated)]
@@ -108,7 +109,7 @@ fn process_key_value_symbol(
         },
         deprecated: if is_deprecated { Some(true) } else { None },
         range: kv.range,
-        selection_range: kv.key_range,
+        selection_range: clamp_range(&kv.range, kv.key_range),
         children: if children.is_empty() {
             None
         } else {

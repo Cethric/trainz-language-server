@@ -1,10 +1,10 @@
-use log::debug;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use std::str::FromStr;
 use tower_lsp_server::ls_types::{
     CodeDescription, Diagnostic, DiagnosticSeverity, NumberOrString, Uri,
 };
+use tracing::debug;
 use trainz_ast::gs::program::Program;
 
 pub fn trainz_diagnostics(program: &Program) -> Vec<Diagnostic> {

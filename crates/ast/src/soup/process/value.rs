@@ -185,7 +185,7 @@ mod tests {
             // If the parser matched them, they are part of the span.
 
             // Let's see what the range is.
-            println!("Range: {:?}", range);
+            // println!("Range: {:?}", range);
 
             // Assuming we want the range to be from '{' to '}'
             // Line 2: {

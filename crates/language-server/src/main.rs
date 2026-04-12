@@ -1,11 +1,12 @@
 use clap::Parser;
-use log::debug;
+use rayon::ThreadPoolBuilder;
 use shadow_rs::shadow;
 use std::env;
 use std::path::PathBuf;
 use tokio::main;
 use tower_lsp_server::{LspService, Server};
-use trainz_common::logging::setup_logger;
+use tracing::debug;
+use trainz_common::logging::{BoxMakeWriter, setup_logger};
 use trainz_language_server::state::GameScriptLanguageServer;
 
 pub mod process;
@@ -34,13 +35,29 @@ struct Args {
         env = "TRAINZ_LANGUAGE_SERVER_SCRIPT_SEARCH_PATHS"
     )]
     search_paths: Vec<PathBuf>,
+
+    /// Log file path
+    #[arg(long, env = "TRAINZ_LANGUAGE_SERVER_LOG_FILE")]
+    log_file: Option<PathBuf>,
 }
 
 #[main]
 async fn main() {
-    setup_logger(None);
+    let stdin = tokio::io::stdin();
+    let stdout = tokio::io::stdout();
 
     let args = Args::parse();
+    let writer = if let Some(path) = &args.log_file {
+        let file = std::fs::File::create(path).expect("failed to create log file");
+        BoxMakeWriter::new(move || {
+            file.try_clone()
+                .expect("failed to clone log file descriptor")
+        })
+    } else {
+        BoxMakeWriter::new(std::io::stderr)
+    };
+    setup_logger(Some(args.verbosity.into()), Some(writer));
+
     let validation_path = args.validation_path.or_else(|| {
         env::var("TRAINZ_LANGUAGE_SERVER_SOUP_VALIDATION_PATH")
             .ok()
@@ -49,13 +66,19 @@ async fn main() {
 
     let search_paths = args.search_paths;
 
-    let stdin = tokio::io::stdin();
-    let stdout = tokio::io::stdout();
-
-    let (service, socket) = LspService::new(|client| {
+    let (service, socket) = LspService::build(|client| {
         GameScriptLanguageServer::new(client, validation_path, search_paths.clone(), PKG_VERSION)
-    });
+    })
+    .finish();
 
     debug!("Starting LSP server");
-    Server::new(stdin, stdout, socket).serve(service).await;
+    let threads = num_cpus::get();
+    ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build_global()
+        .unwrap();
+    Server::new(stdin, stdout, socket)
+        .concurrency_level(threads)
+        .serve(service)
+        .await;
 }

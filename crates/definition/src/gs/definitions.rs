@@ -1,8 +1,8 @@
 use dashmap::DashMap;
-use log::trace;
 use rayon::prelude::*;
 use std::sync::Arc;
 use tower_lsp_server::ls_types::{GotoDefinitionResponse, Location, LocationLink, Position, Uri};
+use tracing::trace;
 use trainz_ast::find::position_in_range;
 use trainz_ast::gs::class::MethodDef;
 use trainz_ast::gs::find::{
@@ -939,6 +939,7 @@ mod tests {
                 path_range: None,
                 name: "super.gs".to_string(),
                 range: Range::default(),
+                keyword_include_range: Range::default(),
             }],
             ..(*sub_program).clone()
         });
@@ -1005,6 +1006,7 @@ mod tests {
                 path_range: None,
                 name: "p.gs".to_string(),
                 range: Range::default(),
+                keyword_include_range: Range::default(),
             }],
             ..(*c_program).clone()
         });
@@ -1015,6 +1017,7 @@ mod tests {
                 path_range: None,
                 name: "gp.gs".to_string(),
                 range: Range::default(),
+                keyword_include_range: Range::default(),
             }],
             ..(*p_program).clone()
         });

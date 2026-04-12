@@ -15,6 +15,7 @@ description.workspace = true
 [dependencies]
 shadow-rs = { workspace = true }
 tower-lsp-server = { workspace = true }
+tracing = { workspace = true }
 log = { workspace = true }
 rayon = { workspace = true }
 

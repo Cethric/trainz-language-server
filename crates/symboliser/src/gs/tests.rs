@@ -17,9 +17,10 @@ mod tests {
     #[test]
     fn test_all_symbols_have_contained_selection_range() {
         let src = r#"
+            include "test.gs"
             class Test {
                 int field1;
-                void Method1() { }
+                void Method1(int param1) { }
             };
         "#;
         let symbols = get_symbols(src);

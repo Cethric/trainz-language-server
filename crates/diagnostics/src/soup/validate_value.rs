@@ -1,9 +1,9 @@
 use crate::soup::validate_container::validate_container;
 use crate::soup::validate_simple_value;
-use log::warn;
 use rayon::prelude::*;
 use std::path::Path;
 use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity};
+use tracing::warn;
 use trainz_ast::soup::{NumericValue, Value};
 use trainz_soup_validators::{ContainerRule, Validation, Validators};
 

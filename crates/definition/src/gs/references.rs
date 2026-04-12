@@ -1,8 +1,8 @@
 use dashmap::DashMap;
-use log::trace;
 use rayon::prelude::*;
 use std::sync::Arc;
 use tower_lsp_server::ls_types::{Location, ReferenceParams, Uri};
+use tracing::trace;
 use trainz_ast::find::position_in_range;
 use trainz_ast::gs::find::find_id_at_position;
 use trainz_ast::gs::program::Program;

@@ -1,10 +1,10 @@
 use clap::Parser;
 use clio::*;
-use log::{debug, error};
 use std::io::{Read, Write};
 use tokio::main;
+use tracing::{debug, error};
 use trainz_ast::gs::process::process_trainz_ast;
-use trainz_common::logging::setup_logger;
+use trainz_common::logging::{BoxMakeWriter, setup_logger};
 use trainz_formatter::format_program;
 use trainz_parser::gs::parse;
 
@@ -26,12 +26,25 @@ struct Args {
     /// Output file '-' for stdout
     #[clap(long, short, value_parser, default_value = "-")]
     output: Output,
+
+    /// Log file path
+    #[arg(long)]
+    log_file: Option<std::path::PathBuf>,
 }
 
 #[main]
 async fn main() {
     let mut args = Args::parse();
-    setup_logger(Some(args.verbosity.into()));
+    let writer = if let Some(path) = &args.log_file {
+        let file = std::fs::File::create(path).expect("failed to create log file");
+        BoxMakeWriter::new(move || {
+            file.try_clone()
+                .expect("failed to clone log file descriptor")
+        })
+    } else {
+        BoxMakeWriter::new(std::io::stderr)
+    };
+    setup_logger(Some(args.verbosity.into()), Some(writer));
 
     let mut source = "".to_string();
     let read = args.input.read_to_string(&mut source).unwrap_or(0);

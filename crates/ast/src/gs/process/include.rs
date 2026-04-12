@@ -4,11 +4,13 @@ use trainz_common::range::pair_to_range;
 use trainz_parser::gs::grammar::Rule;
 
 pub fn process_include(include_rule: Pair<Rule>) -> Option<Include> {
+    let range = pair_to_range(&include_rule);
     let mut include = Include {
         path: None,
         path_range: None,
         name: String::from(""),
-        range: pair_to_range(&include_rule),
+        range,
+        keyword_include_range: range,
     };
 
     let inner = include_rule.into_inner();
@@ -27,7 +29,7 @@ pub fn process_include(include_rule: Pair<Rule>) -> Option<Include> {
 
                 include.name = include_path.to_string();
             }
-            Rule::keyword_include => include.range = pair_to_range(&pair),
+            Rule::keyword_include => include.keyword_include_range = pair_to_range(&pair),
             _ => {}
         }
     }

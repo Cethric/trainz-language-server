@@ -1,7 +1,7 @@
-use log::{info, trace};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
+use tracing::{info, trace};
 
 pub mod program;
 

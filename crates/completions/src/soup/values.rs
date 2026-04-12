@@ -1,8 +1,8 @@
-use log::debug;
 use tower_lsp_server::ls_types::{
     CompletionItem, CompletionItemKind, Documentation, InsertTextFormat, InsertTextMode,
     MarkupContent, MarkupKind, Position, Range,
 };
+use tracing::debug;
 use trainz_ast::soup::value::Value;
 use trainz_common::wiki::get_wiki_kind_name;
 use trainz_soup_validators::Validators;
@@ -54,7 +54,7 @@ pub fn add_value_completions(
         filter_text = filter_text.trim().to_string();
     }
 
-    println!(
+    debug!(
         "DEBUG: filter_text: '{}', selected_values: {:?}",
         filter_text, selected_values
     );

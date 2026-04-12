@@ -1,12 +1,12 @@
 use crate::process::guard::ProcessingGuard;
 use crate::state::{GameScriptLanguageServer, ParsedFile, ParsedFileType};
 use async_recursion::async_recursion;
-use log::{error, trace};
 use rayon::iter::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use tower_lsp_server::{Bounded, NotCancellable, OngoingProgress};
+use tracing::{error, trace};
 use trainz_ast::cache::ProgramCache;
 use trainz_ast::gs::Include;
 use trainz_ast::gs::process::process_trainz_ast;

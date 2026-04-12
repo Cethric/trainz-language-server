@@ -3,8 +3,8 @@ use crate::gs::{
     BitwiseOp, ComparisonOp, EqualityOp, Expr, Literal, MathOp, PostfixOp, StringLiteral,
     UnaryPostfixOp, UnaryPrefixOp,
 };
-use log::trace;
 use pest::iterators::Pair;
+use tracing::trace;
 use trainz_common::range::pair_to_range;
 use trainz_parser::gs::grammar::Rule;
 

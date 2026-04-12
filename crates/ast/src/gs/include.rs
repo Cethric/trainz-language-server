@@ -8,6 +8,7 @@ pub struct Include {
     pub path_range: Option<crate::Range>,
     pub name: String,
     pub range: crate::Range,
+    pub keyword_include_range: crate::Range,
 }
 
 impl HasRange for Include {

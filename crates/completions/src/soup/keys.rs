@@ -1,8 +1,8 @@
-use log::debug;
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::{
     CompletionItem, CompletionItemKind, Documentation, InsertTextFormat,
 };
+use tracing::debug;
 use trainz_soup_validators::{ArrayElementType, ContainerValidator};
 
 pub fn add_key_completions_from_validator(

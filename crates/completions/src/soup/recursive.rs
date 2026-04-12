@@ -1,6 +1,6 @@
-use log::debug;
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::{CompletionItem, Position};
+use tracing::debug;
 use trainz_ast::soup::key_value_pair::KeyValuePair;
 use trainz_ast::soup::value::Value;
 use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validators};
@@ -17,11 +17,11 @@ pub fn find_completions_recursive(
 ) -> Vec<CompletionItem> {
     let mut completions = vec![];
 
-    eprintln!(
+    debug!(
         "Checking {} KVs for completions at current level",
         kvs.len()
     );
-    eprintln!(
+    debug!(
         "Current validator: {:?}",
         current_validator.map(|v| &v.container_name)
     );

@@ -5,8 +5,8 @@ use crate::gs::{
     Block, ClassDef, Expr, FieldDef, Identifier, LoopBody, MethodDef, NativeMethodDef, PostfixOp,
     Stmt, Type,
 };
-use log::trace;
 use rayon::prelude::*;
+use tracing::trace;
 
 pub fn find_postfix_at_position(program: &Program, pos: Position) -> Option<(&Expr, usize)> {
     program

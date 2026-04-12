@@ -1,9 +1,9 @@
 use crate::cache::AstCache;
 use crate::gs::Program;
-use log::trace;
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
+use tracing::trace;
 
 pub trait ProgramCache {
     fn load(&self, file_path: &Path) -> Option<Program>;

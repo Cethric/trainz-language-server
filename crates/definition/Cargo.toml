@@ -15,10 +15,10 @@ description.workspace = true
 [dependencies]
 shadow-rs = { workspace = true }
 tower-lsp-server = { workspace = true }
+tracing = { workspace = true }
 log = { workspace = true }
 rayon = { workspace = true }
 dashmap = { workspace = true }
-env_logger = { workspace = true }
 
 trainz-ast = { workspace = true }
 trainz-soup-validators = { workspace = true }
@@ -28,4 +28,5 @@ shadow-rs = { version = "1.7" }
 
 [dev-dependencies]
 trainz-parser = { workspace = true }
-tempfile = "3.10"
+env_logger = { workspace = true }
+tempfile = { workspace = true }

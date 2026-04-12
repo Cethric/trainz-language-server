@@ -34,7 +34,11 @@ pub fn semantic_tokens(
             .par_iter()
             .flat_map(|include| {
                 let mut result: Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)> =
-                    vec![(include.range, SemanticTokenType::KEYWORD, vec![])];
+                    vec![(
+                        include.keyword_include_range,
+                        SemanticTokenType::KEYWORD,
+                        vec![],
+                    )];
                 if let Some(path_range) = include.path_range {
                     result.push((path_range, SemanticTokenType::STRING, vec![]));
                 }

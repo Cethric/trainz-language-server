@@ -1,13 +1,29 @@
-use log::trace;
+use tracing::trace;
+use tracing_subscriber::{EnvFilter, fmt};
 
-pub fn setup_logger(level: Option<log::LevelFilter>) {
-    let mut builder = env_logger::builder();
-    builder.format_timestamp_millis();
+pub use tracing_subscriber::fmt::writer::BoxMakeWriter;
+
+pub fn setup_logger(level: Option<log::LevelFilter>, writer: Option<BoxMakeWriter>) {
+    let mut filter = EnvFilter::from_default_env();
     if let Some(level) = level {
-        builder.filter_level(level);
+        filter = filter.add_directive(level.to_string().parse().unwrap());
     }
-    builder.format_target(true);
-    builder.init();
 
-    trace!("Logger initialized")
+    let builder = fmt()
+        .with_env_filter(filter)
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_thread_names(true)
+        .with_file(true)
+        .with_line_number(true)
+        .with_ansi_sanitization(true)
+        .with_ansi(false);
+
+    if let Some(writer) = writer {
+        builder.with_writer(writer).init();
+    } else {
+        builder.with_writer(std::io::stderr).init();
+    }
+
+    trace!("Logger initialized (tracing-subscriber)")
 }

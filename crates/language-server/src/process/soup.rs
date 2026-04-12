@@ -1,9 +1,9 @@
 use crate::process::guard::ProcessingGuard;
 use crate::state::{GameScriptLanguageServer, ParsedFile, ParsedFileType};
-use log::{error, trace};
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
 use tower_lsp_server::{Bounded, NotCancellable, OngoingProgress};
+use tracing::{error, trace};
 use trainz_ast::soup::process::process_soup_ast;
 use trainz_parser::soup::parse_soup;
 

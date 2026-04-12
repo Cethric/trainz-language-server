@@ -1,8 +1,8 @@
-use log::{debug, error, trace, warn};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use tracing::{debug, error, trace, warn};
 use trainz_ast::soup::process::process_soup_ast;
 use trainz_ast::soup::value::{NumericValue, Value};
 use trainz_ast::soup::{KeyValuePair, Soup};

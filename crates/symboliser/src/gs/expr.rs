@@ -1,5 +1,5 @@
-use log::trace;
 use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind};
+use tracing::trace;
 use trainz_ast::find::HasRange;
 use trainz_ast::gs::{Expr, Literal, PostfixOp};
 

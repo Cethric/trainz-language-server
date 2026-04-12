@@ -5,10 +5,10 @@ use crate::gs::{
     Block, ClassDef, ClassModifier, FieldDef, FieldModifier, Identifier, MethodDef, MethodModifier,
     NativeMethodDef, Param,
 };
-use log::trace;
 use pest::iterators::Pair;
 use tower_lsp_server::ls_types::Range;
-use trainz_common::range::pair_to_range;
+use tracing::trace;
+use trainz_common::range::{combine_ranges, pair_to_range};
 use trainz_parser::gs::grammar::Rule;
 
 pub fn process_class_definition(class_definition: Pair<Rule>) -> Option<ClassDef> {
@@ -284,7 +284,11 @@ fn process_params(pair: Pair<Rule>) -> Vec<Param> {
 
                     if name_pair.as_rule() == Rule::class_method_parameter_name {
                         let name = process_identifier(name_pair);
-                        params.push(Param { ty, name, range: r });
+                        params.push(Param {
+                            ty,
+                            name: name.clone(),
+                            range: combine_ranges(r, name.range),
+                        });
                     }
                 }
             }

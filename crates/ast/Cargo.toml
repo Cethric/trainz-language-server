@@ -16,6 +16,7 @@ hex = { workspace = true }
 
 trainz-parser = { workspace = true }
 trainz-common = { workspace = true }
+tracing = { workspace = true }
 log = { workspace = true }
 
 criterion = { workspace = true }

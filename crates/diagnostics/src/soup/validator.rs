@@ -4,6 +4,7 @@ use rayon::prelude::*;
 use std::collections::HashMap;
 use std::path::Path;
 use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity};
+use tracing::{debug, trace};
 use trainz_ast::soup::base::Soup;
 use trainz_ast::soup::key_value_pair::KeyValuePair;
 use trainz_ast::soup::value::Value;
@@ -33,22 +34,22 @@ pub fn soup_diagnostics(
     });
 
     let kind_validator = kind_validator_name.as_ref().and_then(|name| {
-        println!("Looking for validator: {}", name);
+        trace!("Looking for validator: {}", name);
         let val = validators.container_map.get(&name.to_ascii_lowercase());
         if val.is_none() {
-            println!(
+            debug!(
                 "Validator not found for: {}, available keys: {:?}",
                 name,
                 validators.container_map.keys()
             );
         } else {
-            println!("Validator found: {}", name);
+            trace!("Validator found: {}", name);
         }
         val
     });
 
     if let Some(validator) = kind_validator {
-        println!(
+        trace!(
             "Validator found: {}, top_level: {}",
             validator.container_name, validator.top_level
         );

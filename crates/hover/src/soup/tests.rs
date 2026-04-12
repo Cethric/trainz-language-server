@@ -3,7 +3,7 @@ use trainz_ast::soup::process::process_soup_ast;
 use trainz_parser::soup::parse_soup;
 use trainz_soup_validators::load_validators;
 
-fn setup_case_insensitive_hover_data() -> (Soup, std::path::PathBuf) {
+fn setup_case_insensitive_hover_data() -> (Soup, tempfile::TempDir) {
     let content = r#"
 My_Container {
     KeyA "value"
@@ -12,13 +12,7 @@ My_Container {
     let pairs = parse_soup(content).unwrap();
     let soup = process_soup_ast(pairs, content);
 
-    let temp_dir = std::env::current_dir()
-        .unwrap()
-        .join("temp_hover_case_insensitive_test");
-    if temp_dir.exists() {
-        std::fs::remove_dir_all(&temp_dir).unwrap();
-    }
-    std::fs::create_dir_all(&temp_dir).unwrap();
+    let temp_dir = tempfile::tempdir().unwrap();
 
     let my_container_txt = r#"
 my_container
@@ -31,7 +25,7 @@ my_container
   }
 }
 "#;
-    std::fs::write(temp_dir.join("my_container.txt"), my_container_txt).unwrap();
+    std::fs::write(temp_dir.path().join("my_container.txt"), my_container_txt).unwrap();
 
     (soup, temp_dir)
 }
@@ -53,7 +47,7 @@ fn test_soup_hover_case_insensitive_key() {
         work_done_progress_params: Default::default(),
     };
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(temp_dir.path());
     let hover = soup_hover(&soup, params, &validators);
     assert!(hover.is_some(), "Hover should be found for KeyA");
     let hover = hover.unwrap();
@@ -65,8 +59,6 @@ fn test_soup_hover_case_insensitive_key() {
     } else {
         panic!("Expected MarkupContent");
     }
-
-    let _ = std::fs::remove_dir_all(&temp_dir);
 }
 
 #[test]
@@ -86,14 +78,12 @@ fn test_soup_hover_case_insensitive_container() {
         work_done_progress_params: Default::default(),
     };
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(temp_dir.path());
     let hover_top = soup_hover(&soup, params_top, &validators);
     assert!(
         hover_top.is_some(),
         "Hover should be found for top-level My_Container"
     );
-
-    let _ = std::fs::remove_dir_all(&temp_dir);
 }
 
 #[test]
@@ -105,13 +95,7 @@ key1 "value1"
     let pairs = parse_soup(content).unwrap();
     let soup = process_soup_ast(pairs, content);
 
-    let temp_dir = std::env::current_dir()
-        .unwrap()
-        .join("temp_kind_hover_test");
-    if temp_dir.exists() {
-        let _ = std::fs::remove_dir_all(&temp_dir);
-    }
-    std::fs::create_dir_all(&temp_dir).unwrap();
+    let temp_dir = tempfile::tempdir().unwrap();
 
     let kind_txt = r#"
 my-kind
@@ -125,7 +109,7 @@ my-kind
   }
 }
 "#;
-    let file_path = temp_dir.join("kind.txt");
+    let file_path = temp_dir.path().join("kind.txt");
     std::fs::write(&file_path, kind_txt).unwrap();
 
     let params = HoverParams {
@@ -141,7 +125,7 @@ my-kind
         work_done_progress_params: Default::default(),
     };
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(temp_dir.path());
     let hover = soup_hover(&soup, params, &validators);
     let hover = hover.unwrap();
     if let tower_lsp_server::ls_types::HoverContents::Markup(markup) = hover.contents {
@@ -174,8 +158,6 @@ my-kind
             "Hover should contain default value"
         );
     }
-
-    let _ = std::fs::remove_dir_all(&temp_dir);
 }
 
 #[test]
@@ -191,13 +173,7 @@ string-table {
     let pairs = parse_soup(content).unwrap();
     let soup = process_soup_ast(pairs, content);
 
-    let temp_dir = std::env::current_dir()
-        .unwrap()
-        .join("temp_tag_array_hover_test");
-    if temp_dir.exists() {
-        std::fs::remove_dir_all(&temp_dir).unwrap();
-    }
-    std::fs::create_dir_all(&temp_dir).unwrap();
+    let temp_dir = tempfile::tempdir().unwrap();
 
     let container_txt = r#"
 string-table
@@ -219,7 +195,7 @@ string-entry
   }
 }
 "#;
-    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+    std::fs::write(temp_dir.path().join("container.txt"), container_txt).unwrap();
 
     // 1. Hover over "Key1" in string-table
     // content is:
@@ -243,7 +219,7 @@ string-entry
         work_done_progress_params: Default::default(),
     };
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(temp_dir.path());
     let hover_key = soup_hover(&soup, params_key, &validators);
     assert!(
         hover_key.is_some(),
@@ -274,7 +250,7 @@ string-entry
         work_done_progress_params: Default::default(),
     };
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(temp_dir.path());
     let hover_inner = soup_hover(&soup, params_inner, &validators);
     assert!(
         hover_inner.is_some(),
@@ -287,8 +263,6 @@ string-entry
             "Hover should contain description from string-entry validator"
         );
     }
-
-    std::fs::remove_dir_all(&temp_dir).unwrap();
 }
 
 #[test]
@@ -300,28 +274,26 @@ fn test_allowed_values_hover() {
     let pairs = parse_soup(content).unwrap();
     let soup = process_soup_ast(pairs, content);
 
-    let temp_dir = std::env::current_dir()
-        .unwrap()
-        .join("temp_allowed_values_hover_test");
-    if temp_dir.exists() {
-        std::fs::remove_dir_all(&temp_dir).unwrap();
-    }
-    std::fs::create_dir_all(&temp_dir).unwrap();
+    let temp_dir = tempfile::tempdir().unwrap();
 
     let engine_type_txt = r#"
 AA Electric Multi-current
 AC AC Electric
 AD DC Electric
 "#;
-    std::fs::write(temp_dir.join("engine-type.txt"), engine_type_txt).unwrap();
+    std::fs::write(temp_dir.path().join("engine-type.txt"), engine_type_txt).unwrap();
 
     let category_class_txt = r#"
 AC "AC Category"
 DC "DC Category"
 "#;
-    std::fs::write(temp_dir.join("category-class.txt"), category_class_txt).unwrap();
+    std::fs::write(
+        temp_dir.path().join("category-class.txt"),
+        category_class_txt,
+    )
+    .unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(temp_dir.path());
 
     // 1. Hover over "AA" value for engine-type
     let params1 = HoverParams {
@@ -406,8 +378,6 @@ DC "DC Category"
             "Hover should list option DC"
         );
     }
-
-    std::fs::remove_dir_all(&temp_dir).unwrap();
 }
 
 #[test]
@@ -416,28 +386,20 @@ fn test_rule_type_simple_validator_hover() {
     let pairs = parse_soup(content).unwrap();
     let soup = process_soup_ast(pairs, content);
 
-    let temp_dir = std::env::current_dir()
-        .unwrap()
-        .join("temp_rule_type_simple_validator_hover");
-    if temp_dir.exists() {
-        std::fs::remove_dir_all(&temp_dir).unwrap();
-    }
-    std::fs::create_dir_all(&temp_dir).unwrap();
+    let temp_dir = tempfile::tempdir().unwrap();
 
     let config_txt = "MyContainer\n{\n  my-engine\n  {\n    type engine-type\n  }\n}\ntop-level \"MyContainer\"\n";
-    std::fs::write(temp_dir.join("config.txt"), config_txt).unwrap();
+    std::fs::write(temp_dir.path().join("config.txt"), config_txt).unwrap();
 
     let engine_type_txt = "AA \"Electric Multi-current\"\nAC \"AC Electric\"\n";
-    std::fs::write(temp_dir.join("engine-type.txt"), engine_type_txt).unwrap();
+    std::fs::write(temp_dir.path().join("engine-type.txt"), engine_type_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(temp_dir.path());
 
     // This test is skipped because range matching in tests is inconsistent
     // across environments, but the implementation has been verified manually.
     let _ = soup;
     let _ = validators;
-
-    std::fs::remove_dir_all(&temp_dir).unwrap();
 }
 
 #[test]
@@ -446,13 +408,7 @@ fn test_kind_value_wiki_hover() {
     let pairs = parse_soup(content).unwrap();
     let soup = process_soup_ast(pairs, content);
 
-    let temp_dir = std::env::current_dir()
-        .unwrap()
-        .join("temp_kind_wiki_hover_test");
-    if temp_dir.exists() {
-        std::fs::remove_dir_all(&temp_dir).unwrap();
-    }
-    std::fs::create_dir_all(&temp_dir).unwrap();
+    let temp_dir = tempfile::tempdir().unwrap();
 
     let config_txt = r#"
 mosignal
@@ -466,9 +422,9 @@ kind
   kind "mosignal"
 }
 "#;
-    std::fs::write(temp_dir.join("kind.txt"), config_txt).unwrap();
+    std::fs::write(temp_dir.path().join("kind.txt"), config_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(temp_dir.path());
 
     // Hover over "mosignal" (value of kind)
     // kind "mosignal"\n
@@ -500,8 +456,6 @@ kind
             "Hover should contain the correct Wiki URL"
         );
     }
-
-    std::fs::remove_dir_all(&temp_dir).unwrap();
 }
 
 #[test]
@@ -510,13 +464,7 @@ fn test_kind_key_wiki_hover() {
     let pairs = parse_soup(content).unwrap();
     let soup = process_soup_ast(pairs, content);
 
-    let temp_dir = std::env::current_dir()
-        .unwrap()
-        .join("temp_kind_key_wiki_hover_test");
-    if temp_dir.exists() {
-        std::fs::remove_dir_all(&temp_dir).unwrap();
-    }
-    std::fs::create_dir_all(&temp_dir).unwrap();
+    let temp_dir = tempfile::tempdir().unwrap();
 
     let kind_txt = r#"
 kind
@@ -533,9 +481,9 @@ mosignal
   top-level 1
 }
 "#;
-    std::fs::write(temp_dir.join("kind.txt"), kind_txt).unwrap();
+    std::fs::write(temp_dir.path().join("kind.txt"), kind_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(temp_dir.path());
 
     // Hover over "kind" (key)
     // kind "mosignal"\n
@@ -567,8 +515,6 @@ mosignal
             "Hover should contain the correct Wiki URL"
         );
     }
-
-    std::fs::remove_dir_all(&temp_dir).unwrap();
 }
 
 #[test]
@@ -629,18 +575,12 @@ fn test_container_wiki_hover() {
     let pairs = parse_soup(content).unwrap();
     let soup = process_soup_ast(pairs, content);
 
-    let temp_dir = std::env::current_dir()
-        .unwrap()
-        .join("temp_container_wiki_hover_test");
-    if temp_dir.exists() {
-        std::fs::remove_dir_all(&temp_dir).unwrap();
-    }
-    std::fs::create_dir_all(&temp_dir).unwrap();
+    let temp_dir = tempfile::tempdir().unwrap();
 
     let config_txt = "thumbnails\n{\n}\ntop-level \"thumbnails\"\n";
-    std::fs::write(temp_dir.join("container.txt"), config_txt).unwrap();
+    std::fs::write(temp_dir.path().join("container.txt"), config_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(temp_dir.path());
 
     // Hover over "thumbnails" (top-level container key)
     let params = HoverParams {
@@ -673,6 +613,4 @@ fn test_container_wiki_hover() {
             "Hover should contain the correct Wiki URL"
         );
     }
-
-    std::fs::remove_dir_all(&temp_dir).unwrap();
 }

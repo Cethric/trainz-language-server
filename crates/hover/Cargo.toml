@@ -26,3 +26,4 @@ shadow-rs = { version = "1.7" }
 
 [dev-dependencies]
 trainz-parser = { workspace = true }
+tempfile = { workspace = true }
