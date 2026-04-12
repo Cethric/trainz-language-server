@@ -45,5 +45,18 @@ pub fn trainz_symboliser(program: &Program) -> Vec<DocumentSymbol> {
 
     symbols.sort_by_key(|s| (s.range.start, s.selection_range.start));
 
-    symbols
+    vec![DocumentSymbol {
+        name: "file".to_string(),
+        detail: None,
+        kind: SymbolKind::MODULE,
+        tags: None,
+        deprecated: None,
+        range: program.range,
+        selection_range: program.range,
+        children: if symbols.is_empty() {
+            None
+        } else {
+            Some(symbols)
+        },
+    }]
 }

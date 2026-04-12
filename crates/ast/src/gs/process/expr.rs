@@ -390,7 +390,10 @@ fn process_postfix_op(pair: Pair<Rule>) -> PostfixOp {
         Rule::array_subscript => {
             let mut indices = vec![];
             for idx in pair.into_inner() {
-                if idx.as_rule() == Rule::bracket_open || idx.as_rule() == Rule::bracket_close || idx.as_rule() == Rule::comma {
+                if idx.as_rule() == Rule::bracket_open
+                    || idx.as_rule() == Rule::bracket_close
+                    || idx.as_rule() == Rule::comma
+                {
                     continue;
                 }
                 indices.push(process_expr(idx));

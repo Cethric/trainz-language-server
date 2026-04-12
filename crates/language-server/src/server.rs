@@ -44,6 +44,7 @@ use trainz_diagnostics::gs;
 use trainz_diagnostics::soup::soup_diagnostics;
 use trainz_folding::gs::trainz_folding_range;
 use trainz_folding::soup::soup_folding_range;
+use trainz_hover::gs::trainz_hover;
 use trainz_hover::soup::soup_hover;
 use trainz_semantic_tokens::gs::semantic_tokens;
 use trainz_semantic_tokens::soup::soup_semantic_tokens;
@@ -704,8 +705,13 @@ impl LanguageServer for GameScriptLanguageServer {
             let validators = self.validators.get().cloned();
             let tokens = tokio::task::spawn_blocking(move || {
                 let (mut raw_tokens, src) = match &parsed_file_type {
-                    ParsedFileType::GameScript(program) => (semantic_tokens(program), Some(program.src.as_str())),
-                    ParsedFileType::Soup(soup) => (soup_semantic_tokens(soup, validators.as_ref()), Some(soup.src.as_str())),
+                    ParsedFileType::GameScript(program) => {
+                        (semantic_tokens(program), Some(program.src.as_str()))
+                    }
+                    ParsedFileType::Soup(soup) => (
+                        soup_semantic_tokens(soup, validators.as_ref()),
+                        Some(soup.src.as_str()),
+                    ),
                 };
                 let mut comment_tokens =
                     trainz_semantic_tokens::comments::comments_semantic_tokens(&comments);
@@ -1208,26 +1214,38 @@ impl LanguageServer for GameScriptLanguageServer {
 
         if let Some(path) = &document_path
             && let Some(document) = self.parsed_files.get(&path.to_string_lossy().to_string())
-            && let ParsedFileType::Soup(soup) = &document.parsed
         {
-            if let Some(progress) = &progress {
-                progress
-                    .report_with_message("Searching Soup file", 25)
-                    .await;
-            }
-            if let Some(validators) = self.validators.get() {
-                hover_result = soup_hover(soup, params.clone(), validators);
-            } else if let Some(validation_path) = &self.validation_path {
-                let validators = load_validators(validation_path);
-                hover_result = soup_hover(soup, params.clone(), &validators);
-            }
-        }
+            match &document.parsed {
+                ParsedFileType::Soup(soup) => {
+                    if let Some(progress) = &progress {
+                        progress
+                            .report_with_message("Searching Soup file", 25)
+                            .await;
+                    }
+                    if let Some(validators) = self.validators.get() {
+                        hover_result = soup_hover(soup, params.clone(), validators);
+                    } else if let Some(validation_path) = &self.validation_path {
+                        let validators = load_validators(validation_path);
+                        hover_result = soup_hover(soup, params.clone(), &validators);
+                    }
 
-        if hover_result.is_some() {
-            if let Some(progress) = progress {
-                progress.finish().await;
+                    if hover_result.is_some() {
+                        if let Some(progress) = progress {
+                            progress.finish().await;
+                        }
+                        return Ok(hover_result);
+                    }
+                }
+                ParsedFileType::GameScript(program) => {
+                    if let Some(progress) = &progress {
+                        progress
+                            .report_with_message("Searching GameScript file", 25)
+                            .await;
+                    }
+                    hover_result =
+                        trainz_hover(program, params.text_document_position_params.position);
+                }
             }
-            return Ok(hover_result);
         }
 
         let definition_params = GotoDefinitionParams {
@@ -1257,7 +1275,8 @@ impl LanguageServer for GameScriptLanguageServer {
                 ls_types::GotoDefinitionResponse::Link(links) => {
                     let link = links.into_iter().next();
                     (
-                        link.clone().map(|l| (l.target_uri, l.target_range)),
+                        link.clone()
+                            .map(|l| (l.target_uri, l.target_selection_range)),
                         link.and_then(|l| l.origin_selection_range),
                     )
                 }
@@ -1268,11 +1287,22 @@ impl LanguageServer for GameScriptLanguageServer {
             {
                 let path_str = target_path.to_string_lossy().to_string();
                 if let Some(document) = self.parsed_files.get(&path_str) {
+                    if hover_result.is_none() {
+                        if let ParsedFileType::GameScript(program) = &document.parsed {
+                            hover_result = trainz_hover(program, target_range.start);
+                            if let Some(hr) = &mut hover_result {
+                                hr.range = origin_range;
+                            }
+                        }
+                    }
+
                     use trainz_ast::find::HasRange;
+                    use trainz_ast::gs::find::{find_field_by_id_range, find_param_by_id_range};
                     let comments = &document.comments;
                     let definition_line = target_range.start.line;
 
                     let mut preceding_comment = None;
+                    let mut following_comment = None;
                     if definition_line == 0 {
                         if let Some(first_comment) = comments.comments.first() {
                             // Assume it's the "file comment" if it starts within the first 2 lines
@@ -1285,20 +1315,45 @@ impl LanguageServer for GameScriptLanguageServer {
                             let range = comment.range();
                             if range.end.line < definition_line {
                                 preceding_comment = Some(comment);
-                            } else {
-                                if range.start.line >= definition_line {
+                            } else if range.start.line == definition_line {
+                                if range.start.character >= target_range.end.character {
+                                    following_comment = Some(comment);
                                     break;
                                 }
+                            } else if range.start.line > definition_line {
+                                break;
                             }
                         }
                     }
 
-                    if let Some(comment) = preceding_comment {
-                        // Only include if it is immediately preceding (e.g. within 2 lines)
-                        let range = comment.range();
-                        if definition_line == 0
-                            || definition_line.saturating_sub(range.end.line) <= 2
-                        {
+                    let mut is_param = false;
+                    let mut is_field = false;
+                    if let ParsedFileType::GameScript(program) = &document.parsed {
+                        is_param = find_param_by_id_range(program, target_range).is_some();
+                        is_field = find_field_by_id_range(program, target_range).is_some();
+                    }
+
+                    let mut comments_to_process = Vec::new();
+                    if !is_param {
+                        if let Some(comment) = preceding_comment {
+                            // If it's a field and we have a following comment, ignore the preceding one.
+                            if !(is_field && following_comment.is_some()) {
+                                let range = comment.range();
+                                if definition_line == 0
+                                    || definition_line.saturating_sub(range.end.line) <= 2
+                                {
+                                    comments_to_process.push(comment);
+                                }
+                            }
+                        }
+                    }
+                    if let Some(comment) = following_comment {
+                        comments_to_process.push(comment);
+                    }
+
+                    if !comments_to_process.is_empty() {
+                        let mut combined_text = Vec::new();
+                        for comment in comments_to_process {
                             let raw_text = match comment {
                                 trainz_ast::comments::Comment::LineComment(c) => c.text.clone(),
                                 trainz_ast::comments::Comment::BlockComment(c) => c.text.clone(),
@@ -1336,15 +1391,31 @@ impl LanguageServer for GameScriptLanguageServer {
                                 })
                                 .collect::<Vec<&str>>()
                                 .join("\n\n");
+                            if !text.is_empty() {
+                                combined_text.push(text);
+                            }
+                        }
+
+                        if !combined_text.is_empty() {
+                            let text = combined_text.join("\n\n");
+                            let mut value = String::new();
+                            if let Some(hr) = &hover_result {
+                                if let ls_types::HoverContents::Markup(markup) = &hr.contents {
+                                    value.push_str(&markup.value);
+                                    value.push_str("\n\n---\n\n");
+                                }
+                            }
+                            value.push_str(&text);
 
                             hover_result = Some(Hover {
                                 contents: ls_types::HoverContents::Markup(
                                     ls_types::MarkupContent {
                                         kind: ls_types::MarkupKind::Markdown,
-                                        value: text,
+                                        value,
                                     },
                                 ),
-                                range: origin_range,
+                                range: origin_range
+                                    .or_else(|| hover_result.as_ref().and_then(|h| h.range)),
                             });
                         }
                     }

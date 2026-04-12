@@ -108,10 +108,7 @@ mod tests {
                 character: 5,
             },
         };
-        let value = Value::String(
-            "multi-line\nstring".to_string(),
-            range,
-        );
+        let value = Value::String("multi-line\nstring".to_string(), range);
         let mut raw_tokens = Vec::new();
 
         collect_value_tokens(&value, &mut raw_tokens, None, None, _src);

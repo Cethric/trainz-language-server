@@ -94,14 +94,19 @@ mod tests {
             kuid <KUID:-3:1011>
         "#;
         let result = parse_soup(input);
-        assert!(result.is_ok(), "Failed to parse soup with error recovery: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse soup with error recovery: {:?}",
+            result.err()
+        );
         let pairs: Vec<_> = result.unwrap().collect();
-        
-        let keys: Vec<_> = pairs.iter()
+
+        let keys: Vec<_> = pairs
+            .iter()
             .filter(|p| p.as_rule() == Rule::key_value_pair)
             .map(|p| p.clone().into_inner().next().unwrap().as_str())
             .collect();
-        
+
         assert!(keys.contains(&"name"));
         assert!(keys.contains(&"age"));
         assert!(keys.contains(&"container"));

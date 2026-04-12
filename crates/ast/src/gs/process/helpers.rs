@@ -1,7 +1,36 @@
-use crate::gs::{Identifier, Type, TypeOrVoid};
+use crate::gs::{Block, Identifier, Scope, Stmt, Type, TypeOrVoid};
 use pest::iterators::Pair;
 use trainz_common::range::pair_to_range;
 use trainz_parser::gs::grammar::Rule;
+
+pub fn push_scope(
+    scopes: &mut Vec<Scope>,
+    parent: Option<usize>,
+    range: crate::Range,
+    variables: Vec<(Type, Identifier)>,
+) -> usize {
+    let id = scopes.len();
+    let scope = Scope {
+        id,
+        parent,
+        children: vec![],
+        variables,
+        range,
+    };
+    scopes.push(scope);
+    if let Some(parent_id) = parent {
+        scopes[parent_id].children.push(id);
+    }
+    id
+}
+
+pub fn create_block(scope_id: usize, statements: Vec<Stmt>, range: crate::Range) -> Block {
+    Block {
+        statements,
+        scope_id,
+        range,
+    }
+}
 
 #[tracing::instrument]
 pub fn process_identifier(pair: Pair<Rule>) -> Identifier {

@@ -1,7 +1,7 @@
 use crate::gs::process::expr::process_expr;
-use crate::gs::process::helpers::{process_identifier, process_type};
+use crate::gs::process::helpers::{create_block, process_identifier, process_type, push_scope};
 use crate::gs::{
-    AssignStmt, Block, Case, Decl, ForStmt, IfStmt, LoopBody, OnStmt, Stmt, SwitchStmt, WaitStmt,
+    AssignStmt, Case, Decl, ForStmt, IfStmt, LoopBody, OnStmt, Scope, Stmt, SwitchStmt, WaitStmt,
     WhileStmt,
 };
 use pest::iterators::Pair;
@@ -9,12 +9,16 @@ use trainz_common::range::pair_to_range;
 use trainz_parser::gs::grammar::Rule;
 
 #[tracing::instrument]
-pub fn process_statements(pair: Pair<Rule>) -> Vec<Stmt> {
+pub fn process_statements(
+    scopes: &mut Vec<Scope>,
+    parent_scope_id: usize,
+    pair: Pair<Rule>,
+) -> Vec<Stmt> {
     let mut statements = vec![];
     for inner in pair.into_inner() {
         match inner.as_rule() {
             Rule::statements => {
-                let s = process_statements(inner);
+                let s = process_statements(scopes, parent_scope_id, inner);
                 statements.extend(s);
             }
             Rule::statement_with_line_end
@@ -27,13 +31,29 @@ pub fn process_statements(pair: Pair<Rule>) -> Vec<Stmt> {
             | Rule::statement_on
             | Rule::statement_block
             | Rule::statement_label => {
-                statements.push(process_stmt(inner));
+                let stmt = process_stmt(scopes, parent_scope_id, inner);
+                if let Stmt::Decl(ref decl) = stmt {
+                    for name in &decl.names {
+                        scopes[parent_scope_id]
+                            .variables
+                            .push((decl.ty.clone(), name.clone()));
+                    }
+                }
+                statements.push(stmt);
             }
             Rule::semicolon | Rule::brace_open | Rule::brace_close => {}
             _ => {
                 // If it's something else, try to process it as a statement if it has inner pairs
                 if inner.clone().into_inner().count() > 0 {
-                    statements.push(process_stmt(inner));
+                    let stmt = process_stmt(scopes, parent_scope_id, inner);
+                    if let Stmt::Decl(ref decl) = stmt {
+                        for name in &decl.names {
+                            scopes[parent_scope_id]
+                                .variables
+                                .push((decl.ty.clone(), name.clone()));
+                        }
+                    }
+                    statements.push(stmt);
                 }
             }
         }
@@ -42,13 +62,13 @@ pub fn process_statements(pair: Pair<Rule>) -> Vec<Stmt> {
 }
 
 #[tracing::instrument]
-pub fn process_stmt(pair: Pair<Rule>) -> Stmt {
+pub fn process_stmt(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> Stmt {
     let range = pair_to_range(&pair);
     match pair.as_rule() {
         Rule::statement_with_line_end | Rule::statement_without_line_end => {
             let mut inner = pair.into_inner();
             let first = inner.next().unwrap();
-            process_stmt(first)
+            process_stmt(scopes, parent_scope_id, first)
         }
         Rule::statement_label => {
             let mut inner = pair.into_inner();
@@ -96,28 +116,26 @@ pub fn process_stmt(pair: Pair<Rule>) -> Stmt {
             Stmt::Continue(kw_range, range)
         }
         Rule::statement_expression | Rule::assignment_expr => Stmt::Expr(process_expr(pair)),
-        Rule::statement_if => Stmt::If(process_if(pair)),
-        Rule::statement_while => Stmt::While(process_while(pair)),
-        Rule::statement_for => Stmt::For(process_for(pair)),
+        Rule::statement_if => Stmt::If(process_if(scopes, parent_scope_id, pair)),
+        Rule::statement_while => Stmt::While(process_while(scopes, parent_scope_id, pair)),
+        Rule::statement_for => Stmt::For(process_for(scopes, parent_scope_id, pair)),
         Rule::on_body | Rule::on_body_block | Rule::statements => {
             let b_range = pair_to_range(&pair);
-            Stmt::Block(Block {
-                statements: process_statements(pair),
-                range: b_range,
-            })
+            let scope_id = push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
+            let stmts = process_statements(scopes, scope_id, pair);
+            Stmt::Block(create_block(scope_id, stmts, b_range))
         }
-        Rule::statement_wait => Stmt::Wait(process_wait(pair)),
-        Rule::statement_on => Stmt::On(process_on(pair)),
-        Rule::statement_switch => Stmt::Switch(process_switch(pair)),
+        Rule::statement_wait => Stmt::Wait(process_wait(scopes, parent_scope_id, pair)),
+        Rule::statement_on => Stmt::On(process_on(scopes, parent_scope_id, pair)),
+        Rule::statement_switch => Stmt::Switch(process_switch(scopes, parent_scope_id, pair)),
         Rule::statement_block => {
             let b_range = pair_to_range(&pair);
+            let scope_id = push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
             let mut b_inner = pair.into_inner();
             b_inner.next(); // brace_open
             let statements_pair = b_inner.next().unwrap();
-            Stmt::Block(Block {
-                statements: process_statements(statements_pair),
-                range: b_range,
-            })
+            let stmts = process_statements(scopes, scope_id, statements_pair);
+            Stmt::Block(create_block(scope_id, stmts, b_range))
         }
         _ => unreachable!("Unexpected statement rule: {:?}", pair.as_rule()),
     }
@@ -164,7 +182,7 @@ fn process_decl(pair: Pair<Rule>) -> Decl {
 }
 
 #[tracing::instrument]
-fn process_if(pair: Pair<Rule>) -> IfStmt {
+fn process_if(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> IfStmt {
     let mut cond = None;
     let mut kw_if_range = None;
     let mut then_block = None;
@@ -179,17 +197,23 @@ fn process_if(pair: Pair<Rule>) -> IfStmt {
                 continue;
             }
             Rule::assignment_expr | Rule::statement_expression => {
-                cond = Some(process_expr(p));
+                if cond.is_none() {
+                    cond = Some(process_expr(p));
+                } else {
+                    let b_range = pair_to_range(&p);
+                    let scope_id = push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
+                    let stmt = process_stmt(scopes, scope_id, p);
+                    then_block = Some(create_block(scope_id, vec![stmt], b_range));
+                }
             }
             Rule::statement_block => {
                 let b_range = pair_to_range(&p);
                 let mut b_inner = p.into_inner();
                 b_inner.next(); // brace_open
                 let statements_pair = b_inner.next().unwrap();
-                let block = Block {
-                    statements: process_statements(statements_pair),
-                    range: b_range,
-                };
+                let scope_id = push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
+                let stmts = process_statements(scopes, scope_id, statements_pair);
+                let block = create_block(scope_id, stmts, b_range);
                 then_block = Some(block);
             }
             Rule::statement_with_line_end
@@ -201,12 +225,15 @@ fn process_if(pair: Pair<Rule>) -> IfStmt {
             | Rule::statement_wait
             | Rule::statement_on
             | Rule::statement_return
+            | Rule::statement_break
+            | Rule::statement_continue
+            | Rule::statement_goto
+            | Rule::statement_declaration
             | Rule::statement_label => {
                 let b_range = pair_to_range(&p);
-                then_block = Some(Block {
-                    statements: vec![process_stmt(p)],
-                    range: b_range,
-                });
+                let scope_id = push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
+                let stmt = process_stmt(scopes, scope_id, p);
+                then_block = Some(create_block(scope_id, vec![stmt], b_range));
             }
             Rule::statement_else => {
                 let e_inner = p.into_inner();
@@ -220,12 +247,14 @@ fn process_if(pair: Pair<Rule>) -> IfStmt {
                             let mut b_inner = ep.into_inner();
                             b_inner.next(); // brace_open
                             let statements_pair = b_inner.next().unwrap();
-                            e_body = Some(Block {
-                                statements: process_statements(statements_pair),
-                                range: b_range,
-                            });
+                            let scope_id =
+                                push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
+                            let stmts = process_statements(scopes, scope_id, statements_pair);
+                            e_body = Some(create_block(scope_id, stmts, b_range));
                         }
-                        Rule::statement_with_line_end
+                        Rule::assignment_expr
+                        | Rule::statement_expression
+                        | Rule::statement_with_line_end
                         | Rule::statement_without_line_end
                         | Rule::statement_if
                         | Rule::statement_while
@@ -234,12 +263,16 @@ fn process_if(pair: Pair<Rule>) -> IfStmt {
                         | Rule::statement_wait
                         | Rule::statement_on
                         | Rule::statement_return
+                        | Rule::statement_break
+                        | Rule::statement_continue
+                        | Rule::statement_goto
+                        | Rule::statement_declaration
                         | Rule::statement_label => {
                             let b_range = pair_to_range(&ep);
-                            e_body = Some(Block {
-                                statements: vec![process_stmt(ep)],
-                                range: b_range,
-                            });
+                            let scope_id =
+                                push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
+                            let stmt = process_stmt(scopes, scope_id, ep);
+                            e_body = Some(create_block(scope_id, vec![stmt], b_range));
                         }
                         _ => {}
                     }
@@ -257,9 +290,9 @@ fn process_if(pair: Pair<Rule>) -> IfStmt {
                 range,
             })),
             keyword_if_range: kw_if_range.unwrap_or(range),
-            then_block: then_block.unwrap_or(Block {
-                statements: vec![],
-                range,
+            then_block: then_block.unwrap_or_else(|| {
+                let scope_id = push_scope(scopes, Some(parent_scope_id), range, vec![]);
+                create_block(scope_id, vec![], range)
             }),
             keyword_else_range: kw_else_range,
             else_block,
@@ -278,7 +311,7 @@ fn process_if(pair: Pair<Rule>) -> IfStmt {
 }
 
 #[tracing::instrument]
-fn process_while(pair: Pair<Rule>) -> WhileStmt {
+fn process_while(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> WhileStmt {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
     let kw_while_range = pair_to_range(&inner.next().unwrap()); // keyword_while
@@ -286,43 +319,39 @@ fn process_while(pair: Pair<Rule>) -> WhileStmt {
     let cond = process_expr(inner.next().unwrap());
     inner.next(); // paren_close
     let body_pair = inner.next();
-    let body = match body_pair {
-        None => LoopBody::Empty(crate::Range {
-            start: range.end,
-            end: range.end,
-        }),
-        Some(body_pair) => match body_pair.as_rule() {
-            Rule::semicolon => LoopBody::Empty(pair_to_range(&body_pair)),
-            Rule::statement_block => {
-                let b_range = pair_to_range(&body_pair);
-                let mut b_inner = body_pair.into_inner();
-                b_inner.next(); // brace_open
-                let statements_pair = b_inner.next().unwrap();
-                LoopBody::Block(Block {
-                    statements: process_statements(statements_pair),
-                    range: b_range,
-                })
-            }
-            _ => {
-                let b_range = pair_to_range(&body_pair);
-                LoopBody::Block(Block {
-                    statements: vec![process_stmt(body_pair)],
-                    range: b_range,
-                })
-            }
-        },
-    };
-
     WhileStmt {
         cond,
         keyword_while_range: kw_while_range,
-        body,
+        body: match body_pair {
+            None => LoopBody::Empty(crate::Range {
+                start: range.end,
+                end: range.end,
+            }),
+            Some(body_pair) => match body_pair.as_rule() {
+                Rule::semicolon => LoopBody::Empty(pair_to_range(&body_pair)),
+                Rule::statement_block => {
+                    let b_range = pair_to_range(&body_pair);
+                    let mut b_inner = body_pair.into_inner();
+                    b_inner.next(); // brace_open
+                    let statements_pair = b_inner.next().unwrap();
+                    let scope_id = push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
+                    let stmts = process_statements(scopes, scope_id, statements_pair);
+                    LoopBody::Block(create_block(scope_id, stmts, b_range))
+                }
+                _ => {
+                    let b_range = pair_to_range(&body_pair);
+                    let scope_id = push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
+                    let stmt = process_stmt(scopes, scope_id, body_pair);
+                    LoopBody::Block(create_block(scope_id, vec![stmt], b_range))
+                }
+            },
+        },
         range,
     }
 }
 
 #[tracing::instrument]
-fn process_for(pair: Pair<Rule>) -> ForStmt {
+fn process_for(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> ForStmt {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
 
@@ -352,45 +381,41 @@ fn process_for(pair: Pair<Rule>) -> ForStmt {
         inner.next()
     };
 
-    let body = match body_pair {
-        None => LoopBody::Empty(crate::Range {
-            start: range.end,
-            end: range.end,
-        }),
-        Some(body_pair) => match body_pair.as_rule() {
-            Rule::semicolon => LoopBody::Empty(pair_to_range(&body_pair)),
-            Rule::statement_block => {
-                let b_range = pair_to_range(&body_pair);
-                let mut b_inner = body_pair.into_inner();
-                b_inner.next(); // brace_open
-                let statements_pair = b_inner.next().unwrap();
-                LoopBody::Block(Block {
-                    statements: process_statements(statements_pair),
-                    range: b_range,
-                })
-            }
-            _ => {
-                let b_range = pair_to_range(&body_pair);
-                LoopBody::Block(Block {
-                    statements: vec![process_stmt(body_pair)],
-                    range: b_range,
-                })
-            }
-        },
-    };
-
     ForStmt {
         init,
         cond,
         step,
         keyword_for_range: kw_for_range,
-        body,
+        body: match body_pair {
+            None => LoopBody::Empty(crate::Range {
+                start: range.end,
+                end: range.end,
+            }),
+            Some(body_pair) => match body_pair.as_rule() {
+                Rule::semicolon => LoopBody::Empty(pair_to_range(&body_pair)),
+                Rule::statement_block => {
+                    let b_range = pair_to_range(&body_pair);
+                    let mut b_inner = body_pair.into_inner();
+                    b_inner.next(); // brace_open
+                    let statements_pair = b_inner.next().unwrap();
+                    let scope_id = push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
+                    let stmts = process_statements(scopes, scope_id, statements_pair);
+                    LoopBody::Block(create_block(scope_id, stmts, b_range))
+                }
+                _ => {
+                    let b_range = pair_to_range(&body_pair);
+                    let scope_id = push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
+                    let stmt = process_stmt(scopes, scope_id, body_pair);
+                    LoopBody::Block(create_block(scope_id, vec![stmt], b_range))
+                }
+            },
+        },
         range,
     }
 }
 
 #[tracing::instrument]
-fn process_wait(pair: Pair<Rule>) -> WaitStmt {
+fn process_wait(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> WaitStmt {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
     let kw_wait_range = pair_to_range(&inner.next().unwrap());
@@ -400,16 +425,18 @@ fn process_wait(pair: Pair<Rule>) -> WaitStmt {
     let body_range = pair_to_range(&body_pair);
     WaitStmt {
         keyword_wait_range: kw_wait_range,
-        body: Block {
-            statements: process_statements(body_pair.into_inner().nth(1).unwrap()),
-            range: body_range,
+        body: {
+            let scope_id = push_scope(scopes, Some(parent_scope_id), body_range, vec![]);
+            let stmts =
+                process_statements(scopes, scope_id, body_pair.into_inner().nth(1).unwrap());
+            create_block(scope_id, stmts, body_range)
         },
         range,
     }
 }
 
 #[tracing::instrument]
-fn process_on(pair: Pair<Rule>) -> OnStmt {
+fn process_on(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> OnStmt {
     let range = pair_to_range(&pair);
     let inner = pair.into_inner();
     let mut event = None;
@@ -438,18 +465,16 @@ fn process_on(pair: Pair<Rule>) -> OnStmt {
             }
             Rule::on_body | Rule::on_body_block => {
                 let body_range = pair_to_range(&p);
+                let scope_id = push_scope(scopes, Some(parent_scope_id), body_range, vec![]);
                 let statements = if p.as_rule() == Rule::on_body_block {
                     p.into_inner()
                         .find(|i| i.as_rule() == Rule::statements)
-                        .map(process_statements)
+                        .map(|s| process_statements(scopes, scope_id, s))
                         .unwrap_or_default()
                 } else {
-                    process_statements(p)
+                    process_statements(scopes, scope_id, p)
                 };
-                body = Some(Block {
-                    statements,
-                    range: body_range,
-                });
+                body = Some(create_block(scope_id, statements, body_range));
             }
             Rule::line_comment | Rule::block_comment => continue,
             _ => {}
@@ -467,7 +492,7 @@ fn process_on(pair: Pair<Rule>) -> OnStmt {
 }
 
 #[tracing::instrument]
-fn process_switch(pair: Pair<Rule>) -> SwitchStmt {
+fn process_switch(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> SwitchStmt {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
     let kw_switch_range = pair_to_range(&inner.next().unwrap()); // keyword_switch
@@ -489,23 +514,20 @@ fn process_switch(pair: Pair<Rule>) -> SwitchStmt {
                 let b_pair = c_inner.next(); // statements
                 if let Some(b_pair) = b_pair {
                     let b_range = pair_to_range(&b_pair);
+                    let scope_id = push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
+                    let stmts = process_statements(scopes, scope_id, b_pair);
                     cases.push(Case {
                         keyword_case_range: kw_case_range,
                         value,
-                        body: Block {
-                            statements: process_statements(b_pair),
-                            range: b_range,
-                        },
+                        body: create_block(scope_id, stmts, b_range),
                         range: p_range,
                     });
                 } else {
+                    let scope_id = push_scope(scopes, Some(parent_scope_id), p_range, vec![]);
                     cases.push(Case {
                         keyword_case_range: kw_case_range,
                         value,
-                        body: Block {
-                            statements: vec![],
-                            range: p_range,
-                        },
+                        body: create_block(scope_id, vec![], p_range),
                         range: p_range,
                     });
                 }
@@ -516,15 +538,12 @@ fn process_switch(pair: Pair<Rule>) -> SwitchStmt {
                 let b_pair = d_inner.next(); // statements
                 if let Some(b_pair) = b_pair {
                     let b_range = pair_to_range(&b_pair);
-                    default = Some(Block {
-                        statements: process_statements(b_pair),
-                        range: b_range,
-                    });
+                    let scope_id = push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
+                    let stmts = process_statements(scopes, scope_id, b_pair);
+                    default = Some(create_block(scope_id, stmts, b_range));
                 } else {
-                    default = Some(Block {
-                        statements: vec![],
-                        range: p_range,
-                    });
+                    let scope_id = push_scope(scopes, Some(parent_scope_id), p_range, vec![]);
+                    default = Some(create_block(scope_id, vec![], p_range));
                 }
             }
             _ => {}

@@ -11,7 +11,12 @@ mod tests {
         let pairs = GameScriptParser::parse(Rule::program, src)
             .unwrap_or_else(|e| panic!("Parse failed: {}", e));
         let program = process_trainz_ast(pairs, src);
-        trainz_symboliser(&program)
+        let mut symbols = trainz_symboliser(&program);
+        if symbols.len() == 1 && symbols[0].name == "file" {
+            symbols.remove(0).children.unwrap_or_default()
+        } else {
+            symbols
+        }
     }
 
     #[test]
@@ -58,6 +63,56 @@ mod tests {
         }
 
         check_symbols(&symbols);
+    }
+
+    #[test]
+    fn test_nested_scoping() {
+        let src = "
+    class Test {
+        void MyMethod(int p) {
+            int x;
+            if (true) {
+                int y;
+            }
+            {
+                int z;
+            }
+        }
+    };";
+        let pairs = GameScriptParser::parse(Rule::program, src)
+            .unwrap_or_else(|e| panic!("Parse failed: {}", e));
+        let program = process_trainz_ast(pairs, src);
+        let symbols = trainz_symboliser(&program);
+
+        // Top-level symbol should be "file"
+        assert_eq!(symbols.len(), 1);
+        let file_symbol = &symbols[0];
+        assert_eq!(file_symbol.name, "file");
+
+        // Child of file is "Test" class
+        let children = file_symbol.children.as_ref().unwrap();
+        assert_eq!(children.len(), 1);
+        let class_symbol = &children[0];
+        assert_eq!(class_symbol.name, "Test");
+
+        // Child of Test is "MyMethod"
+        let class_children = class_symbol.children.as_ref().unwrap();
+        assert_eq!(class_children.len(), 1);
+        let method_symbol = &class_children[0];
+        assert_eq!(method_symbol.name, "MyMethod");
+
+        // Children of MyMethod: p, x, if, scope
+        let method_children = method_symbol.children.as_ref().unwrap();
+        assert!(method_children.iter().any(|s| s.name == "p"));
+        assert!(method_children.iter().any(|s| s.name == "x"));
+
+        let if_symbol = method_children.iter().find(|s| s.name == "if").unwrap();
+        let if_children = if_symbol.children.as_ref().unwrap();
+        assert!(if_children.iter().any(|s| s.name == "y"));
+
+        let bare_block_symbol = method_children.iter().find(|s| s.name == "scope").unwrap();
+        let bare_block_children = bare_block_symbol.children.as_ref().unwrap();
+        assert!(bare_block_children.iter().any(|s| s.name == "z"));
     }
 
     #[test]

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
     pub statements: Vec<Stmt>,
+    pub scope_id: usize,
     pub range: crate::Range,
 }
 

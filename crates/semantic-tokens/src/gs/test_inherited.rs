@@ -9,6 +9,17 @@ fn test_parse_link_prop() {
     let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
     let program = process_trainz_ast(pairs, src);
     let tokens = crate::process_raw_tokens(semantic_tokens(&program), Some(src));
-    println!("{:#?}", program.classes.values().next().unwrap().methods.values().next().unwrap()[0]);
+    println!(
+        "{:#?}",
+        program
+            .classes
+            .values()
+            .next()
+            .unwrap()
+            .methods
+            .values()
+            .next()
+            .unwrap()[0]
+    );
     println!("{:#?}", tokens);
 }

@@ -4,9 +4,9 @@ pub mod stmt;
 pub mod types;
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod test_inherited;
+#[cfg(test)]
+mod tests;
 
 use crate::gs::expr::collect_expr_tokens;
 use crate::gs::method::collect_method_tokens;

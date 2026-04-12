@@ -290,14 +290,22 @@ fn test_switch_case_body_tokens() {
         .iter()
         .filter(|t| t.token_type == type_variable && t.length == 1)
         .collect();
-    assert!(var_tokens.len() >= 3, "Should find at least 3 variable tokens (x, y, z). Found: {}", var_tokens.len());
+    assert!(
+        var_tokens.len() >= 3,
+        "Should find at least 3 variable tokens (x, y, z). Found: {}",
+        var_tokens.len()
+    );
 
     // Verify all numbers are present (10, 20, 30)
     let num_tokens: Vec<_> = tokens
         .iter()
         .filter(|t| t.token_type == type_number && t.length == 2)
         .collect();
-    assert!(num_tokens.len() >= 3, "Should find at least 3 number tokens (10, 20, 30). Found: {}", num_tokens.len());
+    assert!(
+        num_tokens.len() >= 3,
+        "Should find at least 3 number tokens (10, 20, 30). Found: {}",
+        num_tokens.len()
+    );
 }
 
 #[test]
@@ -517,14 +525,24 @@ fn test_signal_gs_tokens() {
     let type_keyword = get_token_type(tower_lsp_server::ls_types::SemanticTokenType::KEYWORD);
 
     // Check for 'me'
-    let me_token = tokens.iter().find(|t| t.token_type == type_keyword && t.length == 2);
+    let me_token = tokens
+        .iter()
+        .find(|t| t.token_type == type_keyword && t.length == 2);
     assert!(me_token.is_some(), "Should find 'me' keyword token");
 
     // Check for 'cast'
-    let cast_token = tokens.iter().find(|t| t.token_type == type_keyword && t.length == 4);
+    let cast_token = tokens
+        .iter()
+        .find(|t| t.token_type == type_keyword && t.length == 4);
     assert!(cast_token.is_some(), "Should find 'cast' keyword token");
 
     // Check for 'new' (there should be two)
-    let new_tokens: Vec<_> = tokens.iter().filter(|t| t.token_type == type_keyword && t.length == 3).collect();
-    assert!(new_tokens.len() >= 2, "Should find at least two 'new' keyword tokens");
+    let new_tokens: Vec<_> = tokens
+        .iter()
+        .filter(|t| t.token_type == type_keyword && t.length == 3)
+        .collect();
+    assert!(
+        new_tokens.len() >= 2,
+        "Should find at least two 'new' keyword tokens"
+    );
 }

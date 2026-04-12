@@ -68,59 +68,59 @@ pub fn process_raw_tokens(
     let mut last_line = 0;
     let mut last_start = 0;
 
-        let line_lengths: Option<Vec<u32>> = src.map(|s| {
-            s.split('\n')
-                .map(|l| {
-                    l.trim_end_matches('\r')
-                        .chars()
-                        .map(|c| c.len_utf16() as u32)
-                        .sum::<u32>()
-                })
-                .collect()
-        });
+    let line_lengths: Option<Vec<u32>> = src.map(|s| {
+        s.split('\n')
+            .map(|l| {
+                l.trim_end_matches('\r')
+                    .chars()
+                    .map(|c| c.len_utf16() as u32)
+                    .sum::<u32>()
+            })
+            .collect()
+    });
 
-        let mut expanded_raw_tokens = vec![];
-        for (range, token_type, modifiers) in raw_tokens {
-            if range.end.line == range.start.line {
-                expanded_raw_tokens.push((range, token_type, modifiers));
-            } else if let Some(lengths) = &line_lengths {
-                // Split multi-line token
-                for line_num in range.start.line..=range.end.line {
-                    let start_char = if line_num == range.start.line {
-                        range.start.character
-                    } else {
-                        0
-                    };
-                    let end_char = if line_num == range.end.line {
-                        range.end.character
-                    } else {
-                        *lengths.get(line_num as usize).unwrap_or(&0)
-                    };
+    let mut expanded_raw_tokens = vec![];
+    for (range, token_type, modifiers) in raw_tokens {
+        if range.end.line == range.start.line {
+            expanded_raw_tokens.push((range, token_type, modifiers));
+        } else if let Some(lengths) = &line_lengths {
+            // Split multi-line token
+            for line_num in range.start.line..=range.end.line {
+                let start_char = if line_num == range.start.line {
+                    range.start.character
+                } else {
+                    0
+                };
+                let end_char = if line_num == range.end.line {
+                    range.end.character
+                } else {
+                    *lengths.get(line_num as usize).unwrap_or(&0)
+                };
 
-                    if end_char > start_char {
-                        expanded_raw_tokens.push((
-                            Range {
-                                start: tower_lsp_server::ls_types::Position {
-                                    line: line_num,
-                                    character: start_char,
-                                },
-                                end: tower_lsp_server::ls_types::Position {
-                                    line: line_num,
-                                    character: end_char,
-                                },
+                if end_char > start_char {
+                    expanded_raw_tokens.push((
+                        Range {
+                            start: tower_lsp_server::ls_types::Position {
+                                line: line_num,
+                                character: start_char,
                             },
-                            token_type.clone(),
-                            modifiers.clone(),
-                        ));
-                    }
+                            end: tower_lsp_server::ls_types::Position {
+                                line: line_num,
+                                character: end_char,
+                            },
+                        },
+                        token_type.clone(),
+                        modifiers.clone(),
+                    ));
                 }
-            } else {
-                // Fallback: just push as multi-line (which will be length 0)
-                expanded_raw_tokens.push((range, token_type, modifiers));
             }
+        } else {
+            // Fallback: just push as multi-line (which will be length 0)
+            expanded_raw_tokens.push((range, token_type, modifiers));
         }
+    }
 
-        for (range, token_type, modifiers) in expanded_raw_tokens {
+    for (range, token_type, modifiers) in expanded_raw_tokens {
         let type_idx = token_types
             .par_iter()
             .position_first(|t| *t == token_type)

@@ -207,7 +207,21 @@ pub(crate) fn process_block(body: &Block) -> Vec<DocumentSymbol> {
                 });
             }
             Stmt::Block(block) => {
-                symbols.extend(process_block(block));
+                let children = process_block(block);
+                symbols.push(DocumentSymbol {
+                    name: "scope".to_string(),
+                    detail: None,
+                    kind: SymbolKind::NAMESPACE,
+                    tags: None,
+                    deprecated: None,
+                    range: block.range,
+                    selection_range: block.range,
+                    children: if children.is_empty() {
+                        None
+                    } else {
+                        Some(children)
+                    },
+                });
             }
             Stmt::Expr(expr) => {
                 symbols.extend(process_expr(expr));

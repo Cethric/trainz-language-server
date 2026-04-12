@@ -1,9 +1,11 @@
 use crate::gs::process::expr::process_expr;
-use crate::gs::process::helpers::{process_identifier, process_type, process_type_or_void};
+use crate::gs::process::helpers::{
+    create_block, process_identifier, process_type, process_type_or_void, push_scope,
+};
 use crate::gs::process::stmt::process_statements;
 use crate::gs::{
-    Block, ClassDef, ClassModifier, FieldDef, FieldModifier, Identifier, MethodDef, MethodModifier,
-    Param,
+    ClassDef, ClassModifier, FieldDef, FieldModifier, Identifier, MethodDef, MethodModifier, Param,
+    Scope,
 };
 use pest::iterators::Pair;
 use std::collections::HashMap;
@@ -13,9 +15,15 @@ use trainz_common::range::{combine_ranges, pair_to_range};
 use trainz_parser::gs::grammar::Rule;
 
 #[tracing::instrument]
-pub fn process_class_definition(class_definition: Pair<Rule>) -> Option<ClassDef> {
+pub fn process_class_definition(
+    scopes: &mut Vec<Scope>,
+    parent_scope_id: usize,
+    class_definition: Pair<Rule>,
+) -> Option<ClassDef> {
     let range = pair_to_range(&class_definition);
     let inner = class_definition.into_inner();
+
+    let scope_id = push_scope(scopes, Some(parent_scope_id), range, vec![]);
 
     let mut class_def = ClassDef {
         modifiers: vec![],
@@ -29,16 +37,21 @@ pub fn process_class_definition(class_definition: Pair<Rule>) -> Option<ClassDef
         fields: HashMap::new(),
         methods: HashMap::new(),
         body_range: Range::default(),
+        scope_id,
         range,
     };
 
-    process_class_inner(inner, &mut class_def);
+    process_class_inner(scopes, &mut class_def, inner);
 
     Some(class_def)
 }
 
 #[tracing::instrument]
-fn process_class_inner(inner: pest::iterators::Pairs<Rule>, class_def: &mut ClassDef) {
+fn process_class_inner(
+    scopes: &mut Vec<Scope>,
+    class_def: &mut ClassDef,
+    inner: pest::iterators::Pairs<Rule>,
+) {
     for pair in inner {
         let rule = pair.as_rule();
 
@@ -96,16 +109,19 @@ fn process_class_inner(inner: pest::iterators::Pairs<Rule>, class_def: &mut Clas
             }
             Rule::class_body => {
                 class_def.body_range = pair_to_range(&pair);
-                process_class_inner(pair.into_inner(), class_def);
+                process_class_inner(scopes, class_def, pair.into_inner());
             }
             Rule::class_member => {
                 let fields = process_field_definition(pair);
                 for field in fields {
+                    scopes[class_def.scope_id]
+                        .variables
+                        .push((field.ty.clone(), field.name.clone()));
                     class_def.fields.insert(field.name.name.clone(), field);
                 }
             }
             Rule::class_method => {
-                let method = process_method_definition(pair);
+                let method = process_method_definition(scopes, class_def.scope_id, pair);
                 class_def
                     .methods
                     .entry(method.name.name.clone())
@@ -173,13 +189,27 @@ fn process_field_definition(pair: Pair<Rule>) -> Vec<FieldDef> {
 }
 
 #[tracing::instrument]
-fn process_method_definition(pair: Pair<Rule>) -> MethodDef {
+fn process_method_definition(
+    scopes: &mut Vec<Scope>,
+    parent_scope_id: usize,
+    pair: Pair<Rule>,
+) -> MethodDef {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
     let modifiers = process_method_modifiers(inner.next().unwrap());
     let return_type = process_type_or_void(inner.next().unwrap());
     let name = process_identifier(inner.next().unwrap());
     let params = process_params(inner.next().unwrap());
+
+    let scope_id = push_scope(
+        scopes,
+        Some(parent_scope_id),
+        range,
+        params
+            .iter()
+            .map(|p| (p.ty.clone(), p.name.clone()))
+            .collect(),
+    );
 
     let body = if let Some(body_pair) = inner.next() {
         let body_range = pair_to_range(&body_pair);
@@ -198,18 +228,15 @@ fn process_method_definition(pair: Pair<Rule>) -> MethodDef {
                     pair.as_rule()
                 );
                 if pair.as_rule() == Rule::statements {
-                    statements.extend(process_statements(pair));
+                    statements.extend(process_statements(scopes, scope_id, pair));
                 }
             }
             statements
         } else {
-            process_statements(body_pair)
+            process_statements(scopes, scope_id, body_pair)
         };
 
-        Some(Block {
-            statements,
-            range: body_range,
-        })
+        Some(create_block(scope_id, statements, body_range))
     } else {
         None
     };
@@ -220,6 +247,7 @@ fn process_method_definition(pair: Pair<Rule>) -> MethodDef {
         name,
         params,
         body,
+        scope_id,
         range,
     }
 }
@@ -315,7 +343,9 @@ mod tests {
             .find(|p| p.as_rule() == Rule::class_definition)
             .unwrap();
 
-        let class_def = process_class_definition(class_pair).unwrap();
+        let mut scopes = vec![];
+        let root_scope_id = push_scope(&mut scopes, None, Range::default(), vec![]);
+        let class_def = process_class_definition(&mut scopes, root_scope_id, class_pair).unwrap();
 
         assert_eq!(class_def.modifiers.len(), 1);
         match class_def.modifiers[0].0 {

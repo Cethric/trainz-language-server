@@ -4,9 +4,7 @@ use std::sync::Arc;
 use tower_lsp_server::ls_types::{GotoDefinitionResponse, Location, LocationLink, Position, Uri};
 use tracing::trace;
 use trainz_ast::find::position_in_range;
-use trainz_ast::gs::find::{
-    find_id_at_position, find_local_var_type_in_method, find_postfix_at_position,
-};
+use trainz_ast::gs::find::{find_id_at_position, find_postfix_at_position};
 use trainz_ast::gs::program::Program;
 use trainz_ast::gs::{Expr, MethodDef, PostfixOp, Type};
 
@@ -83,15 +81,14 @@ fn infer_receiver_type(
     expr: &Expr,
     ops: &[PostfixOp],
     current_class_name: Option<&str>,
-    current_method: Option<&MethodDef>,
+    _current_method: Option<&MethodDef>,
     position: Position,
 ) -> Option<String> {
     let mut current_type = match expr {
         Expr::Identifier(id) => {
-            let mut found_local = None;
-            if let Some(method) = current_method {
-                found_local = find_local_var_type_in_method(method, &id.name, position);
-            }
+            let found_local = program
+                .find_variable_declaration(&id.name, position)
+                .map(|(ty, _)| format!("{}", ty));
             if found_local.is_some() {
                 found_local
             } else {
@@ -366,6 +363,13 @@ pub fn gs_goto_definition(
         }
 
         let mut locations = vec![];
+
+        if let Some((_, name_id)) = program.find_variable_declaration(&target, position) {
+            return Some(GotoDefinitionResponse::Scalar(Location {
+                uri: uri.clone(),
+                range: name_id.range,
+            }));
+        }
 
         let mut current_class = None;
         let mut current_method = None;

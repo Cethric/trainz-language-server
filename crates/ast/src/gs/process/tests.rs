@@ -405,7 +405,110 @@ game class Signal isclass Trackside
             crate::gs::Expr::Cast { ty, .. } => {
                 assert_eq!(format!("{}", ty), "Vehicle");
             }
-            _ => panic!("Expected cast expression in condition, got {:?}", if_stmt.cond),
+            _ => panic!(
+                "Expected cast expression in condition, got {:?}",
+                if_stmt.cond
+            ),
         }
+    }
+}
+
+#[test]
+fn test_if_else_single_statement_parsing() {
+    let src = "class Test {
+        void Main(Message msg) {
+            GameObject srcObj = cast<GameObject>(msg.src);
+            if (msg.minor == \"Failure\")
+              srcObj.PostMessage(me, \"AsyncQueryHelper_Internal\", \"SynchronouslyWaitForResults_Failure\", 0.f);
+            else
+              srcObj.PostMessage(me, \"AsyncQueryHelper_Internal\", \"SynchronouslyWaitForResults_AsyncResult\", 0.f);
+        }
+    };";
+    let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
+    let program = process_trainz_ast(pairs, src);
+
+    let class = program.classes.get("Test").unwrap();
+    let method = &class.methods.get("Main").unwrap()[0];
+    let stmts = &method.body.as_ref().unwrap().statements;
+
+    // GameObject srcObj = ...; IF
+    assert_eq!(stmts.len(), 2);
+
+    if let crate::gs::Stmt::If(if_stmt) = &stmts[1] {
+        // Condition: msg.minor == "Failure"
+        // Binary(Eq, msg.minor, "Failure")
+        assert_eq!(
+            if_stmt.then_block.statements.len(),
+            1,
+            "Then block should have 1 statement"
+        );
+        match &if_stmt.then_block.statements[0] {
+            crate::gs::Stmt::Expr(_) => {}
+            _ => panic!(
+                "Expected expression statement in then block, got {:?}",
+                if_stmt.then_block.statements[0]
+            ),
+        }
+
+        // Else block should have 1 statement
+        assert!(if_stmt.else_block.is_some(), "Else block should be present");
+        let else_block = if_stmt.else_block.as_ref().unwrap();
+        assert_eq!(
+            else_block.statements.len(),
+            1,
+            "Else block should have 1 statement"
+        );
+        match &else_block.statements[0] {
+            crate::gs::Stmt::Expr(_) => {}
+            _ => panic!(
+                "Expected expression statement in else block, got {:?}",
+                else_block.statements[0]
+            ),
+        }
+    } else {
+        panic!("Expected IF statement, got {:?}", stmts[1]);
+    }
+}
+
+#[test]
+fn test_if_single_statement_break_parsing() {
+    let src = "class Test {
+        void Main() {
+            while (true) {
+                if (true)
+                    break;
+            }
+        }
+    };";
+    let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
+    let program = process_trainz_ast(pairs, src);
+
+    let class = program.classes.get("Test").unwrap();
+    let method = &class.methods.get("Main").unwrap()[0];
+    let while_stmt = match &method.body.as_ref().unwrap().statements[0] {
+        crate::gs::Stmt::While(w) => w,
+        _ => panic!("Expected WHILE"),
+    };
+
+    let block = match &while_stmt.body {
+        crate::gs::LoopBody::Block(b) => b,
+        _ => panic!("Expected block"),
+    };
+
+    if let crate::gs::Stmt::If(if_stmt) = &block.statements[0] {
+        assert_eq!(
+            if_stmt.then_block.statements.len(),
+            1,
+            "Then block should have 1 statement (break)"
+        );
+        match &if_stmt.then_block.statements[0] {
+            crate::gs::Stmt::Break(_, _) => {}
+            _ => panic!(
+                "Expected break statement, got {:?}",
+                if_stmt.then_block.statements[0]
+            ),
+        }
+    } else {
+        panic!("Expected IF statement");
     }
 }

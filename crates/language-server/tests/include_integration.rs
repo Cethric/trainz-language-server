@@ -72,7 +72,11 @@ async fn test_include_document_symbols() {
 
     let result = service.inner().document_symbol(params).await.unwrap();
 
-    if let Some(DocumentSymbolResponse::Nested(symbols)) = result {
+    if let Some(DocumentSymbolResponse::Nested(mut symbols)) = result {
+        if symbols.len() == 1 && symbols[0].name == "file" {
+            symbols = symbols.remove(0).children.unwrap_or_default();
+        }
+
         // Find include symbol
         let include_symbol = symbols
             .par_iter()

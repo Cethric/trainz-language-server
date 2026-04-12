@@ -177,110 +177,60 @@ fn find_postfix_in_expr(expr: &Expr, pos: Position) -> Option<(&Expr, usize)> {
     }
 }
 
-pub fn find_local_var_type_in_block(
-    block: &Block,
-    var_name: &str,
-    pos: Position,
-) -> Option<String> {
-    if !position_in_range(pos, block.range) {
-        return None;
-    }
-
-    let mut last_seen = None;
-    for stmt in &block.statements {
-        if stmt.range().start > pos {
-            break;
-        }
-
-        match stmt {
-            Stmt::Decl(decl) => {
-                for name in &decl.names {
-                    if name.name == var_name
-                        && let Type::Named(id) = &decl.ty
-                    {
-                        last_seen = Some(id.name.clone());
+pub fn find_method_at_position<'a>(program: &'a Program, pos: Position) -> Option<&'a MethodDef> {
+    program.classes.values().find_map(|cls| {
+        if position_in_range(pos, cls.range) {
+            for methods in cls.methods.values() {
+                for method in methods {
+                    if position_in_range(pos, method.range) {
+                        return Some(method);
                     }
                 }
             }
-            Stmt::If(if_stmt) => {
-                if let Some(res) = find_local_var_type_in_block(&if_stmt.then_block, var_name, pos)
-                {
-                    last_seen = Some(res);
-                } else if let Some(else_block) = &if_stmt.else_block
-                    && let Some(res) = find_local_var_type_in_block(else_block, var_name, pos)
-                {
-                    last_seen = Some(res);
-                }
-            }
-            Stmt::While(while_stmt) => {
-                if let LoopBody::Block(b) = &while_stmt.body
-                    && let Some(res) = find_local_var_type_in_block(b, var_name, pos)
-                {
-                    last_seen = Some(res);
-                }
-            }
-            Stmt::For(for_stmt) => {
-                if let LoopBody::Block(b) = &for_stmt.body
-                    && let Some(res) = find_local_var_type_in_block(b, var_name, pos)
-                {
-                    last_seen = Some(res);
-                }
-            }
-            Stmt::Wait(wait_stmt) => {
-                if let Some(res) = find_local_var_type_in_block(&wait_stmt.body, var_name, pos) {
-                    last_seen = Some(res);
-                }
-            }
-            Stmt::On(on_stmt) => {
-                if let Some(res) = find_local_var_type_in_block(&on_stmt.body, var_name, pos) {
-                    last_seen = Some(res);
-                }
-            }
-            Stmt::Switch(switch_stmt) => {
-                for case in &switch_stmt.cases {
-                    if let Some(res) = find_local_var_type_in_block(&case.body, var_name, pos) {
-                        last_seen = Some(res);
-                    }
-                }
-                if let Some(default_block) = &switch_stmt.default
-                    && let Some(res) = find_local_var_type_in_block(default_block, var_name, pos)
-                {
-                    last_seen = Some(res);
-                }
-            }
-            Stmt::Block(b) => {
-                if let Some(res) = find_local_var_type_in_block(b, var_name, pos) {
-                    last_seen = Some(res);
-                }
-            }
-            _ => {}
         }
-    }
-    last_seen
+        None
+    })
 }
 
-pub fn find_local_var_type_in_method(
-    method: &MethodDef,
-    var_name: &str,
-    pos: Position,
-) -> Option<String> {
-    if !position_in_range(pos, method.range) {
-        return None;
-    }
+pub fn find_class_at_position<'a>(program: &'a Program, pos: Position) -> Option<&'a ClassDef> {
+    program
+        .classes
+        .values()
+        .find(|cls| position_in_range(pos, cls.range))
+}
 
-    for param in &method.params {
-        if param.name.name == var_name
-            && let Type::Named(id) = &param.ty
-        {
-            return Some(id.name.clone());
-        }
-    }
+pub fn find_field_by_id_range<'a>(
+    program: &'a Program,
+    range: crate::Range,
+) -> Option<&'a FieldDef> {
+    program
+        .classes
+        .values()
+        .find_map(|cls| cls.fields.values().find(|field| field.name.range == range))
+}
 
-    if let Some(body) = &method.body {
-        find_local_var_type_in_block(body, var_name, pos)
-    } else {
-        None
-    }
+pub fn find_method_by_id_range<'a>(
+    program: &'a Program,
+    range: crate::Range,
+) -> Option<&'a MethodDef> {
+    program.classes.values().find_map(|cls| {
+        cls.methods
+            .values()
+            .find_map(|methods| methods.iter().find(|method| method.name.range == range))
+    })
+}
+
+pub fn find_param_by_id_range<'a>(
+    program: &'a Program,
+    range: crate::Range,
+) -> Option<&'a crate::gs::Param> {
+    program.classes.values().find_map(|cls| {
+        cls.methods.values().find_map(|methods| {
+            methods
+                .iter()
+                .find_map(|method| method.params.iter().find(|param| param.name.range == range))
+        })
+    })
 }
 
 pub fn find_id_at_position(program: &Program, pos: Position) -> Option<&Identifier> {
