@@ -11,6 +11,7 @@ use trainz_ast::soup::value::Value;
 use trainz_ast::{Position, Range};
 use trainz_soup_validators::Validators;
 
+#[tracing::instrument]
 pub fn soup_diagnostics(
     soup: &Soup,
     validators: &Validators,

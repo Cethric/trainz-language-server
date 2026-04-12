@@ -40,17 +40,25 @@ lazy_static::lazy_static! {
         // -------------------------
         // Bitwise
         // -------------------------
-        .op(Op::infix(Rule::operator_bitwise, Assoc::Left))
+        .op(Op::infix(Rule::operator_bitwise_shift_left, Assoc::Left)
+            | Op::infix(Rule::operator_bitwise_shift_right, Assoc::Left)
+            | Op::infix(Rule::operator_bitwise_and, Assoc::Left)
+            | Op::infix(Rule::operator_bitwise_or, Assoc::Left)
+            | Op::infix(Rule::operator_bitwise_xor, Assoc::Left))
 
         // -------------------------
         // Comparison
         // -------------------------
-        .op(Op::infix(Rule::operator_comparison, Assoc::Left))
+        .op(Op::infix(Rule::operator_comparison_less_than, Assoc::Left)
+            | Op::infix(Rule::operator_comparison_greater_than, Assoc::Left)
+            | Op::infix(Rule::operator_comparison_less_equal, Assoc::Left)
+            | Op::infix(Rule::operator_comparison_greater_equal, Assoc::Left))
 
         // -------------------------
         // Equality
         // -------------------------
-        .op(Op::infix(Rule::operator_equality, Assoc::Left))
+        .op(Op::infix(Rule::operator_equality_equal, Assoc::Left)
+            | Op::infix(Rule::operator_equality_not_equal, Assoc::Left))
 
         // -------------------------
         // Logical AND / OR
@@ -61,5 +69,5 @@ lazy_static::lazy_static! {
         // -------------------------
         // Assignment (=) — lowest precedence, right associative
         // -------------------------
-        .op(Op::infix(Rule::assignment_expr, Assoc::Right));
+        .op(Op::infix(Rule::operator_assignment, Assoc::Right));
 }

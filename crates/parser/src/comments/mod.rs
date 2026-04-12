@@ -10,6 +10,7 @@ use shadow_rs::shadow;
 
 shadow!(build);
 
+#[tracing::instrument]
 pub fn parse_gs_comments(src: &'_ str) -> Result<Pairs<'_, GsRule>, ParseError> {
     match GsCommentsParser::parse(GsRule::comment_program, src) {
         Ok(pairs) => Ok(pairs),
@@ -17,6 +18,7 @@ pub fn parse_gs_comments(src: &'_ str) -> Result<Pairs<'_, GsRule>, ParseError> 
     }
 }
 
+#[tracing::instrument]
 pub fn parse_soup_comments(src: &'_ str) -> Result<Pairs<'_, SoupRule>, ParseError> {
     match SoupCommentsParser::parse(SoupRule::comment_program, src) {
         Ok(pairs) => Ok(pairs),

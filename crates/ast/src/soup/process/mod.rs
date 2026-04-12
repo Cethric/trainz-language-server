@@ -9,6 +9,7 @@ use trainz_common::range::{pair_to_range, pos_to_range};
 use trainz_parser::soup::grammar::Rule;
 use value::process_value;
 
+#[tracing::instrument]
 pub fn process_soup_ast(pairs: Pairs<Rule>, src: &str) -> Soup {
     let mut key_value_pairs = vec![];
     let mut root_range = Range::default();
@@ -39,6 +40,7 @@ pub fn process_soup_ast(pairs: Pairs<Rule>, src: &str) -> Soup {
     }
 }
 
+#[tracing::instrument]
 pub fn process_key_value_pair(pair: Pair<Rule>) -> KeyValuePair {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();

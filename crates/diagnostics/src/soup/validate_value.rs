@@ -7,6 +7,7 @@ use tracing::warn;
 use trainz_ast::soup::{NumericValue, Value};
 use trainz_soup_validators::{ContainerRule, Validation, Validators};
 
+#[tracing::instrument]
 pub fn validate_value(
     value: &Value,
     rule: &ContainerRule,

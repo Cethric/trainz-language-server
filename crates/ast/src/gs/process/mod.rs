@@ -7,13 +7,16 @@ use trainz_parser::gs::grammar::Rule;
 
 mod class;
 mod expr;
+#[cfg(test)]
+mod expr_tests;
 mod helpers;
 mod include;
 mod stmt;
 #[cfg(test)]
 mod tests;
 
-pub fn process_trainz_ast(pairs: Pairs<Rule>, _src: &str) -> Program {
+#[tracing::instrument]
+pub fn process_trainz_ast(pairs: Pairs<Rule>, src: &str) -> Program {
     let mut includes = vec![];
     let mut class_definitions = HashMap::new();
     let mut root_range = tower_lsp_server::ls_types::Range::default();
@@ -55,5 +58,6 @@ pub fn process_trainz_ast(pairs: Pairs<Rule>, _src: &str) -> Program {
         includes,
         classes: class_definitions,
         range: root_range,
+        src: src.to_string(),
     }
 }

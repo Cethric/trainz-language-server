@@ -17,6 +17,7 @@ shadow-rs = { workspace = true }
 tower-lsp-server = { workspace = true }
 trainz-ast = { workspace = true }
 rayon = { workspace = true }
+tracing = { workspace = true }
 
 [build-dependencies]
 shadow-rs = { version = "1.7" }

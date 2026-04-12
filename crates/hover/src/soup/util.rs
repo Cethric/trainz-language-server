@@ -1,5 +1,6 @@
 use trainz_ast::soup::value::Value;
 
+#[tracing::instrument]
 pub fn is_in_range(
     position: tower_lsp_server::ls_types::Position,
     range: &trainz_ast::Range,
@@ -16,6 +17,7 @@ pub fn is_in_range(
     true
 }
 
+#[tracing::instrument]
 pub fn get_value_range(value: &Value) -> trainz_ast::Range {
     value.range()
 }

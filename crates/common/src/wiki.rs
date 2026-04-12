@@ -1,3 +1,4 @@
+#[tracing::instrument]
 pub fn get_wiki_kind_name(kind_name: &str) -> String {
     let mapping = [
         ("achievement-category", "Achievement-category"),
@@ -52,6 +53,7 @@ pub fn get_wiki_kind_name(kind_name: &str) -> String {
     kind_name.to_string()
 }
 
+#[tracing::instrument]
 pub fn get_wiki_container_name(container_name: &str) -> String {
     let mapping = [
         ("achievements", "Achievements"),

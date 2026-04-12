@@ -3,6 +3,7 @@ use pest::iterators::Pair;
 use trainz_common::range::pair_to_range;
 use trainz_parser::gs::grammar::Rule;
 
+#[tracing::instrument]
 pub fn process_identifier(pair: Pair<Rule>) -> Identifier {
     let name = pair.as_str().to_string();
     let range = pair_to_range(&pair);
@@ -28,6 +29,7 @@ pub fn process_identifier(pair: Pair<Rule>) -> Identifier {
     }
 }
 
+#[tracing::instrument]
 pub fn process_type(pair: Pair<Rule>) -> Type {
     let range = pair_to_range(&pair);
     match pair.as_rule() {
@@ -55,6 +57,7 @@ pub fn process_type(pair: Pair<Rule>) -> Type {
     }
 }
 
+#[tracing::instrument]
 pub fn process_type_or_void(pair: Pair<Rule>) -> TypeOrVoid {
     let range = pair_to_range(&pair);
     match pair.as_rule() {

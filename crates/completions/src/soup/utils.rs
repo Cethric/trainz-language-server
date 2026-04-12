@@ -1,5 +1,6 @@
 use tower_lsp_server::ls_types::{Position, Range};
 
+#[tracing::instrument]
 pub fn is_in_range(position: Position, range: &Range) -> bool {
     if position.line < range.start.line || position.line > range.end.line {
         return false;

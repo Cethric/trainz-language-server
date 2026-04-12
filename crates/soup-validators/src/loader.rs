@@ -11,6 +11,7 @@ use trainz_parser::soup::parse_soup;
 use crate::Validation;
 use crate::models::{ArrayElementType, ContainerRule, ContainerValidator, Validators};
 
+#[tracing::instrument]
 fn parse_rule(key: String, rule_details: Vec<KeyValuePair>) -> ContainerRule {
     let mut type_name = None;
     let mut kind = None;
@@ -139,6 +140,7 @@ fn parse_rule(key: String, rule_details: Vec<KeyValuePair>) -> ContainerRule {
     }
 }
 
+#[tracing::instrument]
 fn parse_simple_validator(validator_soup: Soup) -> HashMap<String, Option<String>> {
     let mut allowed_values: HashMap<String, Option<String>> = HashMap::new();
     for kv in validator_soup.key_value_pairs {
@@ -156,6 +158,7 @@ fn parse_simple_validator(validator_soup: Soup) -> HashMap<String, Option<String
     allowed_values
 }
 
+#[tracing::instrument]
 fn parse_numeric_as_bool(numeric_value: &NumericValue) -> bool {
     match numeric_value {
         NumericValue::Float(v) => *v > 0f64,
@@ -164,6 +167,7 @@ fn parse_numeric_as_bool(numeric_value: &NumericValue) -> bool {
     }
 }
 
+#[tracing::instrument]
 fn parse_validation(validators: &Vec<KeyValuePair>) -> Option<Vec<Validation>> {
     let mut validations = vec![];
 
@@ -231,6 +235,7 @@ fn parse_validation(validators: &Vec<KeyValuePair>) -> Option<Vec<Validation>> {
 type SimpleValidators = HashMap<String, HashMap<String, Option<String>>>;
 type ContainerValidators = Vec<ContainerValidator>;
 
+#[tracing::instrument]
 fn process_file(
     filename: &str,
     validator_content: &str,
@@ -397,6 +402,7 @@ fn process_file(
     }
 }
 
+#[tracing::instrument]
 pub fn load_validators(validation_path: &Path) -> Validators {
     let mut simple_validators: SimpleValidators = HashMap::new();
     let mut container_validators: ContainerValidators = vec![];

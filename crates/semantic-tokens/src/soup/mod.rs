@@ -10,6 +10,7 @@ use trainz_ast::soup::Value;
 use trainz_ast::soup::base::Soup;
 use trainz_soup_validators::{ArrayElementType, Validators};
 
+#[tracing::instrument]
 pub fn soup_semantic_tokens(
     soup: &Soup,
     validators: Option<&Validators>,

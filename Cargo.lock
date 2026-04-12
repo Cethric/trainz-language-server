@@ -2109,6 +2109,7 @@ dependencies = [
  "rayon",
  "shadow-rs",
  "tower-lsp-server",
+ "tracing",
  "trainz-ast",
  "trainz-parser",
 ]
@@ -2129,6 +2130,7 @@ dependencies = [
  "shadow-rs",
  "tempfile",
  "tower-lsp-server",
+ "tracing",
  "trainz-ast",
  "trainz-common",
  "trainz-parser",
@@ -2172,6 +2174,7 @@ dependencies = [
  "pest_derive",
  "shadow-rs",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -2182,6 +2185,7 @@ dependencies = [
  "rayon",
  "shadow-rs",
  "tower-lsp-server",
+ "tracing",
  "trainz-ast",
  "trainz-parser",
  "trainz-soup-validators",

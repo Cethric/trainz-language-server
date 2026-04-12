@@ -3,6 +3,7 @@ use pest::iterators::Pair;
 use trainz_common::range::pair_to_range;
 use trainz_parser::soup::grammar::Rule;
 
+#[tracing::instrument]
 pub fn process_kuid(pair: Pair<Rule>) -> Kuid {
     let range = pair_to_range(&pair);
     let mut user_id = 0;

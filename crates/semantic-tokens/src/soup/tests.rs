@@ -17,7 +17,7 @@ mod tests {
         "#;
         let pairs = parse_soup(code).unwrap();
         let soup = process_soup_ast(pairs, code);
-        let tokens = crate::process_raw_tokens(soup_semantic_tokens(&soup, None));
+        let tokens = crate::process_raw_tokens(soup_semantic_tokens(&soup, None), Some(code));
 
         // We expect tokens for `container` (keyword/string?), `key` (keyword), `"value"` (string), `number` (keyword), `42` (number).
         assert!(!tokens.is_empty());
@@ -28,7 +28,7 @@ mod tests {
         let code = "multi_digit 123456\nfloat_val 12.345f\nstring_val \"hello world\"\nkuid_val <KUID:123456:7890>\nvar_val $(my_variable)";
         let pairs = parse_soup(code).unwrap();
         let soup = process_soup_ast(pairs, code);
-        let tokens = crate::process_raw_tokens(soup_semantic_tokens(&soup, None));
+        let tokens = crate::process_raw_tokens(soup_semantic_tokens(&soup, None), Some(code));
 
         let type_number = crate::legend::get_token_type(SemanticTokenType::NUMBER);
         let type_string = crate::legend::get_token_type(SemanticTokenType::STRING);
@@ -95,7 +95,7 @@ mod tests {
         "#;
         let pairs = parse_soup(code).unwrap();
         let soup = process_soup_ast(pairs, code);
-        let tokens = crate::process_raw_tokens(soup_semantic_tokens(&soup, None));
+        let tokens = crate::process_raw_tokens(soup_semantic_tokens(&soup, None), Some(code));
         let type_string = crate::legend::get_token_type(SemanticTokenType::STRING);
 
         // We expect 3 tokens for the string literal, one for each line.
@@ -170,7 +170,7 @@ mod tests {
         let code = "key \"💩\""; // 💩 is 1 char, 2 UTF-16 units
         let pairs = parse_soup(code).unwrap();
         let soup = process_soup_ast(pairs, code);
-        let tokens = crate::process_raw_tokens(soup_semantic_tokens(&soup, None));
+        let tokens = crate::process_raw_tokens(soup_semantic_tokens(&soup, None), Some(code));
         let type_string = crate::legend::get_token_type(SemanticTokenType::STRING);
 
         // \"💩\" should have length 4 (2 for quotes + 2 for 💩)

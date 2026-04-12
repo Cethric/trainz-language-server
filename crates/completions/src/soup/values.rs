@@ -7,6 +7,7 @@ use trainz_ast::soup::value::Value;
 use trainz_common::wiki::get_wiki_kind_name;
 use trainz_soup_validators::Validators;
 
+#[tracing::instrument]
 pub fn add_value_completions(
     key: &str,
     value: Option<&Value>,

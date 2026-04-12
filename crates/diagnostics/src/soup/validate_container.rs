@@ -5,6 +5,7 @@ use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity};
 use trainz_ast::soup::Value;
 use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validation, Validators};
 
+#[tracing::instrument]
 fn validate_compulsory_keys(
     container_kv: &[trainz_ast::soup::KeyValuePair],
     found_keys: &std::collections::HashSet<String>,
@@ -52,6 +53,7 @@ fn validate_compulsory_keys(
     }
 }
 
+#[tracing::instrument]
 pub fn validate_container(
     container_kv: &[trainz_ast::soup::KeyValuePair],
     validator: &ContainerValidator,

@@ -4,15 +4,17 @@ use rayon::prelude::*;
 use trainz_ast::gs::process::process_trainz_ast;
 use trainz_parser::gs::grammar::{GameScriptParser, Rule};
 
+#[tracing::instrument]
 fn get_token_type(target: tower_lsp_server::ls_types::SemanticTokenType) -> u32 {
     let (types, _) = crate::legend::get_legend();
     types.par_iter().position_first(|t| *t == target).unwrap() as u32
 }
 
+#[tracing::instrument]
 fn get_tokens_for_src(src: &str) -> Vec<tower_lsp_server::ls_types::SemanticToken> {
     let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
     let program = process_trainz_ast(pairs, src);
-    crate::process_raw_tokens(semantic_tokens(&program))
+    crate::process_raw_tokens(semantic_tokens(&program), Some(src))
 }
 
 #[test]
@@ -77,7 +79,7 @@ fn test_string_literal_tokens() {
     let src = "class Test { void Main() { string s = \"hello\"; } };";
     let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
     let program = process_trainz_ast(pairs, src);
-    let tokens = crate::process_raw_tokens(semantic_tokens(&program));
+    let tokens = crate::process_raw_tokens(semantic_tokens(&program), Some(src));
 
     // \"hello\" - length 7, token_type STRING
     let type_string = get_token_type(tower_lsp_server::ls_types::SemanticTokenType::STRING);
@@ -96,7 +98,7 @@ fn test_field_literal_tokens() {
     let src = "class Test { bool b = true; string s = \"hello\"; float f = 1.0f; int i = 123; };";
     let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
     let program = process_trainz_ast(pairs, src);
-    let tokens = crate::process_raw_tokens(semantic_tokens(&program));
+    let tokens = crate::process_raw_tokens(semantic_tokens(&program), Some(src));
 
     let type_keyword = get_token_type(tower_lsp_server::ls_types::SemanticTokenType::KEYWORD);
     let type_string = get_token_type(tower_lsp_server::ls_types::SemanticTokenType::STRING);
@@ -136,11 +138,57 @@ fn test_field_literal_tokens() {
 }
 
 #[test]
+fn test_gs_complex_constructs_tokens() {
+    let src = r#"
+        include "test.gs";
+        include "other.gs";
+
+        class Test isclass Super {
+            public static int a = 1, b = 2;
+            string s = "multi-line
+            string";
+
+            public void Main(string[] args) {
+                int x = 10;
+                if (x > 0) {
+                    x = cast<int>(123);
+                    x = (int)456;
+                    x++;
+                    --x;
+                }
+                while (false) {
+                    break;
+                }
+                int i;
+                for (i = 0; i < 10; i++) {
+                    continue;
+                }
+                switch (x) {
+                    case 1:
+                        x = 1;
+                        break;
+                    default:
+                        x = 2;
+                }
+                on "event", "target" {
+                    x = 0;
+                }
+                wait() {
+                    x = -1;
+                }
+            }
+        };
+    "#;
+    let tokens = get_tokens_for_src(src);
+    assert!(!tokens.is_empty());
+}
+
+#[test]
 fn test_multi_digit_number_tokens() {
     let src = "class Test { void Main() { int i = 12345; float f = 123.45f; } };";
     let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
     let program = process_trainz_ast(pairs, src);
-    let tokens = crate::process_raw_tokens(semantic_tokens(&program));
+    let tokens = crate::process_raw_tokens(semantic_tokens(&program), Some(src));
 
     // 12345 - length 5, token_type NUMBER
     let type_number = get_token_type(tower_lsp_server::ls_types::SemanticTokenType::NUMBER);
@@ -204,6 +252,55 @@ fn test_method_call_tokens() {
 }
 
 #[test]
+fn test_switch_case_body_tokens() {
+    let src = r#"
+        class Test {
+            void Main() {
+                int x = 10;
+                switch (x) {
+                    case 1:
+                        int y = 20;
+                        break;
+                    default:
+                        int z = 30;
+                }
+            }
+        };
+    "#;
+    let tokens = get_tokens_for_src(src);
+
+    let type_keyword = get_token_type(tower_lsp_server::ls_types::SemanticTokenType::KEYWORD);
+    let type_variable = get_token_type(tower_lsp_server::ls_types::SemanticTokenType::VARIABLE);
+    let type_number = get_token_type(tower_lsp_server::ls_types::SemanticTokenType::NUMBER);
+
+    // Find 'case' keyword
+    let case_token = tokens
+        .iter()
+        .find(|t| t.token_type == type_keyword && t.length == 4);
+    assert!(case_token.is_some(), "Should find 'case' keyword");
+
+    // Find 'default' keyword
+    let default_token = tokens
+        .iter()
+        .find(|t| t.token_type == type_keyword && t.length == 7);
+    assert!(default_token.is_some(), "Should find 'default' keyword");
+
+    // Verify all variables are present (x, y, z)
+    let var_tokens: Vec<_> = tokens
+        .iter()
+        .filter(|t| t.token_type == type_variable && t.length == 1)
+        .collect();
+    assert!(var_tokens.len() >= 3, "Should find at least 3 variable tokens (x, y, z). Found: {}", var_tokens.len());
+
+    // Verify all numbers are present (10, 20, 30)
+    let num_tokens: Vec<_> = tokens
+        .iter()
+        .filter(|t| t.token_type == type_number && t.length == 2)
+        .collect();
+    assert!(num_tokens.len() >= 3, "Should find at least 3 number tokens (10, 20, 30). Found: {}", num_tokens.len());
+}
+
+#[test]
 fn test_link_prop_tokens() {
     let src = "class Test { public void LinkPropertyValue(string pid) { inherited(pid); } };";
     let pairs = trainz_parser::gs::grammar::GameScriptParser::parse(
@@ -212,7 +309,7 @@ fn test_link_prop_tokens() {
     )
     .unwrap();
     let program = trainz_ast::gs::process::process_trainz_ast(pairs, src);
-    let tokens = crate::process_raw_tokens(crate::gs::semantic_tokens(&program));
+    let tokens = crate::process_raw_tokens(crate::gs::semantic_tokens(&program), Some(src));
     println!(
         "{:#?}",
         program
@@ -403,4 +500,31 @@ fn test_method_modifiers_native_with_body() {
     let modifiers = &method_token.2;
     assert!(modifiers.contains(&SemanticTokenModifier::DEFINITION));
     assert!(modifiers.contains(&SemanticTokenModifier::DECLARATION));
+}
+
+#[test]
+fn test_signal_gs_tokens() {
+    let src = "
+    class Signal {
+        void Init() {
+            me.Init();
+            cast<Vehicle>(nextObject);
+            new Object();
+            new int[10];
+        }
+    };";
+    let tokens = get_tokens_for_src(src);
+    let type_keyword = get_token_type(tower_lsp_server::ls_types::SemanticTokenType::KEYWORD);
+
+    // Check for 'me'
+    let me_token = tokens.iter().find(|t| t.token_type == type_keyword && t.length == 2);
+    assert!(me_token.is_some(), "Should find 'me' keyword token");
+
+    // Check for 'cast'
+    let cast_token = tokens.iter().find(|t| t.token_type == type_keyword && t.length == 4);
+    assert!(cast_token.is_some(), "Should find 'cast' keyword token");
+
+    // Check for 'new' (there should be two)
+    let new_tokens: Vec<_> = tokens.iter().filter(|t| t.token_type == type_keyword && t.length == 3).collect();
+    assert!(new_tokens.len() >= 2, "Should find at least two 'new' keyword tokens");
 }

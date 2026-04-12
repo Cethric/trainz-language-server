@@ -7,6 +7,7 @@ use trainz_common::range::clamp_range;
 use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validators};
 
 #[allow(deprecated)]
+#[tracing::instrument]
 pub fn soup_symboliser(soup: &Soup, validators: Option<&Validators>) -> Vec<DocumentSymbol> {
     let mut symbols = vec![];
 
@@ -31,6 +32,7 @@ pub fn soup_symboliser(soup: &Soup, validators: Option<&Validators>) -> Vec<Docu
 }
 
 #[allow(deprecated)]
+#[tracing::instrument]
 fn process_key_value_symbol(
     kv: &KeyValuePair,
     validator: Option<&ContainerValidator>,

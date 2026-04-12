@@ -9,6 +9,7 @@ use crate::soup::keys::add_key_completions_from_validator;
 use crate::soup::utils::is_in_range;
 use crate::soup::values::add_value_completions;
 
+#[tracing::instrument]
 pub fn find_completions_recursive(
     kvs: &[KeyValuePair],
     position: Position,

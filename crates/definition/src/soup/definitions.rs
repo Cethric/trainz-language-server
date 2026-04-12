@@ -6,6 +6,7 @@ use trainz_ast::soup::base::Soup;
 use trainz_ast::soup::key_value_pair::KeyValuePair;
 use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validators};
 
+#[tracing::instrument]
 pub fn soup_goto_definition(
     soup: &Soup,
     position: Position,
@@ -38,6 +39,7 @@ enum DefinitionResult {
     Location(Location),
 }
 
+#[tracing::instrument]
 fn find_definition_recursive(
     kvs: &[KeyValuePair],
     position: Position,
@@ -144,6 +146,7 @@ fn find_definition_recursive(
     None
 }
 
+#[tracing::instrument]
 fn is_in_range(pos: Position, range: &trainz_ast::Range) -> bool {
     if pos.line < range.start.line || pos.line > range.end.line {
         return false;
@@ -157,10 +160,12 @@ fn is_in_range(pos: Position, range: &trainz_ast::Range) -> bool {
     true
 }
 
+#[tracing::instrument]
 fn get_value_range(value: &Value) -> trainz_ast::Range {
     value.range()
 }
 
+#[tracing::instrument]
 fn find_all_key_locations(soup: &Soup, target: &str, uri: &Uri, locations: &mut Vec<Location>) {
     for kv in &soup.key_value_pairs {
         if kv.key == target {
@@ -175,6 +180,7 @@ fn find_all_key_locations(soup: &Soup, target: &str, uri: &Uri, locations: &mut 
     }
 }
 
+#[tracing::instrument]
 fn find_all_key_locations_inner(
     kv_pairs: &Vec<KeyValuePair>,
     target: &str,

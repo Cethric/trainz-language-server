@@ -2,6 +2,7 @@ use crate::util::add_folding_range;
 use tower_lsp_server::ls_types::FoldingRange;
 use trainz_ast::gs::{Block, LoopBody, Stmt};
 
+#[tracing::instrument]
 pub fn collect_block_folding_ranges(block: &Block, result: &mut Vec<FoldingRange>) {
     for stmt in &block.statements {
         match stmt {

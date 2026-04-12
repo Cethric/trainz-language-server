@@ -4,6 +4,7 @@ use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity};
 use trainz_ast::Range;
 use trainz_ast::soup::Value;
 
+#[tracing::instrument]
 pub fn validate_simple_value(
     value: &Value,
     key_to_check: &str,
@@ -25,6 +26,7 @@ pub fn validate_simple_value(
     );
 }
 
+#[tracing::instrument]
 pub fn validate_simple_value_str(
     range: Range,
     value: &str,

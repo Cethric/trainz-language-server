@@ -3,6 +3,7 @@ use tower_lsp_server::ls_types::{Hover, MarkupContent, MarkupKind};
 use trainz_common::wiki::get_wiki_kind_name;
 use trainz_soup_validators::ContainerRule;
 
+#[tracing::instrument]
 pub fn create_hover_from_rule(rule: &ContainerRule, range: &trainz_ast::Range) -> Option<Hover> {
     let mut doc = format!("### Key: `{}`\n", rule.key);
     if let Some(t) = &rule.type_name {

@@ -3,6 +3,7 @@ use pest::iterators::Pair;
 use trainz_common::range::pair_to_range;
 use trainz_parser::gs::grammar::Rule;
 
+#[tracing::instrument]
 pub fn process_include(include_rule: Pair<Rule>) -> Option<Include> {
     let range = pair_to_range(&include_rule);
     let mut include = Include {

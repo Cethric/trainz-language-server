@@ -2,6 +2,7 @@ use crate::gs::types::collect_type_tokens;
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
 use trainz_ast::gs::{Expr, PostfixOp};
 
+#[tracing::instrument]
 pub fn collect_expr_tokens(
     expr: &Expr,
     raw_tokens: &mut Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)>,
@@ -119,17 +120,37 @@ pub fn collect_expr_tokens(
                 }
             }
         }
-        Expr::Cast { ty, expr, .. } => {
+        Expr::Cast {
+            ty,
+            expr,
+            keyword_cast_range,
+            ..
+        } => {
+            if let Some(r) = keyword_cast_range {
+                raw_tokens.push((*r, SemanticTokenType::KEYWORD, vec![]));
+            }
             collect_type_tokens(ty, raw_tokens);
             collect_expr_tokens(expr, raw_tokens, known_classes);
         }
-        Expr::NewObject { ty, args, .. } => {
+        Expr::NewObject {
+            ty,
+            args,
+            keyword_new_range,
+            ..
+        } => {
+            raw_tokens.push((*keyword_new_range, SemanticTokenType::KEYWORD, vec![]));
             collect_type_tokens(ty, raw_tokens);
             for arg in args {
                 collect_expr_tokens(arg, raw_tokens, known_classes);
             }
         }
-        Expr::NewArray { ty, size, .. } => {
+        Expr::NewArray {
+            ty,
+            size,
+            keyword_new_range,
+            ..
+        } => {
+            raw_tokens.push((*keyword_new_range, SemanticTokenType::KEYWORD, vec![]));
             collect_type_tokens(ty, raw_tokens);
             collect_expr_tokens(size, raw_tokens, known_classes);
         }

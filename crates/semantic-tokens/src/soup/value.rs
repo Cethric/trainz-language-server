@@ -3,6 +3,7 @@ use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType
 use trainz_ast::soup::Value;
 use trainz_soup_validators::{ArrayElementType, ContainerValidator, Validators};
 
+#[tracing::instrument]
 pub fn collect_value_tokens(
     value: &Value,
     raw_tokens: &mut Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)>,
@@ -15,48 +16,7 @@ pub fn collect_value_tokens(
             raw_tokens.push((*range, SemanticTokenType::NUMBER, vec![]));
         }
         Value::String(_s, range) => {
-            let start_offset = get_offset(src, range.start);
-            let end_offset = get_offset(src, range.end);
-            let text = &src[start_offset..end_offset];
-
-            if range.start.line == range.end.line {
-                let len: u32 = text.chars().map(|c| c.len_utf16() as u32).sum();
-                let r = Range {
-                    start: range.start,
-                    end: tower_lsp_server::ls_types::Position {
-                        line: range.start.line,
-                        character: range.start.character + len,
-                    },
-                };
-                raw_tokens.push((r, SemanticTokenType::STRING, vec![]));
-            } else {
-                // Split multi-line string
-                let mut current_line = range.start.line;
-                let mut current_char = range.start.character;
-
-                let lines = text.split('\n');
-                for (i, line) in lines.enumerate() {
-                    let line_trimmed = line.trim_end_matches('\r');
-                    let len: u32 = line_trimmed.chars().map(|c| c.len_utf16() as u32).sum();
-
-                    if len > 0 || i == 0 {
-                        let r = Range {
-                            start: tower_lsp_server::ls_types::Position {
-                                line: current_line,
-                                character: current_char,
-                            },
-                            end: tower_lsp_server::ls_types::Position {
-                                line: current_line,
-                                character: current_char + len,
-                            },
-                        };
-                        raw_tokens.push((r, SemanticTokenType::STRING, vec![]));
-                    }
-
-                    current_line += 1;
-                    current_char = 0;
-                }
-            }
+            raw_tokens.push((*range, SemanticTokenType::STRING, vec![]));
         }
         Value::Kuid(_k, range) => {
             raw_tokens.push((
@@ -129,25 +89,6 @@ pub fn collect_value_tokens(
     }
 }
 
-fn get_offset(src: &str, pos: tower_lsp_server::ls_types::Position) -> usize {
-    let mut line = 0;
-    let mut character = 0;
-
-    for (offset, c) in src.char_indices() {
-        if line == pos.line as usize && character == pos.character as usize {
-            return offset;
-        }
-
-        if c == '\n' {
-            line += 1;
-            character = 0;
-        } else {
-            character += c.len_utf16();
-        }
-    }
-    src.len()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,43 +96,24 @@ mod tests {
     use trainz_ast::soup::Value;
 
     #[test]
-    fn test_collect_value_tokens_utf8_panic() {
-        let src = "multi-line\nstring with é and е:\nsecond line";
+    fn test_collect_value_tokens_no_panic() {
+        let _src = "multi-line\nstring";
         let range = Range {
             start: Position {
                 line: 0,
                 character: 0,
             },
             end: Position {
-                line: 2,
+                line: 1,
                 character: 5,
             },
         };
         let value = Value::String(
-            "multi-line\nstring with é and е:\nsecond line".to_string(),
+            "multi-line\nstring".to_string(),
             range,
         );
         let mut raw_tokens = Vec::new();
 
-        // This should not panic
-        println!(
-            "Start offset: {}, End offset: {}",
-            get_offset(src, range.start),
-            get_offset(src, range.end)
-        );
-        collect_value_tokens(&value, &mut raw_tokens, None, None, src);
-    }
-
-    #[test]
-    fn test_get_offset_with_surrogate_pair() {
-        let src = "💩a";
-        // '💩' is U+1F4A9, which takes 2 UTF-16 units.
-        // 'a' is at UTF-16 offset 2.
-        let pos = Position {
-            line: 0,
-            character: 2,
-        };
-        let offset = get_offset(src, pos);
-        assert_eq!(offset, 4); // '💩' is 4 bytes in UTF-8
+        collect_value_tokens(&value, &mut raw_tokens, None, None, _src);
     }
 }

@@ -19,7 +19,8 @@ COMMENT = _{ line_comment | block_comment }
     **********************************************
 */
 
-program = _{ SOI ~ ((include_statement | class_definition)*) ~ EOI }
+program            = _{ SOI ~ (include_statement | class_definition | error_recovery_top)* ~ EOI }
+error_recovery_top = _{ !(keyword_include | keyword_class | EOI) ~ ANY }
 
 /*
     **********************************************
@@ -43,10 +44,11 @@ class_modifiers = { (keyword_final | keyword_game | keyword_static | obsolete_st
 
 class_inheritance = { (keyword_is_class ~ superclass_name ~ (comma ~ superclass_name)*) | "" }
 
-class_definition = {
+class_definition     =  {
     (class_modifiers ~ keyword_class ~ #class_name = class_name ~ class_inheritance ~ class_body ~ semicolon)
 }
-class_body       = { brace_open ~ (class_method | class_member)* ~ brace_close }
+class_body           =  { brace_open ~ (class_method | class_member | error_recovery_class)* ~ brace_close }
+error_recovery_class = _{ !(keyword_static | keyword_public | keyword_thread | type_bool | type_int | type_float | type_string | type_void | identifier | brace_close) ~ ANY }
 
 /*
     **********************************************
@@ -96,9 +98,10 @@ statement_label =  { label ~ colon ~ semicolon | label ~ colon }
 
 statement_goto = { keyword_goto ~ label }
 
-statements = {
-    (statement_with_line_end | statement_without_line_end)*
+statements          =  {
+    (statement_with_line_end | statement_without_line_end | error_recovery_stmt)*
 }
+error_recovery_stmt = _{ !(keyword_if | keyword_for | keyword_while | keyword_switch | keyword_wait | keyword_on | keyword_return | keyword_break | keyword_continue | keyword_case | keyword_default | type_bool | type_int | type_float | type_string | type_void | semicolon | brace_close) ~ ANY }
 
 statement_without_line_end = _{
     statement_if
@@ -124,35 +127,21 @@ statement_with_line_end = _{
 statement_expression = _{ assignment_expr }
 
 assignment_expr = {
-    logical_or_expr ~ (operator_assignment ~ assignment_expr)?
+    unary_expr ~ (bin_op ~ unary_expr)*
 }
 
-logical_or_expr = {
-    logical_and_expr ~ (operator_logical_or ~ logical_and_expr)*
-}
-
-logical_and_expr = {
-    equality_expr ~ (operator_logical_and ~ equality_expr)*
-}
-
-equality_expr = {
-    comparison_expr ~ (operator_equality ~ comparison_expr)*
-}
-
-comparison_expr = {
-    bitwise_expr ~ (operator_comparison ~ bitwise_expr)*
-}
-
-bitwise_expr = {
-    additive_expr ~ (operator_bitwise ~ additive_expr)*
-}
-
-additive_expr = {
-    multiplicative_expr ~ ((operator_math_add | operator_math_subtract) ~ multiplicative_expr)*
-}
-
-multiplicative_expr = {
-    unary_expr ~ ((operator_math_multiply | operator_math_divide | operator_math_modulo) ~ unary_expr)*
+bin_op = _{
+    operator_logical_or
+  | operator_logical_and
+  | operator_equality
+  | operator_bitwise
+  | operator_comparison
+  | operator_assignment
+  | operator_math_add
+  | operator_math_subtract
+  | operator_math_multiply
+  | operator_math_divide
+  | operator_math_modulo
 }
 
 /*
@@ -226,17 +215,17 @@ statement_cast = {
 
 declaration_name = @{ #declaration_name = identifier }
 
-statement_declaration_value = _{ new_array | new_object | statement_expression }
+statement_declaration_value = _{ statement_expression }
 
 statement_declaration = {
     (type_array | types) ~ (declaration_name ~ (comma ~ declaration_name)*) ~ (operator_assignment ~ statement_declaration_value ~ (comma ~ statement_declaration_value)*)?
 }
 
 statement_assignment = {
-    postfix_expr ~ operator_assignment ~ (keyword_boolean | new_array | new_object | statement_expression)
+    postfix_expr ~ operator_assignment ~ statement_expression
 }
 
-statement_return   = { keyword_return ~ (keyword_boolean | new_array | new_object | statement_expression) | keyword_return }
+statement_return   = { keyword_return ~ statement_expression | keyword_return }
 statement_break    = { keyword_break }
 statement_continue = { keyword_continue }
 
@@ -275,14 +264,15 @@ statement_on  = {
 on_body_block = { brace_open ~ statements? ~ brace_close }
 on_body       = { statements }
 
-statement_switch_block = { brace_open ~ (statement_case | statement_default)* ~ brace_close }
+statement_switch_block =  { brace_open ~ (statement_case | statement_default | error_recovery_case)* ~ brace_close }
+error_recovery_case    = _{ !(keyword_case | keyword_default | brace_close) ~ ANY }
 
 statement_switch = {
     keyword_switch ~ paren_open ~ statement_expression ~ paren_close ~ statement_switch_block
 }
 
 statement_case = {
-    keyword_case ~ postfix_expr ~ colon ~ statements
+    keyword_case ~ statement_expression ~ colon ~ statements
 }
 
 statement_default = {
@@ -296,7 +286,7 @@ statement_default = {
 */
 
 statement_method_name      = @{ identifier }
-statement_method_argument  = _{ statement_expression | literal }
+statement_method_argument  = _{ statement_expression }
 statement_method_arguments =  { statement_method_argument ~ (comma ~ statement_method_argument)* }
 statement_method_call      =  { paren_open ~ statement_method_arguments? ~ paren_close }
 statement_method           =  { statement_method_name ~ statement_method_call }
@@ -308,7 +298,7 @@ inherited_method           =  { keyword_inherited ~ statement_method_call }
     **********************************************
 */
 
-new_object_argument  = _{ literal | postfix_expr }
+new_object_argument  = _{ statement_expression }
 new_object_arguments =  { new_object_argument ~ (comma ~ new_object_argument)* }
 
 new_object = {
@@ -316,7 +306,7 @@ new_object = {
 }
 
 new_array = {
-    keyword_new ~ types ~ bracket_open ~ (integer | postfix_expr) ~ bracket_close
+    keyword_new ~ types ~ bracket_open ~ statement_expression ~ bracket_close
 }
 
 /*

@@ -306,7 +306,7 @@ async fn test_semantic_tokens_update() {
         );
 
         let public_token = tokens.data.par_iter().find_first(|t| {
-            t.length == 6 && t.token_type == get_token_type(SemanticTokenType::MODIFIER)
+            t.length == 6 && t.token_type == get_token_type(SemanticTokenType::KEYWORD)
         });
         assert!(
             public_token.is_some(),

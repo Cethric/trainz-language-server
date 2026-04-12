@@ -8,6 +8,7 @@ pub struct Program {
     pub includes: Vec<Include>,
     pub classes: HashMap<String, ClassDef>,
     pub range: crate::Range,
+    pub src: String,
 }
 
 impl HasRange for Program {

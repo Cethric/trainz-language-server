@@ -3,6 +3,7 @@ use crate::gs::types::collect_type_tokens;
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
 use trainz_ast::gs::{Identifier, MethodModifier, Param, Stmt};
 
+#[tracing::instrument]
 pub fn collect_method_tokens(
     modifiers: &[(MethodModifier, Range)],
     return_type: &trainz_ast::gs::types::TypeOrVoid,
@@ -20,14 +21,14 @@ pub fn collect_method_tokens(
     for (modifier, range) in modifiers {
         let (token_type, modifiers_bitset) = match modifier {
             MethodModifier::Static => (
-                SemanticTokenType::MODIFIER,
+                SemanticTokenType::KEYWORD,
                 vec![SemanticTokenModifier::STATIC],
             ),
             MethodModifier::Obsolete(_) => (
-                SemanticTokenType::MODIFIER,
+                SemanticTokenType::KEYWORD,
                 vec![SemanticTokenModifier::DEPRECATED],
             ),
-            _ => (SemanticTokenType::MODIFIER, vec![]),
+            _ => (SemanticTokenType::KEYWORD, vec![]),
         };
         raw_tokens.push((*range, token_type, modifiers_bitset));
     }

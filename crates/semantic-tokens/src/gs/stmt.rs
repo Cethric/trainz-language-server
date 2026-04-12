@@ -3,6 +3,7 @@ use crate::gs::types::collect_type_tokens;
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
 use trainz_ast::gs::{LoopBody, Stmt};
 
+#[tracing::instrument]
 pub fn collect_stmt_tokens(
     stmt: &Stmt,
     raw_tokens: &mut Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)>,

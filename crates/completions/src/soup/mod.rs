@@ -10,6 +10,7 @@ pub mod values;
 #[cfg(test)]
 mod tests;
 
+#[tracing::instrument]
 pub fn soup_completions(
     soup: &Soup,
     params: CompletionParams,

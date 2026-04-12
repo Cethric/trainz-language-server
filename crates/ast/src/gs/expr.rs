@@ -66,16 +66,19 @@ pub enum Expr {
         ty: Type,
         expr: Box<Expr>,
         range: crate::Range,
+        keyword_cast_range: Option<crate::Range>,
     },
     NewObject {
         ty: Type,
         args: Vec<Expr>,
         range: crate::Range,
+        keyword_new_range: crate::Range,
     },
     NewArray {
         ty: Type,
         size: Box<Expr>, // integer | postfix_expr
         range: crate::Range,
+        keyword_new_range: crate::Range,
     },
     Literal(Literal),
     IsClass(crate::Range),

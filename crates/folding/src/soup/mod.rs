@@ -8,6 +8,7 @@ use trainz_ast::soup::base::Soup;
 #[cfg(test)]
 mod tests;
 
+#[tracing::instrument]
 pub fn soup_folding_range(soup: &Soup) -> Vec<FoldingRange> {
     soup.key_value_pairs
         .par_iter()
@@ -16,6 +17,7 @@ pub fn soup_folding_range(soup: &Soup) -> Vec<FoldingRange> {
         .collect::<Vec<FoldingRange>>()
 }
 
+#[tracing::instrument]
 fn collect_key_value_folding_ranges(value: &Value) -> Vec<FoldingRange> {
     if let Value::Container(pairs, _, full_range) = value {
         let range = *full_range;

@@ -703,14 +703,14 @@ impl LanguageServer for GameScriptLanguageServer {
         if semantic_tokens_lock.get().is_none() {
             let validators = self.validators.get().cloned();
             let tokens = tokio::task::spawn_blocking(move || {
-                let mut raw_tokens = match &parsed_file_type {
-                    ParsedFileType::GameScript(program) => semantic_tokens(program),
-                    ParsedFileType::Soup(soup) => soup_semantic_tokens(soup, validators.as_ref()),
+                let (mut raw_tokens, src) = match &parsed_file_type {
+                    ParsedFileType::GameScript(program) => (semantic_tokens(program), Some(program.src.as_str())),
+                    ParsedFileType::Soup(soup) => (soup_semantic_tokens(soup, validators.as_ref()), Some(soup.src.as_str())),
                 };
                 let mut comment_tokens =
                     trainz_semantic_tokens::comments::comments_semantic_tokens(&comments);
                 raw_tokens.append(&mut comment_tokens);
-                trainz_semantic_tokens::process_raw_tokens(raw_tokens)
+                trainz_semantic_tokens::process_raw_tokens(raw_tokens, src)
             })
             .await
             .map_err(|e| {

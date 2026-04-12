@@ -5,6 +5,7 @@ use tower_lsp_server::ls_types::{
 use tracing::debug;
 use trainz_soup_validators::{ArrayElementType, ContainerValidator};
 
+#[tracing::instrument]
 pub fn add_key_completions_from_validator(
     validator: &ContainerValidator,
     completions: &mut Vec<CompletionItem>,

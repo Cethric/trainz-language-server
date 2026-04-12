@@ -18,7 +18,7 @@ mod tests {
         let pairs = CommentsParser::parse(Rule::comment_program, src).unwrap();
         let program = process_comments(pairs.into_iter().next().unwrap(), src);
 
-        let tokens = crate::process_raw_tokens(comments_semantic_tokens(&program));
+        let tokens = crate::process_raw_tokens(comments_semantic_tokens(&program), Some(src));
 
         // We expect line comment, doc comment, block comment, and the group comment lines.
         // Group comment has 3 lines.
@@ -32,7 +32,7 @@ mod tests {
         let program = process_comments(pairs.into_iter().next().unwrap(), src);
 
         let raw_tokens = comments_semantic_tokens(&program);
-        let tokens = crate::process_raw_tokens(raw_tokens);
+        let tokens = crate::process_raw_tokens(raw_tokens, Some(src));
 
         // Should have 4 tokens, one for each line
         assert_eq!(

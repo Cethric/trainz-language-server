@@ -7,7 +7,8 @@ block_comment = _{ "/*" ~ (block_comment | !"*/" ~ ANY)* ~ "*/" }
 
 COMMENT = _{ line_comment | block_comment }
 
-soup = _{ SOI ~ newline* ~ ((key_value_pair)*) ~ newline* ~ EOI }
+soup = _{ SOI ~ newline* ~ (key_value_pair | error_recovery_soup)* ~ newline* ~ EOI }
+error_recovery_soup = _{ !key ~ !brace_close ~ !EOI ~ ANY }
 
 key_value_pair = { #tag = key ~ value? ~ newline* }
 
@@ -48,7 +49,7 @@ kuid_user_id = @{ "-"? ~ ASCII_DIGIT+ }
 kuid_content_id     = @{ "-"? ~ ASCII_DIGIT+ }
 kuid_version_number = @{ ASCII_DIGIT+ }
 
-container_value = { (newline* ~ brace_open ~ newline* ~ brace_close ~ newline*) | (newline* ~ brace_open ~ newline* ~ key_value_pair ~ key_value_pair* ~ newline* ~ brace_close) }
+container_value = { newline* ~ brace_open ~ newline* ~ (key_value_pair | error_recovery_soup)* ~ newline* ~ brace_close }
 
 double_quote = @{ "\"" }
 colon        = @{ ":" }

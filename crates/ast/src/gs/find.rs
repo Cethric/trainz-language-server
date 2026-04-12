@@ -16,18 +16,18 @@ pub fn find_postfix_at_position(program: &Program, pos: Position) -> Option<(&Ex
 
 fn find_postfix_in_class(class: &ClassDef, pos: Position) -> Option<(&Expr, usize)> {
     for field in class.fields.values() {
-        if let Some(init) = &field.initializer {
-            if let Some(res) = find_postfix_in_expr(init, pos) {
-                return Some(res);
-            }
+        if let Some(init) = &field.initializer
+            && let Some(res) = find_postfix_in_expr(init, pos)
+        {
+            return Some(res);
         }
     }
     for methods in class.methods.values() {
         for method in methods {
-            if let Some(body) = &method.body {
-                if let Some(res) = find_postfix_in_block(body, pos) {
-                    return Some(res);
-                }
+            if let Some(body) = &method.body
+                && let Some(res) = find_postfix_in_block(body, pos)
+            {
+                return Some(res);
             }
         }
     }
@@ -322,10 +322,10 @@ fn find_in_field(field: &FieldDef, pos: Position) -> Option<&Identifier> {
     if position_in_range(pos, field.name.range) {
         return Some(&field.name);
     }
-    if let Some(init) = &field.initializer {
-        if let Some(id) = find_in_expr(init, pos) {
-            return Some(id);
-        }
+    if let Some(init) = &field.initializer
+        && let Some(id) = find_in_expr(init, pos)
+    {
+        return Some(id);
     }
     None
 }

@@ -3,6 +3,7 @@ pub mod tests;
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
 use trainz_ast::comments::{Comment, CommentProgram};
 
+#[tracing::instrument]
 pub fn comments_semantic_tokens(
     program: &CommentProgram,
 ) -> Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)> {
@@ -19,35 +20,7 @@ pub fn comments_semantic_tokens(
                 raw_tokens.push((c.range, SemanticTokenType::COMMENT, modifiers));
             }
             Comment::BlockComment(c) => {
-                if c.range.start.line == c.range.end.line {
-                    raw_tokens.push((c.range, SemanticTokenType::COMMENT, vec![]));
-                } else {
-                    let lines: Vec<&str> = c.text.lines().collect();
-                    for (i, line) in lines.iter().enumerate() {
-                        let line_num = c.range.start.line + i as u32;
-                        let start_char = if i == 0 { c.range.start.character } else { 0 };
-                        let end_char = if i == lines.len() - 1 {
-                            c.range.end.character
-                        } else {
-                            line.len() as u32
-                        };
-
-                        raw_tokens.push((
-                            Range {
-                                start: tower_lsp_server::ls_types::Position {
-                                    line: line_num,
-                                    character: start_char,
-                                },
-                                end: tower_lsp_server::ls_types::Position {
-                                    line: line_num,
-                                    character: end_char,
-                                },
-                            },
-                            SemanticTokenType::COMMENT,
-                            vec![],
-                        ));
-                    }
-                }
+                raw_tokens.push((c.range, SemanticTokenType::COMMENT, vec![]));
             }
             Comment::GroupComment(c) => {
                 let first_text = c.comments.first().map(|l| l.text.as_str()).unwrap_or("");

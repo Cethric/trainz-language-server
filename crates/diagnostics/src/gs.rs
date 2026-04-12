@@ -7,6 +7,7 @@ use tower_lsp_server::ls_types::{
 use tracing::debug;
 use trainz_ast::gs::program::Program;
 
+#[tracing::instrument]
 pub fn trainz_diagnostics(program: &Program) -> Vec<Diagnostic> {
     debug!("Include paths: {:?}", program.includes);
     program

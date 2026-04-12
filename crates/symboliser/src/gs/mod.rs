@@ -14,6 +14,7 @@ pub(crate) use class::process_class_symbol;
 use trainz_ast::gs::program::Program;
 
 #[allow(deprecated)]
+#[tracing::instrument]
 pub(crate) fn process_include_symbol(include: &Include) -> DocumentSymbol {
     DocumentSymbol {
         name: include.name.clone(),
@@ -28,6 +29,7 @@ pub(crate) fn process_include_symbol(include: &Include) -> DocumentSymbol {
 }
 
 #[allow(deprecated)]
+#[tracing::instrument]
 pub fn trainz_symboliser(program: &Program) -> Vec<DocumentSymbol> {
     let mut symbols: Vec<DocumentSymbol> = program
         .includes

@@ -8,6 +8,7 @@ use trainz_ast::gs::find::find_id_at_position;
 use trainz_ast::gs::program::Program;
 use trainz_ast::gs::{Block, Expr, LoopBody, PostfixOp, Stmt, Type, TypeOrVoid};
 
+#[tracing::instrument]
 pub fn gs_find_references(
     program: Arc<Program>,
     params: ReferenceParams,
@@ -98,6 +99,7 @@ fn find_include_references(
         .collect()
 }
 
+#[tracing::instrument]
 fn find_references_in_program(program: &Program, target: &str, uri: &Uri) -> Vec<Location> {
     let mut locations = vec![];
 
@@ -160,6 +162,7 @@ fn find_references_in_program(program: &Program, target: &str, uri: &Uri) -> Vec
     locations
 }
 
+#[tracing::instrument]
 fn find_references_in_block(block: &Block, target: &str, uri: &Uri) -> Vec<Location> {
     let mut locations = vec![];
     for stmt in &block.statements {
@@ -168,6 +171,7 @@ fn find_references_in_block(block: &Block, target: &str, uri: &Uri) -> Vec<Locat
     locations
 }
 
+#[tracing::instrument]
 fn find_references_in_stmt(stmt: &Stmt, target: &str, uri: &Uri) -> Vec<Location> {
     let mut locations = vec![];
     match stmt {
@@ -270,6 +274,7 @@ fn find_references_in_stmt(stmt: &Stmt, target: &str, uri: &Uri) -> Vec<Location
     locations
 }
 
+#[tracing::instrument]
 fn find_references_in_expr(expr: &Expr, target: &str, uri: &Uri) -> Vec<Location> {
     let mut locations = vec![];
     match expr {
@@ -338,6 +343,7 @@ fn find_references_in_expr(expr: &Expr, target: &str, uri: &Uri) -> Vec<Location
     locations
 }
 
+#[tracing::instrument]
 fn find_references_in_type(ty: &Type, target: &str, uri: &Uri) -> Vec<Location> {
     let mut locations = vec![];
     match ty {
@@ -357,6 +363,7 @@ fn find_references_in_type(ty: &Type, target: &str, uri: &Uri) -> Vec<Location> 
     locations
 }
 
+#[tracing::instrument]
 fn find_references_in_type_or_void(ty: &TypeOrVoid, target: &str, uri: &Uri) -> Vec<Location> {
     match ty {
         TypeOrVoid::Type(t) => find_references_in_type(t, target, uri),

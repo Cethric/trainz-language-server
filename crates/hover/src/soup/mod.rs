@@ -17,6 +17,7 @@ use crate::soup::util::{get_value_range, is_in_range};
 use crate::soup::value::{find_hover_in_value, get_hover_for_simple_validator};
 use trainz_common::wiki::{get_wiki_container_name, get_wiki_kind_name};
 
+#[tracing::instrument]
 pub fn soup_hover(soup: &Soup, params: HoverParams, validators: &Validators) -> Option<Hover> {
     let position = params.text_document_position_params.position;
 
@@ -53,6 +54,7 @@ pub fn soup_hover(soup: &Soup, params: HoverParams, validators: &Validators) -> 
     find_hover_recursive(&soup.key_value_pairs, position, validators, kind_validator)
 }
 
+#[tracing::instrument]
 pub fn find_hover_recursive(
     kvs: &[KeyValuePair],
     position: Position,

@@ -9,6 +9,7 @@ use shadow_rs::shadow;
 
 shadow!(build);
 
+#[tracing::instrument]
 pub fn parse_soup(src: &'_ str) -> Result<Pairs<'_, Rule>, ParseError> {
     match AuranConfigSoupParser::parse(Rule::soup, src) {
         Ok(pairs) => {
@@ -77,6 +78,34 @@ mod tests {
     #[test]
     fn test_parse_soup_quoted_string_value() {
         assert_parse_soup_input("msg \"hello\"");
+    }
+
+    #[test]
+    fn test_soup_error_recovery() {
+        let input = r#"
+            name "value"
+            !!! garbage !!!
+            age 123
+            container {
+                !!! garbage in container !!!
+                sub "item"
+            }
+            !!! more garbage !!!
+            kuid <KUID:-3:1011>
+        "#;
+        let result = parse_soup(input);
+        assert!(result.is_ok(), "Failed to parse soup with error recovery: {:?}", result.err());
+        let pairs: Vec<_> = result.unwrap().collect();
+        
+        let keys: Vec<_> = pairs.iter()
+            .filter(|p| p.as_rule() == Rule::key_value_pair)
+            .map(|p| p.clone().into_inner().next().unwrap().as_str())
+            .collect();
+        
+        assert!(keys.contains(&"name"));
+        assert!(keys.contains(&"age"));
+        assert!(keys.contains(&"container"));
+        assert!(keys.contains(&"kuid"));
     }
 }
 

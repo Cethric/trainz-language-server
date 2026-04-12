@@ -6,6 +6,7 @@ use super::stmt::process_block;
 use crate::gs::util::{is_class_obsolete, is_method_obsolete};
 
 #[allow(deprecated)]
+#[tracing::instrument]
 pub(crate) fn process_class_symbol(class: &ClassDef) -> DocumentSymbol {
     let mut children = vec![];
 
@@ -53,6 +54,7 @@ pub(crate) fn process_class_symbol(class: &ClassDef) -> DocumentSymbol {
 }
 
 #[allow(deprecated)]
+#[tracing::instrument]
 fn process_method_symbol(method: &MethodDef, class: &ClassDef) -> DocumentSymbol {
     let deprecated = is_method_obsolete(&method.modifiers);
     let is_native = is_method_native(&method.modifiers);

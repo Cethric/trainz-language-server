@@ -12,6 +12,7 @@ use tracing::trace;
 use trainz_common::range::{combine_ranges, pair_to_range};
 use trainz_parser::gs::grammar::Rule;
 
+#[tracing::instrument]
 pub fn process_class_definition(class_definition: Pair<Rule>) -> Option<ClassDef> {
     let range = pair_to_range(&class_definition);
     let inner = class_definition.into_inner();
@@ -36,6 +37,7 @@ pub fn process_class_definition(class_definition: Pair<Rule>) -> Option<ClassDef
     Some(class_def)
 }
 
+#[tracing::instrument]
 fn process_class_inner(inner: pest::iterators::Pairs<Rule>, class_def: &mut ClassDef) {
     for pair in inner {
         let rule = pair.as_rule();
@@ -115,6 +117,7 @@ fn process_class_inner(inner: pest::iterators::Pairs<Rule>, class_def: &mut Clas
     }
 }
 
+#[tracing::instrument]
 fn process_field_definition(pair: Pair<Rule>) -> Vec<FieldDef> {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -169,6 +172,7 @@ fn process_field_definition(pair: Pair<Rule>) -> Vec<FieldDef> {
     fields
 }
 
+#[tracing::instrument]
 fn process_method_definition(pair: Pair<Rule>) -> MethodDef {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -220,6 +224,7 @@ fn process_method_definition(pair: Pair<Rule>) -> MethodDef {
     }
 }
 
+#[tracing::instrument]
 fn process_method_modifiers(pair: Pair<Rule>) -> Vec<(MethodModifier, Range)> {
     pair.into_inner()
         .filter_map(|p| {
@@ -246,6 +251,7 @@ fn process_method_modifiers(pair: Pair<Rule>) -> Vec<(MethodModifier, Range)> {
         .collect()
 }
 
+#[tracing::instrument]
 fn process_params(pair: Pair<Rule>) -> Vec<Param> {
     let mut params = vec![];
     let inner = pair.into_inner();

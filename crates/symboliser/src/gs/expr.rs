@@ -4,6 +4,7 @@ use trainz_ast::find::HasRange;
 use trainz_ast::gs::{Expr, Literal, PostfixOp};
 
 #[allow(deprecated)]
+#[tracing::instrument]
 pub(crate) fn process_expr(expr: &Expr) -> Vec<DocumentSymbol> {
     let mut symbols = vec![];
     trace!("symboliser: processing expr {:?}", expr);

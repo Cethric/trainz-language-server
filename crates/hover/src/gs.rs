@@ -3,6 +3,7 @@ use trainz_ast::gs::program::Program;
 
 #[allow(deprecated)]
 #[allow(clippy::type_complexity)]
+#[tracing::instrument]
 pub fn trainz_hover(_program: &Program) -> Vec<((u32, u32), (u32, u32), Hover)> {
     let data: Vec<((u32, u32), (u32, u32), Hover)> = vec![];
 

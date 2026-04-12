@@ -8,12 +8,14 @@ use pest::iterators::Pair;
 use trainz_common::range::pair_to_range;
 use trainz_parser::gs::grammar::Rule;
 
+#[tracing::instrument]
 pub fn process_statements(pair: Pair<Rule>) -> Vec<Stmt> {
     let mut statements = vec![];
     for inner in pair.into_inner() {
         match inner.as_rule() {
             Rule::statements => {
-                statements.extend(process_statements(inner));
+                let s = process_statements(inner);
+                statements.extend(s);
             }
             Rule::statement_with_line_end
             | Rule::statement_without_line_end
@@ -39,6 +41,7 @@ pub fn process_statements(pair: Pair<Rule>) -> Vec<Stmt> {
     statements
 }
 
+#[tracing::instrument]
 pub fn process_stmt(pair: Pair<Rule>) -> Stmt {
     let range = pair_to_range(&pair);
     match pair.as_rule() {
@@ -120,6 +123,7 @@ pub fn process_stmt(pair: Pair<Rule>) -> Stmt {
     }
 }
 
+#[tracing::instrument]
 fn process_decl(pair: Pair<Rule>) -> Decl {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -159,6 +163,7 @@ fn process_decl(pair: Pair<Rule>) -> Decl {
     }
 }
 
+#[tracing::instrument]
 fn process_if(pair: Pair<Rule>) -> IfStmt {
     let mut cond = None;
     let mut kw_if_range = None;
@@ -272,6 +277,7 @@ fn process_if(pair: Pair<Rule>) -> IfStmt {
     }
 }
 
+#[tracing::instrument]
 fn process_while(pair: Pair<Rule>) -> WhileStmt {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -315,6 +321,7 @@ fn process_while(pair: Pair<Rule>) -> WhileStmt {
     }
 }
 
+#[tracing::instrument]
 fn process_for(pair: Pair<Rule>) -> ForStmt {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -382,6 +389,7 @@ fn process_for(pair: Pair<Rule>) -> ForStmt {
     }
 }
 
+#[tracing::instrument]
 fn process_wait(pair: Pair<Rule>) -> WaitStmt {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -400,6 +408,7 @@ fn process_wait(pair: Pair<Rule>) -> WaitStmt {
     }
 }
 
+#[tracing::instrument]
 fn process_on(pair: Pair<Rule>) -> OnStmt {
     let range = pair_to_range(&pair);
     let inner = pair.into_inner();
@@ -424,8 +433,8 @@ fn process_on(pair: Pair<Rule>) -> OnStmt {
                     target = Some(sl);
                 }
             }
-            Rule::class_method_parameter_name => {
-                identifier = Some(process_identifier(p.into_inner().next().unwrap()));
+            Rule::identifier | Rule::class_method_parameter_name => {
+                identifier = Some(process_identifier(p));
             }
             Rule::on_body | Rule::on_body_block => {
                 let body_range = pair_to_range(&p);
@@ -457,6 +466,7 @@ fn process_on(pair: Pair<Rule>) -> OnStmt {
     }
 }
 
+#[tracing::instrument]
 fn process_switch(pair: Pair<Rule>) -> SwitchStmt {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -476,8 +486,7 @@ fn process_switch(pair: Pair<Rule>) -> SwitchStmt {
                 let mut c_inner = p.into_inner();
                 let kw_case_range = pair_to_range(&c_inner.next().unwrap()); // keyword_case
                 let value = process_expr(c_inner.next().unwrap());
-                c_inner.next(); // colon
-                let b_pair = c_inner.next();
+                let b_pair = c_inner.next(); // statements
                 if let Some(b_pair) = b_pair {
                     let b_range = pair_to_range(&b_pair);
                     cases.push(Case {
@@ -504,8 +513,7 @@ fn process_switch(pair: Pair<Rule>) -> SwitchStmt {
             Rule::statement_default => {
                 let mut d_inner = p.into_inner();
                 kw_default_range = Some(pair_to_range(&d_inner.next().unwrap())); // keyword_default
-                d_inner.next(); // colon
-                let b_pair = d_inner.next();
+                let b_pair = d_inner.next(); // statements
                 if let Some(b_pair) = b_pair {
                     let b_range = pair_to_range(&b_pair);
                     default = Some(Block {

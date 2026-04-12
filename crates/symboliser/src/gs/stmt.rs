@@ -5,6 +5,7 @@ use trainz_common::range::clamp_range;
 use super::expr::process_expr;
 
 #[allow(deprecated)]
+#[tracing::instrument]
 pub(crate) fn process_block(body: &Block) -> Vec<DocumentSymbol> {
     let mut symbols = vec![];
     for statement in body.statements.clone() {

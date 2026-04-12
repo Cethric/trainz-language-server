@@ -1,48 +1,23 @@
-use crate::gs::process::helpers::process_identifier;
+use crate::find::HasRange;
+use crate::gs::process::helpers::{process_identifier, process_type};
 use crate::gs::{
     BitwiseOp, ComparisonOp, EqualityOp, Expr, Literal, MathOp, PostfixOp, StringLiteral,
     UnaryPostfixOp, UnaryPrefixOp,
 };
 use pest::iterators::Pair;
 use tracing::trace;
-use trainz_common::range::pair_to_range;
+use trainz_common::range::{combine_ranges, pair_to_range};
 use trainz_parser::gs::grammar::Rule;
+use trainz_parser::gs::pratt::PRATT;
 
+#[tracing::instrument]
 pub fn process_expr(pair: Pair<Rule>) -> Expr {
     let range = pair_to_range(&pair);
     let rule = pair.as_rule();
     match rule {
-        Rule::assignment_expr => process_assignment_expr(pair),
-        Rule::multiplicative_expr
-        | Rule::additive_expr
-        | Rule::bitwise_expr
-        | Rule::comparison_expr
-        | Rule::equality_expr
-        | Rule::logical_and_expr
-        | Rule::logical_or_expr
-        | Rule::postfix_expr
-        | Rule::unary_expr
-        | Rule::operator_unary_lhs => {
-            let inner = pair.clone().into_inner();
-            let mut non_comment_inner = inner.clone().filter(|p| {
-                p.as_rule() != Rule::line_comment && p.as_rule() != Rule::block_comment
-            });
-            if non_comment_inner.clone().count() == 1 {
-                return process_expr(non_comment_inner.next().unwrap());
-            }
-            match rule {
-                Rule::logical_or_expr => process_binary(pair, Rule::operator_logical_or),
-                Rule::logical_and_expr => process_binary(pair, Rule::operator_logical_and),
-                Rule::equality_expr => process_binary(pair, Rule::operator_equality),
-                Rule::comparison_expr => process_binary(pair, Rule::operator_comparison),
-                Rule::bitwise_expr => process_binary(pair, Rule::operator_bitwise),
-                Rule::additive_expr => process_binary(pair, Rule::operator_math_add),
-                Rule::multiplicative_expr => process_binary(pair, Rule::operator_math_multiply),
-                Rule::postfix_expr => process_postfix_expr(pair),
-                Rule::unary_expr | Rule::operator_unary_lhs => process_unary_expr(pair),
-                _ => unreachable!(),
-            }
-        }
+        Rule::assignment_expr => process_expr_pratt(pair),
+        Rule::postfix_expr => process_postfix_expr(pair),
+        Rule::unary_expr | Rule::operator_unary_lhs => process_unary_expr(pair),
         Rule::operator_unary_not
         | Rule::operator_unary_not_not
         | Rule::operator_unary_inverse
@@ -62,7 +37,13 @@ pub fn process_expr(pair: Pair<Rule>) -> Expr {
         Rule::primary_expr
         | Rule::array_literal
         | Rule::inherited_method
-        | Rule::statement_method => process_primary_expr(pair),
+        | Rule::statement_method
+        | Rule::statement_cast
+        | Rule::new_object
+        | Rule::new_array
+        | Rule::keyword_me
+        | Rule::keyword_is_class
+        | Rule::keyword_inherited => process_primary_expr(pair),
         Rule::variable => {
             let mut inner = pair.clone().into_inner();
             if let Some(first) = inner.next()
@@ -119,199 +100,115 @@ pub fn process_expr(pair: Pair<Rule>) -> Expr {
     }
 }
 
-fn process_assignment_expr(pair: Pair<Rule>) -> Expr {
-    let range = pair_to_range(&pair);
-    let mut inner = pair.into_inner();
-    let left = process_expr(inner.next().unwrap());
-    if let Some(op) = inner.next() {
-        let op_range = pair_to_range(&op);
-        let right = process_expr(inner.next().unwrap());
-        Expr::Assign {
-            left: Box::new(left),
-            right: Box::new(right),
-            range,
-            op_range,
-        }
-    } else {
-        left
-    }
-}
-
-fn process_binary(pair: Pair<Rule>, _op_rule: Rule) -> Expr {
-    let range = pair_to_range(&pair);
-    let mut inner = pair.into_inner();
-    let first = inner.next();
-    if first.is_none() {
-        return Expr::Identifier(crate::gs::literal::Identifier {
-            name: "EMPTY_BINARY".to_string(),
-            range,
-        });
-    }
-    let mut res = process_expr(first.unwrap());
-    while let Some(op_pair) = inner.next() {
-        let next = inner.next();
-        if next.is_none() {
-            break;
-        }
-        let right = process_expr(next.unwrap());
-
-        let mut op_pair_iter = op_pair.clone().into_inner();
-        let op_token_pair = op_pair_iter.next().unwrap_or(op_pair.clone());
-        let op_range = pair_to_range(&op_token_pair);
-
-        let op_str = op_pair.as_str();
-        match op_pair.as_rule() {
-            Rule::operator_logical_or => {
-                res = Expr::LogicalOr {
-                    left: Box::new(res),
-                    right: Box::new(right),
+#[tracing::instrument]
+fn process_expr_pratt(pair: Pair<Rule>) -> Expr {
+    PRATT
+        .map_primary(|primary| process_expr(primary))
+        .map_infix(|lhs, op, rhs| {
+            let op_range = pair_to_range(&op);
+            let op_str = op.as_str();
+            let range = combine_ranges(lhs.range(), rhs.range());
+            match op.as_rule() {
+                Rule::operator_assignment => Expr::Assign {
+                    left: Box::new(lhs),
+                    right: Box::new(rhs),
                     range,
                     op_range,
-                }
-            }
-            Rule::operator_logical_and => {
-                res = Expr::LogicalAnd {
-                    left: Box::new(res),
-                    right: Box::new(right),
+                },
+                Rule::operator_logical_or => Expr::LogicalOr {
+                    left: Box::new(lhs),
+                    right: Box::new(rhs),
                     range,
                     op_range,
-                }
-            }
-            Rule::operator_equality
-            | Rule::operator_equality_equal
-            | Rule::operator_equality_not_equal => {
-                let op = if op_str == "==" {
-                    EqualityOp::Eq
-                } else {
-                    EqualityOp::Ne
-                };
-                res = Expr::Equality {
-                    op,
-                    left: Box::new(res),
-                    right: Box::new(right),
+                },
+                Rule::operator_logical_and => Expr::LogicalAnd {
+                    left: Box::new(lhs),
+                    right: Box::new(rhs),
                     range,
                     op_range,
-                };
-            }
-            Rule::operator_comparison
-            | Rule::operator_comparison_less_than
-            | Rule::operator_comparison_greater_than
-            | Rule::operator_comparison_less_equal
-            | Rule::operator_comparison_greater_equal => {
-                let op = match op_str {
-                    "<=" => ComparisonOp::Le,
-                    ">=" => ComparisonOp::Ge,
-                    "<" => ComparisonOp::Lt,
-                    ">" => ComparisonOp::Gt,
-                    _ => unreachable!("Unexpected comparison operator str: {}", op_str),
-                };
-                res = Expr::Comparison {
-                    op,
-                    left: Box::new(res),
-                    right: Box::new(right),
-                    range,
-                    op_range,
-                };
-            }
-            Rule::operator_bitwise
-            | Rule::operator_bitwise_shift_left
-            | Rule::operator_bitwise_shift_right
-            | Rule::operator_bitwise_and
-            | Rule::operator_bitwise_or
-            | Rule::operator_bitwise_xor => {
-                let op = match op_str {
-                    "<<" => BitwiseOp::Shl,
-                    ">>" => BitwiseOp::Shr,
-                    "&" => BitwiseOp::And,
-                    "|" => BitwiseOp::Or,
-                    "^" => BitwiseOp::Not,
-                    _ => unreachable!("Unexpected bitwise operator str: {}", op_str),
-                };
-                res = Expr::Bitwise {
-                    op,
-                    left: Box::new(res),
-                    right: Box::new(right),
-                    range,
-                    op_range,
-                };
-            }
-            Rule::operator_math_add
-            | Rule::operator_math_subtract
-            | Rule::operator_math_multiply
-            | Rule::operator_math_divide
-            | Rule::operator_math_modulo => {
-                let op = match op_str {
-                    "+" => MathOp::Add,
-                    "-" => MathOp::Sub,
-                    "*" => MathOp::Mul,
-                    "/" => MathOp::Div,
-                    "%" => MathOp::Mod,
-                    _ => unreachable!("Unexpected math operator str: {}", op_str),
-                };
-                res = Expr::BinaryMath {
-                    op,
-                    left: Box::new(res),
-                    right: Box::new(right),
-                    range,
-                    op_range,
-                };
-            }
-            Rule::deref => {
-                // If we get a deref here, it's likely a member access being parsed in a binary context
-                // This shouldn't happen with the current grammar but let's handle it gracefully.
-                if let Expr::Identifier(id) = right {
-                    res = Expr::Postfix {
-                        expr: Box::new(res),
-                        ops: vec![PostfixOp::Deref(id)],
-                        range,
+                },
+                Rule::operator_equality_equal | Rule::operator_equality_not_equal => {
+                    let op = if op_str == "==" {
+                        EqualityOp::Eq
+                    } else {
+                        EqualityOp::Ne
                     };
-                } else {
-                    res = right;
+                    Expr::Equality {
+                        op,
+                        left: Box::new(lhs),
+                        right: Box::new(rhs),
+                        range,
+                        op_range,
+                    }
                 }
+                Rule::operator_comparison_less_than
+                | Rule::operator_comparison_greater_than
+                | Rule::operator_comparison_less_equal
+                | Rule::operator_comparison_greater_equal => {
+                    let op = match op_str {
+                        "<" => ComparisonOp::Lt,
+                        ">" => ComparisonOp::Gt,
+                        "<=" => ComparisonOp::Le,
+                        ">=" => ComparisonOp::Ge,
+                        _ => unreachable!(),
+                    };
+                    Expr::Comparison {
+                        op,
+                        left: Box::new(lhs),
+                        right: Box::new(rhs),
+                        range,
+                        op_range,
+                    }
+                }
+                Rule::operator_bitwise_shift_left
+                | Rule::operator_bitwise_shift_right
+                | Rule::operator_bitwise_and
+                | Rule::operator_bitwise_or
+                | Rule::operator_bitwise_xor => {
+                    let op = match op_str {
+                        "<<" => BitwiseOp::Shl,
+                        ">>" => BitwiseOp::Shr,
+                        "&" => BitwiseOp::And,
+                        "|" => BitwiseOp::Or,
+                        "^" => BitwiseOp::Not,
+                        _ => unreachable!(),
+                    };
+                    Expr::Bitwise {
+                        op,
+                        left: Box::new(lhs),
+                        right: Box::new(rhs),
+                        range,
+                        op_range,
+                    }
+                }
+                Rule::operator_math_add
+                | Rule::operator_math_subtract
+                | Rule::operator_math_multiply
+                | Rule::operator_math_divide
+                | Rule::operator_math_modulo => {
+                    let op = match op_str {
+                        "+" => MathOp::Add,
+                        "-" => MathOp::Sub,
+                        "*" => MathOp::Mul,
+                        "/" => MathOp::Div,
+                        "%" => MathOp::Mod,
+                        _ => unreachable!(),
+                    };
+                    Expr::BinaryMath {
+                        op,
+                        left: Box::new(lhs),
+                        right: Box::new(rhs),
+                        range,
+                        op_range,
+                    }
+                }
+                _ => unreachable!("Unexpected operator rule: {:?}", op.as_rule()),
             }
-            Rule::paren_open => {
-                // This might happen if process_binary is called on something that isn't really a binary expr with these operators
-                // but Pest gave us these pairs. For now, just skip it.
-                continue;
-            }
-            Rule::variable
-            | Rule::assignment_expr
-            | Rule::logical_or_expr
-            | Rule::logical_and_expr
-            | Rule::equality_expr
-            | Rule::comparison_expr
-            | Rule::bitwise_expr
-            | Rule::additive_expr
-            | Rule::multiplicative_expr
-            | Rule::unary_expr
-            | Rule::postfix_expr
-            | Rule::primary_expr => {
-                // This could happen if an expression is parsed in a binary context without an operator pair between them
-                // We'll just replace the current result with this expression.
-                res = process_expr(op_pair);
-            }
-            Rule::line_comment
-            | Rule::block_comment
-            | Rule::statement_method_arguments
-            | Rule::comma
-            | Rule::paren_close
-            | Rule::bracket_close
-            | Rule::brace_close
-            | Rule::array_subscript => {
-                continue;
-            }
-            Rule::keyword_me => {
-                res = Expr::Identifier(crate::gs::Identifier {
-                    name: "me".to_string(),
-                    range: pair_to_range(&op_pair),
-                });
-            }
-            _ => unreachable!("Unexpected operator: {:?}", op_pair.as_rule()),
-        }
-    }
-    res
+        })
+        .parse(pair.into_inner())
 }
 
+#[tracing::instrument]
 fn process_unary_expr(pair: Pair<Rule>) -> Expr {
     let range = pair_to_range(&pair);
     let mut inner = pair.clone().into_inner();
@@ -428,6 +325,7 @@ fn process_unary_expr(pair: Pair<Rule>) -> Expr {
     }
 }
 
+#[tracing::instrument]
 fn process_postfix_expr(pair: Pair<Rule>) -> Expr {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -464,6 +362,7 @@ fn process_postfix_expr(pair: Pair<Rule>) -> Expr {
     }
 }
 
+#[tracing::instrument]
 fn process_postfix_op(pair: Pair<Rule>) -> PostfixOp {
     let range = pair_to_range(&pair);
     match pair.as_rule() {
@@ -491,6 +390,9 @@ fn process_postfix_op(pair: Pair<Rule>) -> PostfixOp {
         Rule::array_subscript => {
             let mut indices = vec![];
             for idx in pair.into_inner() {
+                if idx.as_rule() == Rule::bracket_open || idx.as_rule() == Rule::bracket_close || idx.as_rule() == Rule::comma {
+                    continue;
+                }
                 indices.push(process_expr(idx));
             }
             PostfixOp::Index(indices, range)
@@ -509,8 +411,126 @@ fn process_postfix_op(pair: Pair<Rule>) -> PostfixOp {
     }
 }
 
+#[tracing::instrument]
+fn process_cast(pair: Pair<Rule>) -> Expr {
+    let range = pair_to_range(&pair);
+    let mut inner = pair.into_inner();
+    let cast_rule = inner.next().unwrap();
+    match cast_rule.as_rule() {
+        Rule::static_cast => {
+            let mut static_inner = cast_rule.into_inner();
+            let keyword_cast_pair = static_inner.next().unwrap();
+            let keyword_cast_range = pair_to_range(&keyword_cast_pair);
+            static_inner.next(); // angle_open
+            let ty_pair = static_inner.next().unwrap();
+            let ty = process_type(ty_pair);
+            static_inner.next(); // angle_close
+
+            // Check for paren_open/paren_close or just unary_expr
+            let next = static_inner.next().unwrap();
+            let expr = if next.as_rule() == Rule::paren_open {
+                let expr_inner = static_inner.next().unwrap();
+                static_inner.next(); // paren_close
+                process_expr(expr_inner)
+            } else {
+                process_expr(next)
+            };
+
+            Expr::Cast {
+                ty,
+                expr: Box::new(expr),
+                range,
+                keyword_cast_range: Some(keyword_cast_range),
+            }
+        }
+        Rule::dynamic_cast => {
+            let mut dynamic_inner = cast_rule.into_inner();
+            dynamic_inner.next(); // paren_open
+            let ty_pair = dynamic_inner.next().unwrap();
+            let ty = process_type(ty_pair);
+            dynamic_inner.next(); // paren_close
+            let expr_pair = dynamic_inner.next().unwrap();
+            let expr = process_expr(expr_pair);
+
+            Expr::Cast {
+                ty,
+                expr: Box::new(expr),
+                range,
+                keyword_cast_range: None,
+            }
+        }
+        _ => Expr::Identifier(crate::gs::Identifier {
+            name: format!("UNKNOWN_CAST_{:?}", cast_rule.as_rule()),
+            range,
+        }),
+    }
+}
+
+#[tracing::instrument]
+fn process_new_object(pair: Pair<Rule>) -> Expr {
+    let range = pair_to_range(&pair);
+    let mut inner = pair.into_inner();
+    let keyword_new_pair = inner.next().unwrap();
+    let keyword_new_range = pair_to_range(&keyword_new_pair);
+    let ty_pair = inner.next().unwrap();
+    let ty = process_type(ty_pair);
+
+    let mut args = vec![];
+    while let Some(next) = inner.next() {
+        match next.as_rule() {
+            Rule::new_object_arguments => {
+                for arg_pair in next.into_inner() {
+                    if arg_pair.as_rule() == Rule::comma {
+                        continue;
+                    }
+                    args.push(process_expr(arg_pair));
+                }
+            }
+            Rule::paren_open | Rule::paren_close | Rule::comma => continue,
+            _ => args.push(process_expr(next)),
+        }
+    }
+
+    Expr::NewObject {
+        ty,
+        args,
+        range,
+        keyword_new_range,
+    }
+}
+
+#[tracing::instrument]
+fn process_new_array(pair: Pair<Rule>) -> Expr {
+    let range = pair_to_range(&pair);
+    let mut inner = pair.into_inner();
+    let keyword_new_pair = inner.next().unwrap();
+    let keyword_new_range = pair_to_range(&keyword_new_pair);
+    let ty_pair = inner.next().unwrap();
+    let ty = process_type(ty_pair);
+
+    // Skip bracket_open
+    inner.next();
+
+    let size_pair = inner.next().unwrap();
+    let size = process_expr(size_pair);
+
+    Expr::NewArray {
+        ty,
+        size: Box::new(size),
+        range,
+        keyword_new_range,
+    }
+}
+
+#[tracing::instrument]
 fn process_primary_expr(pair: Pair<Rule>) -> Expr {
     let range = pair_to_range(&pair);
+    match pair.as_rule() {
+        Rule::statement_cast => return process_cast(pair),
+        Rule::new_object => return process_new_object(pair),
+        Rule::new_array => return process_new_array(pair),
+        _ => {}
+    }
     let mut inner_pairs = pair.clone().into_inner();
     let inner = if let Some(first) = inner_pairs.next() {
         first
@@ -527,6 +547,7 @@ fn process_primary_expr(pair: Pair<Rule>) -> Expr {
     );
     match inner.as_rule() {
         Rule::unary_expr | Rule::postfix_expr | Rule::primary_expr => process_expr(inner),
+        Rule::static_cast | Rule::dynamic_cast => process_cast(pair),
         Rule::variable => {
             let res = Expr::Identifier(process_identifier(
                 inner.clone().into_inner().next().unwrap(),
@@ -542,6 +563,10 @@ fn process_primary_expr(pair: Pair<Rule>) -> Expr {
             res
         }
         Rule::keyword_is_class => Expr::IsClass(range),
+        Rule::keyword_me => Expr::Identifier(crate::gs::Identifier {
+            name: "me".to_string(),
+            range,
+        }),
         Rule::literal => process_literal(inner),
         Rule::grouped_expr => process_expr(inner),
         Rule::statement_method => {
@@ -622,6 +647,7 @@ fn process_primary_expr(pair: Pair<Rule>) -> Expr {
     }
 }
 
+#[tracing::instrument]
 fn process_literal(pair: Pair<Rule>) -> Expr {
     let (inner, inner_rule) = if let Some(first) = pair.clone().into_inner().next() {
         let rule = first.as_rule();

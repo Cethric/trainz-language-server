@@ -5,15 +5,19 @@ pub mod types;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod test_inherited;
 
 use crate::gs::expr::collect_expr_tokens;
 use crate::gs::method::collect_method_tokens;
 use crate::gs::types::collect_type_tokens;
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
+use tracing::debug;
 use trainz_ast::gs::program::Program;
 use trainz_ast::gs::{ClassModifier, FieldModifier};
 
+#[tracing::instrument]
 pub fn semantic_tokens(
     program: &Program,
 ) -> Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)> {
@@ -57,10 +61,10 @@ pub fn semantic_tokens(
             for (modifier, range) in &class.modifiers {
                 let (token_type, modifiers) = match modifier {
                     ClassModifier::Obsolete(_) => (
-                        SemanticTokenType::MODIFIER,
+                        SemanticTokenType::KEYWORD,
                         vec![SemanticTokenModifier::DEPRECATED],
                     ),
-                    _ => (SemanticTokenType::MODIFIER, vec![]),
+                    _ => (SemanticTokenType::KEYWORD, vec![]),
                 };
                 class_raw_tokens.push((*range, token_type, modifiers));
             }
@@ -91,16 +95,16 @@ pub fn semantic_tokens(
                 for (modifier, range) in &field.modifiers {
                     let (token_type, modifiers) = match modifier {
                         FieldModifier::Static => (
-                            SemanticTokenType::MODIFIER,
+                            SemanticTokenType::KEYWORD,
                             vec![SemanticTokenModifier::STATIC],
                         ),
-                        FieldModifier::Public => (SemanticTokenType::MODIFIER, vec![]),
+                        FieldModifier::Public => (SemanticTokenType::KEYWORD, vec![]),
                         FieldModifier::Define => (
-                            SemanticTokenType::MODIFIER,
+                            SemanticTokenType::KEYWORD,
                             vec![SemanticTokenModifier::READONLY],
                         ),
                         FieldModifier::Obsolete(_) => (
-                            SemanticTokenType::MODIFIER,
+                            SemanticTokenType::KEYWORD,
                             vec![SemanticTokenModifier::DEPRECATED],
                         ),
                     };
@@ -155,6 +159,8 @@ pub fn semantic_tokens(
         .collect();
 
     raw_tokens.extend(class_tokens);
+
+    debug!("Collected {} tokens", raw_tokens.len());
 
     raw_tokens
 }

@@ -5,6 +5,7 @@ use tower_lsp_server::ls_types::{Hover, MarkupContent, MarkupKind, Position};
 use trainz_ast::soup::value::Value;
 use trainz_soup_validators::{ContainerRule, Validators};
 
+#[tracing::instrument]
 pub fn find_hover_in_value(
     value: &Value,
     position: Position,
@@ -33,6 +34,7 @@ pub fn find_hover_in_value(
     }
 }
 
+#[tracing::instrument]
 pub fn get_hover_for_simple_validator(
     value_str: &str,
     allowed_values: &HashMap<String, Option<String>>,
