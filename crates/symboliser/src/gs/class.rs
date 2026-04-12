@@ -45,7 +45,7 @@ pub(crate) fn process_class_symbol(class: &ClassDef) -> DocumentSymbol {
         },
         deprecated: Some(deprecated),
         range: class.range,
-        selection_range: class.name.range,
+        selection_range: clamp_range(&class.range, class.name.range),
         children: if children.is_empty() {
             None
         } else {
@@ -84,7 +84,7 @@ fn process_method_symbol(method: &MethodDef) -> DocumentSymbol {
         },
         deprecated: Some(deprecated),
         range: method.range,
-        selection_range: method.name.range,
+        selection_range: clamp_range(&method.range, method.name.range),
         children: if children.is_empty() {
             None
         } else {
@@ -122,7 +122,7 @@ fn process_native_method_symbol(method: &NativeMethodDef) -> DocumentSymbol {
         },
         deprecated: Some(deprecated),
         range: method.range,
-        selection_range: method.name.range,
+        selection_range: clamp_range(&method.range, method.name.range),
         children: if children.is_empty() {
             None
         } else {

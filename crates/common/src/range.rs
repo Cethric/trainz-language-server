@@ -57,3 +57,22 @@ pub fn clamp_range(container: &Range, item: Range) -> Range {
     }
     clamped
 }
+
+pub fn combine_ranges(range1: Range, range2: Range) -> Range {
+    let start = if range1.start.line < range2.start.line
+        || (range1.start.line == range2.start.line
+            && range1.start.character < range2.start.character)
+    {
+        range1.start
+    } else {
+        range2.start
+    };
+    let end = if range1.end.line > range2.end.line
+        || (range1.end.line == range2.end.line && range1.end.character > range2.end.character)
+    {
+        range1.end
+    } else {
+        range2.end
+    };
+    Range { start, end }
+}

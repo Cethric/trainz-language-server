@@ -1,6 +1,7 @@
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind};
 use trainz_ast::gs::Include;
+use trainz_common::range::clamp_range;
 
 pub mod class;
 pub mod expr;
@@ -21,7 +22,7 @@ pub(crate) fn process_include_symbol(include: &Include) -> DocumentSymbol {
         tags: None,
         deprecated: None,
         range: include.range,
-        selection_range: include.path_range.unwrap_or(include.range),
+        selection_range: clamp_range(&include.range, include.path_range.unwrap_or(include.range)),
         children: None,
     }
 }
