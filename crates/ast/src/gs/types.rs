@@ -2,6 +2,8 @@ use crate::find::HasRange;
 use crate::gs::Identifier;
 use serde::{Deserialize, Serialize};
 
+use std::fmt::Display;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Type {
     Bool(crate::Range),
@@ -11,6 +13,20 @@ pub enum Type {
     String(crate::Range),
     Named(Identifier), // type_identifier
     Array(Box<Type>, crate::Range),
+}
+
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Bool(_) => write!(f, "bool"),
+            Type::Int(_) => write!(f, "int"),
+            Type::Float(_) => write!(f, "float"),
+            Type::Object(_) => write!(f, "object"),
+            Type::String(_) => write!(f, "string"),
+            Type::Named(id) => write!(f, "{}", id.name),
+            Type::Array(inner, _) => write!(f, "{}[]", inner),
+        }
+    }
 }
 
 impl Type {
@@ -45,6 +61,15 @@ impl HasRange for Type {
 pub enum TypeOrVoid {
     Void(crate::Range),
     Type(Type),
+}
+
+impl Display for TypeOrVoid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TypeOrVoid::Void(_) => write!(f, "void"),
+            TypeOrVoid::Type(t) => write!(f, "{}", t),
+        }
+    }
 }
 
 impl HasRange for TypeOrVoid {

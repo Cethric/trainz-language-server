@@ -1,6 +1,7 @@
 use crate::gs::program::Program;
 use crate::gs::{ClassDef, Include};
 use pest::iterators::Pairs;
+use std::collections::HashMap;
 use trainz_common::range::pos_to_range;
 use trainz_parser::gs::grammar::Rule;
 
@@ -14,13 +15,13 @@ mod tests;
 
 pub fn process_trainz_ast(pairs: Pairs<Rule>, _src: &str) -> Program {
     let mut includes = vec![];
-    let mut class_definitions = vec![];
+    let mut class_definitions = HashMap::new();
     let mut root_range = tower_lsp_server::ls_types::Range::default();
 
     fn traverse(
         pairs: Pairs<Rule>,
         includes: &mut Vec<Include>,
-        class_definitions: &mut Vec<ClassDef>,
+        class_definitions: &mut HashMap<String, ClassDef>,
     ) {
         for pair in pairs {
             match pair.as_rule() {
@@ -31,7 +32,8 @@ pub fn process_trainz_ast(pairs: Pairs<Rule>, _src: &str) -> Program {
                 }
                 Rule::class_definition => {
                     if let Some(class_definition) = class::process_class_definition(pair) {
-                        class_definitions.push(class_definition);
+                        class_definitions
+                            .insert(class_definition.name.name.clone(), class_definition);
                     }
                 }
                 _ => {

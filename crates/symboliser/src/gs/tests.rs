@@ -93,17 +93,28 @@ mod tests {
 
         assert_eq!(children[3].name, "Method1");
         assert_eq!(children[3].kind, SymbolKind::METHOD);
+        assert_eq!(
+            children[3].detail,
+            Some("void (declaration, definition)".to_string())
+        );
         assert_eq!(children[3].tags, None);
 
         assert_eq!(children[4].name, "Method2");
+        assert_eq!(
+            children[4].detail,
+            Some("void (declaration, definition)".to_string())
+        );
         #[allow(deprecated)]
         {
             assert_eq!(children[4].tags, Some(vec![SymbolTag::DEPRECATED]));
-            assert_eq!(children[4].deprecated, Some(true));
         }
 
         assert_eq!(children[5].name, "NativeMethod");
         assert_eq!(children[5].kind, SymbolKind::METHOD);
+        assert_eq!(
+            children[5].detail,
+            Some("void (declaration, definition)".to_string())
+        );
 
         let obsolete_class = &symbols[1];
         assert_eq!(obsolete_class.name, "ObsoleteClass");
@@ -316,6 +327,89 @@ mod tests {
             body_symbols
                 .par_iter()
                 .any(|s| s.name.contains("-1.0") || s.name == "-1.0")
+        );
+    }
+
+    #[test]
+    fn test_method_classification_symbols() {
+        let src = r#"
+            class Test {
+                void OnlyDeclaration();
+                void OnlyImplementation() { int i; }
+                void SeparateDeclaration();
+                void SeparateDeclaration() { int a; }
+                native void NativeMethod();
+                native void NativeWithBody() { int b; }
+            };
+        "#;
+        let symbols = get_symbols(src);
+        let test_class = &symbols[0];
+        let children = test_class.children.as_ref().unwrap();
+
+        // 1. OnlyDeclaration
+        let only_decl = &children[0];
+        assert_eq!(only_decl.name, "OnlyDeclaration");
+        assert_eq!(only_decl.detail, Some("void (declaration)".to_string()));
+        assert!(only_decl.children.is_none());
+
+        // 2. OnlyImplementation
+        let only_impl = &children[1];
+        assert_eq!(only_impl.name, "OnlyImplementation");
+        assert_eq!(
+            only_impl.detail,
+            Some("void (declaration, definition)".to_string())
+        );
+        assert!(
+            only_impl
+                .children
+                .as_ref()
+                .unwrap()
+                .iter()
+                .any(|s| s.name == "i")
+        );
+
+        // 3. SeparateDeclaration (declaration part)
+        let sep_decl = &children[2];
+        assert_eq!(sep_decl.name, "SeparateDeclaration");
+        assert_eq!(sep_decl.detail, Some("void (declaration)".to_string()));
+        assert!(sep_decl.children.is_none());
+
+        // 4. SeparateDeclaration (implementation part)
+        let sep_impl = &children[3];
+        assert_eq!(sep_impl.name, "SeparateDeclaration");
+        assert_eq!(sep_impl.detail, Some("void (definition)".to_string()));
+        assert!(
+            sep_impl
+                .children
+                .as_ref()
+                .unwrap()
+                .iter()
+                .any(|s| s.name == "a")
+        );
+
+        // 5. NativeMethod
+        let native = &children[4];
+        assert_eq!(native.name, "NativeMethod");
+        assert_eq!(
+            native.detail,
+            Some("void (declaration, definition)".to_string())
+        );
+        assert!(native.children.is_none());
+
+        // 6. NativeWithBody
+        let native_body = &children[5];
+        assert_eq!(native_body.name, "NativeWithBody");
+        assert_eq!(
+            native_body.detail,
+            Some("void (declaration, definition)".to_string())
+        );
+        assert!(
+            native_body
+                .children
+                .as_ref()
+                .unwrap()
+                .iter()
+                .any(|s| s.name == "b")
         );
     }
 }

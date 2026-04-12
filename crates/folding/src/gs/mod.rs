@@ -7,14 +7,24 @@ pub mod stmt;
 #[cfg(test)]
 mod tests;
 
+use rayon::prelude::*;
+
 pub fn trainz_folding_range(program: &Program) -> Vec<FoldingRange> {
     let mut result = vec![];
 
     collect_include_folding_ranges(&program.includes, &mut result);
 
-    for class in &program.classes {
-        class::collect_class_folding_ranges(class, &mut result);
-    }
+    let class_folding: Vec<FoldingRange> = program
+        .classes
+        .par_iter()
+        .flat_map(|(_, class)| {
+            let mut class_result = vec![];
+            class::collect_class_folding_ranges(class, &mut class_result);
+            class_result
+        })
+        .collect();
+
+    result.extend(class_folding);
 
     result
 }

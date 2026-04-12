@@ -172,10 +172,14 @@ fn test_str_tokens() {
 
     let mut tokens = Vec::new();
     let known_classes = std::collections::HashSet::new();
-    for class in &ast.classes {
-        for method in &class.methods {
-            for stmt in &method.body.statements {
-                crate::gs::stmt::collect_stmt_tokens(stmt, &mut tokens, &known_classes);
+    for (_, class) in &ast.classes {
+        for ms in class.methods.values() {
+            for method in ms {
+                if let Some(body) = &method.body {
+                    for stmt in &body.statements {
+                        crate::gs::stmt::collect_stmt_tokens(stmt, &mut tokens, &known_classes);
+                    }
+                }
             }
         }
     }
@@ -209,6 +213,194 @@ fn test_link_prop_tokens() {
     .unwrap();
     let program = trainz_ast::gs::process::process_trainz_ast(pairs, src);
     let tokens = crate::process_raw_tokens(crate::gs::semantic_tokens(&program));
-    println!("{:#?}", program.classes[0].methods[0]);
+    println!(
+        "{:#?}",
+        program
+            .classes
+            .values()
+            .next()
+            .unwrap()
+            .methods
+            .values()
+            .next()
+            .unwrap()[0]
+    );
     println!("{:#?}", tokens);
+}
+
+#[test]
+fn test_method_modifiers() {
+    use tower_lsp_server::ls_types::SemanticTokenModifier;
+
+    let src = r#"
+        class Test {
+            void MethodImplementation() { }
+            native void MethodDefinition();
+        };
+    "#;
+    let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
+    let program = process_trainz_ast(pairs, src);
+    let raw_tokens = crate::gs::semantic_tokens(&program);
+
+    let impl_token = raw_tokens
+        .iter()
+        .find(|(range, _, _)| {
+            let start = range.start.character as usize;
+            let end = range.end.character as usize;
+            // The source code in the test is multi-line, but the name is on its own line.
+            // We'll just look for the name in the source.
+            src.contains("MethodImplementation") && (end - start) == "MethodImplementation".len()
+        })
+        .unwrap();
+
+    let def_token = raw_tokens
+        .iter()
+        .find(|(range, _, _)| {
+            let start = range.start.character as usize;
+            let end = range.end.character as usize;
+            src.contains("MethodDefinition") && (end - start) == "MethodDefinition".len()
+        })
+        .unwrap();
+
+    // Implementation should have both DEFINITION and DECLARATION
+    let impl_modifiers = &impl_token.2;
+    assert!(impl_modifiers.contains(&SemanticTokenModifier::DEFINITION));
+    assert!(impl_modifiers.contains(&SemanticTokenModifier::DECLARATION));
+
+    // Native should have both DEFINITION and DECLARATION
+    let def_modifiers = &def_token.2;
+    assert!(def_modifiers.contains(&SemanticTokenModifier::DEFINITION));
+    assert!(def_modifiers.contains(&SemanticTokenModifier::DECLARATION));
+}
+
+#[test]
+fn test_method_modifiers_separate_decl() {
+    use tower_lsp_server::ls_types::SemanticTokenModifier;
+
+    let src = r#"
+        class Test {
+            void Method();
+            void Method() { }
+        };
+    "#;
+    let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
+    let program = process_trainz_ast(pairs, src);
+    let raw_tokens = crate::gs::semantic_tokens(&program);
+
+    let decl_token = raw_tokens
+        .iter()
+        .find(|(range, token_type, _)| {
+            range.start.line == 2
+                && *token_type == tower_lsp_server::ls_types::SemanticTokenType::METHOD
+        })
+        .unwrap();
+
+    let impl_token = raw_tokens
+        .iter()
+        .find(|(range, token_type, _)| {
+            range.start.line == 3
+                && *token_type == tower_lsp_server::ls_types::SemanticTokenType::METHOD
+        })
+        .unwrap();
+
+    // Declaration should only have DECLARATION
+    let decl_modifiers = &decl_token.2;
+    assert!(decl_modifiers.contains(&SemanticTokenModifier::DECLARATION));
+    assert!(!decl_modifiers.contains(&SemanticTokenModifier::DEFINITION));
+
+    // Implementation with separate declaration should only have DEFINITION
+    let impl_modifiers = &impl_token.2;
+    assert!(impl_modifiers.contains(&SemanticTokenModifier::DEFINITION));
+    assert!(!impl_modifiers.contains(&SemanticTokenModifier::DECLARATION));
+}
+
+#[test]
+fn test_method_modifiers_only_declaration() {
+    use tower_lsp_server::ls_types::SemanticTokenModifier;
+
+    let src = r#"
+        class Test {
+            void OnlyDeclaration();
+        };
+    "#;
+    let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
+    let program = process_trainz_ast(pairs, src);
+    let raw_tokens = crate::gs::semantic_tokens(&program);
+
+    let decl_token = raw_tokens
+        .iter()
+        .find(|(range, _token_type, _)| {
+            let start = range.start.character as usize;
+            let end = range.end.character as usize;
+            src.contains("OnlyDeclaration") && (end - start) == "OnlyDeclaration".len()
+        })
+        .unwrap();
+
+    // Should only have DECLARATION
+    let modifiers = &decl_token.2;
+    assert!(modifiers.contains(&SemanticTokenModifier::DECLARATION));
+    assert!(!modifiers.contains(&SemanticTokenModifier::DEFINITION));
+}
+
+#[test]
+fn test_method_modifiers_multiple_implementations_no_decl() {
+    use tower_lsp_server::ls_types::SemanticTokenModifier;
+
+    let src = r#"
+        class Test {
+            void Method() { }
+            void Method() { }
+        };
+    "#;
+    let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
+    let program = process_trainz_ast(pairs, src);
+    let raw_tokens = crate::gs::semantic_tokens(&program);
+
+    let method_tokens: Vec<_> = raw_tokens
+        .iter()
+        .filter(|(range, token_type, _)| {
+            let start = range.start.character as usize;
+            let end = range.end.character as usize;
+            src.contains("Method")
+                && (end - start) == "Method".len()
+                && *token_type == tower_lsp_server::ls_types::SemanticTokenType::METHOD
+        })
+        .collect();
+
+    assert_eq!(method_tokens.len(), 2);
+
+    // Both should have both DEFINITION and DECLARATION
+    for token in method_tokens {
+        let modifiers = &token.2;
+        assert!(modifiers.contains(&SemanticTokenModifier::DEFINITION));
+        assert!(modifiers.contains(&SemanticTokenModifier::DECLARATION));
+    }
+}
+
+#[test]
+fn test_method_modifiers_native_with_body() {
+    use tower_lsp_server::ls_types::SemanticTokenModifier;
+
+    let src = r#"
+        class Test {
+            native void NativeWithBody() { }
+        };
+    "#;
+    let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
+    let program = process_trainz_ast(pairs, src);
+    let raw_tokens = crate::gs::semantic_tokens(&program);
+
+    let method_token = raw_tokens
+        .iter()
+        .find(|(range, _, _)| {
+            let start = range.start.character as usize;
+            let end = range.end.character as usize;
+            src.contains("NativeWithBody") && (end - start) == "NativeWithBody".len()
+        })
+        .unwrap();
+
+    // Should have both DEFINITION and DECLARATION
+    let modifiers = &method_token.2;
+    assert!(modifiers.contains(&SemanticTokenModifier::DEFINITION));
+    assert!(modifiers.contains(&SemanticTokenModifier::DECLARATION));
 }

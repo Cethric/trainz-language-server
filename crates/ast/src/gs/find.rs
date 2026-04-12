@@ -2,8 +2,7 @@ use crate::Position;
 use crate::find::{HasRange, position_in_range};
 use crate::gs::program::Program;
 use crate::gs::{
-    Block, ClassDef, Expr, FieldDef, Identifier, LoopBody, MethodDef, NativeMethodDef, PostfixOp,
-    Stmt, Type,
+    Block, ClassDef, Expr, FieldDef, Identifier, LoopBody, MethodDef, PostfixOp, Stmt, Type,
 };
 use rayon::prelude::*;
 use tracing::trace;
@@ -12,20 +11,24 @@ pub fn find_postfix_at_position(program: &Program, pos: Position) -> Option<(&Ex
     program
         .classes
         .par_iter()
-        .find_map_any(|class| find_postfix_in_class(class, pos))
+        .find_map_any(|(_, class)| find_postfix_in_class(class, pos))
 }
 
 fn find_postfix_in_class(class: &ClassDef, pos: Position) -> Option<(&Expr, usize)> {
-    for field in &class.fields {
-        for init in &field.initializers {
+    for field in class.fields.values() {
+        if let Some(init) = &field.initializer {
             if let Some(res) = find_postfix_in_expr(init, pos) {
                 return Some(res);
             }
         }
     }
-    for method in &class.methods {
-        if let Some(res) = find_postfix_in_block(&method.body, pos) {
-            return Some(res);
+    for methods in class.methods.values() {
+        for method in methods {
+            if let Some(body) = &method.body {
+                if let Some(res) = find_postfix_in_block(body, pos) {
+                    return Some(res);
+                }
+            }
         }
     }
     None
@@ -273,12 +276,16 @@ pub fn find_local_var_type_in_method(
         }
     }
 
-    find_local_var_type_in_block(&method.body, var_name, pos)
+    if let Some(body) = &method.body {
+        find_local_var_type_in_block(body, var_name, pos)
+    } else {
+        None
+    }
 }
 
 pub fn find_id_at_position(program: &Program, pos: Position) -> Option<&Identifier> {
     trace!("find_id_at_position: searching for position {:?}", pos);
-    program.classes.par_iter().find_map_any(|class| {
+    program.classes.par_iter().find_map_any(|(_, class)| {
         trace!(
             "find_id_at_position: checking class {} with range {:?}",
             class.name.name, class.range
@@ -296,31 +303,26 @@ fn find_in_class(class: &ClassDef, pos: Position) -> Option<&Identifier> {
             return Some(sup);
         }
     }
-    for field in &class.fields {
+    for field in class.fields.values() {
         if let Some(id) = find_in_field(field, pos) {
             return Some(id);
         }
     }
-    for method in &class.methods {
-        if let Some(id) = find_in_method(method, pos) {
-            return Some(id);
-        }
-    }
-    for method in &class.native_methods {
-        if let Some(id) = find_in_native_method(method, pos) {
-            return Some(id);
+    for methods in class.methods.values() {
+        for method in methods {
+            if let Some(id) = find_in_method(method, pos) {
+                return Some(id);
+            }
         }
     }
     None
 }
 
 fn find_in_field(field: &FieldDef, pos: Position) -> Option<&Identifier> {
-    for name in &field.names {
-        if position_in_range(pos, name.range) {
-            return Some(name);
-        }
+    if position_in_range(pos, field.name.range) {
+        return Some(&field.name);
     }
-    for init in &field.initializers {
+    if let Some(init) = &field.initializer {
         if let Some(id) = find_in_expr(init, pos) {
             return Some(id);
         }
@@ -341,19 +343,11 @@ fn find_in_method(method: &MethodDef, pos: Position) -> Option<&Identifier> {
             return Some(&param.name);
         }
     }
-    find_in_block(&method.body, pos)
-}
-
-fn find_in_native_method(method: &NativeMethodDef, pos: Position) -> Option<&Identifier> {
-    if position_in_range(pos, method.name.range) {
-        return Some(&method.name);
+    if let Some(body) = &method.body {
+        find_in_block(body, pos)
+    } else {
+        None
     }
-    for param in &method.params {
-        if position_in_range(pos, param.name.range) {
-            return Some(&param.name);
-        }
-    }
-    None
 }
 
 fn find_in_block(block: &Block, pos: Position) -> Option<&Identifier> {
@@ -380,7 +374,7 @@ fn find_in_block(block: &Block, pos: Position) -> Option<&Identifier> {
 fn find_in_stmt(stmt: &Stmt, pos: Position) -> Option<&Identifier> {
     trace!("find_in_stmt checking rule: {:?}", stmt);
     match stmt {
-        Stmt::Label(id, _) => {
+        Stmt::Label(id, _, _) => {
             if position_in_range(pos, id.range) {
                 Some(id)
             } else {

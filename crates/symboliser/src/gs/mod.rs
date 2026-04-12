@@ -37,8 +37,11 @@ pub fn trainz_symboliser(program: &Program) -> Vec<DocumentSymbol> {
     let class_symbols: Vec<DocumentSymbol> = program
         .classes
         .par_iter()
-        .map(process_class_symbol)
+        .map(|(_, class)| process_class_symbol(class))
         .collect();
     symbols.extend(class_symbols);
+
+    symbols.sort_by_key(|s| (s.range.start, s.selection_range.start));
+
     symbols
 }

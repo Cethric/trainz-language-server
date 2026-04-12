@@ -14,7 +14,10 @@ pub fn format_program(program: &Program) -> String {
     }
     buffer.push('\n');
 
-    for klass in program.classes.iter() {
+    let mut classes: Vec<_> = program.classes.values().collect();
+    classes.sort_by_key(|c| c.range.start);
+
+    for klass in classes {
         for modifier in klass.modifiers.iter() {
             let str = match modifier.0 {
                 ClassModifier::Final => String::from("final"),

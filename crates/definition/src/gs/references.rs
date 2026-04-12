@@ -101,7 +101,7 @@ fn find_include_references(
 fn find_references_in_program(program: &Program, target: &str, uri: &Uri) -> Vec<Location> {
     let mut locations = vec![];
 
-    for cls in &program.classes {
+    for cls in program.classes.values() {
         if cls.name.name == target {
             locations.push(Location {
                 uri: uri.clone(),
@@ -116,62 +116,42 @@ fn find_references_in_program(program: &Program, target: &str, uri: &Uri) -> Vec
                 });
             }
         }
-        for field in &cls.fields {
+        for field in cls.fields.values() {
             locations.extend(find_references_in_type(&field.ty, target, uri));
-            for name in &field.names {
-                if name.name == target {
-                    locations.push(Location {
-                        uri: uri.clone(),
-                        range: name.range,
-                    });
-                }
+            if field.name.name == target {
+                locations.push(Location {
+                    uri: uri.clone(),
+                    range: field.name.range,
+                });
             }
-            for init in &field.initializers {
+            if let Some(init) = &field.initializer {
                 locations.extend(find_references_in_expr(init, target, uri));
             }
         }
-        for method in &cls.methods {
-            locations.extend(find_references_in_type_or_void(
-                &method.return_type,
-                target,
-                uri,
-            ));
-            if method.name.name == target {
-                locations.push(Location {
-                    uri: uri.clone(),
-                    range: method.name.range,
-                });
-            }
-            for param in &method.params {
-                locations.extend(find_references_in_type(&param.ty, target, uri));
-                if param.name.name == target {
+        for ms in cls.methods.values() {
+            for method in ms {
+                locations.extend(find_references_in_type_or_void(
+                    &method.return_type,
+                    target,
+                    uri,
+                ));
+                if method.name.name == target {
                     locations.push(Location {
                         uri: uri.clone(),
-                        range: param.name.range,
+                        range: method.name.range,
                     });
                 }
-            }
-            locations.extend(find_references_in_block(&method.body, target, uri));
-        }
-        for method in &cls.native_methods {
-            locations.extend(find_references_in_type_or_void(
-                &method.return_type,
-                target,
-                uri,
-            ));
-            if method.name.name == target {
-                locations.push(Location {
-                    uri: uri.clone(),
-                    range: method.name.range,
-                });
-            }
-            for param in &method.params {
-                locations.extend(find_references_in_type(&param.ty, target, uri));
-                if param.name.name == target {
-                    locations.push(Location {
-                        uri: uri.clone(),
-                        range: param.name.range,
-                    });
+                for param in &method.params {
+                    locations.extend(find_references_in_type(&param.ty, target, uri));
+                    if param.name.name == target {
+                        locations.push(Location {
+                            uri: uri.clone(),
+                            range: param.name.range,
+                        });
+                    }
+                }
+                if let Some(body) = &method.body {
+                    locations.extend(find_references_in_block(body, target, uri));
                 }
             }
         }
@@ -191,7 +171,7 @@ fn find_references_in_block(block: &Block, target: &str, uri: &Uri) -> Vec<Locat
 fn find_references_in_stmt(stmt: &Stmt, target: &str, uri: &Uri) -> Vec<Location> {
     let mut locations = vec![];
     match stmt {
-        Stmt::Label(id, _) => {
+        Stmt::Label(id, _, _) => {
             if id.name == target {
                 locations.push(Location {
                     uri: uri.clone(),

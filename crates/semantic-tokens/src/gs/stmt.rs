@@ -9,7 +9,7 @@ pub fn collect_stmt_tokens(
     known_classes: &std::collections::HashSet<String>,
 ) {
     match stmt {
-        Stmt::Label(id, colon_range) => {
+        Stmt::Label(id, colon_range, _) => {
             raw_tokens.push((id.range, SemanticTokenType::VARIABLE, vec![]));
             raw_tokens.push((*colon_range, SemanticTokenType::OPERATOR, vec![]));
         }

@@ -1,3 +1,4 @@
+use crate::find::HasRange;
 use crate::gs::process::process_trainz_ast;
 use pest::Parser;
 use trainz_parser::gs::grammar::{GameScriptParser, Rule};
@@ -84,4 +85,102 @@ fn test_bitwise_and_math_operators() {
         }
     };";
     parse_gs(src);
+}
+
+#[test]
+fn test_include_range() {
+    let src = "include \"test.gs\"\n\n\nclass Foo {};";
+    let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
+    let program = process_trainz_ast(pairs, src);
+
+    assert_eq!(program.includes.len(), 1);
+    let include = &program.includes[0];
+
+    // Check that the range doesn't span multiple lines
+    assert_eq!(include.range.start.line, 0);
+    assert_eq!(include.range.end.line, 0);
+
+    let src_with_semicolon = "include \"test.gs\";\n\n\nclass Foo {};";
+    let pairs = GameScriptParser::parse(Rule::program, src_with_semicolon).unwrap();
+    let program = process_trainz_ast(pairs, src_with_semicolon);
+
+    assert_eq!(program.includes.len(), 1);
+    let include = &program.includes[0];
+    assert_eq!(include.range.start.line, 0);
+    assert_eq!(include.range.end.line, 0);
+}
+
+#[test]
+fn test_label_range() {
+    let src = "class Test {\n    void Main() {\n        label:\n\n\n        return;\n    }\n};";
+    let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
+    let program = process_trainz_ast(pairs, src);
+
+    let method = &program
+        .classes
+        .values()
+        .next()
+        .unwrap()
+        .methods
+        .values()
+        .next()
+        .unwrap()[0];
+    let label_stmt = &method.body.as_ref().unwrap().statements[0];
+    if let crate::gs::Stmt::Label(_, _, _) = label_stmt {
+        let range = label_stmt.range();
+        assert_eq!(range.start.line, 2);
+        assert_eq!(range.end.line, 2);
+    } else {
+        panic!("Expected label statement");
+    }
+}
+
+#[test]
+fn test_return_range() {
+    let src = "class Test {\n    void Main() {\n        return\n\n\n        ;\n    }\n};";
+    let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
+    let program = process_trainz_ast(pairs, src);
+
+    let method = &program
+        .classes
+        .values()
+        .next()
+        .unwrap()
+        .methods
+        .values()
+        .next()
+        .unwrap()[0];
+    let return_stmt = &method.body.as_ref().unwrap().statements[0];
+    if let crate::gs::Stmt::Return(_, _, _) = return_stmt {
+        let range = return_stmt.range();
+        assert_eq!(range.start.line, 2);
+        assert_eq!(range.end.line, 2);
+    } else {
+        panic!("Expected return statement");
+    }
+}
+
+#[test]
+fn test_wait_range() {
+    let src = "class Test {\n    void Main() {\n        wait() { }\n\n\n        return;\n    }\n};";
+    let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
+    let program = process_trainz_ast(pairs, src);
+
+    let method = &program
+        .classes
+        .values()
+        .next()
+        .unwrap()
+        .methods
+        .values()
+        .next()
+        .unwrap()[0];
+    let wait_stmt = &method.body.as_ref().unwrap().statements[0];
+    if let crate::gs::Stmt::Wait(_) = wait_stmt {
+        let range = wait_stmt.range();
+        assert_eq!(range.start.line, 2);
+        assert_eq!(range.end.line, 2);
+    } else {
+        panic!("Expected wait statement");
+    }
 }

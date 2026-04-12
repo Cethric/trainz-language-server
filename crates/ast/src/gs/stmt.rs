@@ -19,7 +19,7 @@ impl HasRange for Block {
 impl HasRange for Stmt {
     fn range(&self) -> crate::Range {
         match self {
-            Stmt::Label(id, _) => id.range,
+            Stmt::Label(_, _, range) => *range,
             Stmt::Decl(decl) => decl.range,
             Stmt::Return(_, _, range) => *range,
             Stmt::Break(_, range) => *range,
@@ -39,7 +39,7 @@ impl HasRange for Stmt {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Stmt {
-    Label(Identifier, crate::Range), // colon range?
+    Label(Identifier, crate::Range, crate::Range), // id, colon range, stmt range
     Decl(Decl),
     Return(Option<Expr>, crate::Range, crate::Range), // expr, keyword range, stmt range
     Break(crate::Range, crate::Range),                // keyword range, stmt range

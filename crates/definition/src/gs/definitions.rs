@@ -4,12 +4,11 @@ use std::sync::Arc;
 use tower_lsp_server::ls_types::{GotoDefinitionResponse, Location, LocationLink, Position, Uri};
 use tracing::trace;
 use trainz_ast::find::position_in_range;
-use trainz_ast::gs::class::MethodDef;
 use trainz_ast::gs::find::{
     find_id_at_position, find_local_var_type_in_method, find_postfix_at_position,
 };
 use trainz_ast::gs::program::Program;
-use trainz_ast::gs::{Expr, PostfixOp, Type};
+use trainz_ast::gs::{Expr, MethodDef, PostfixOp, Type};
 
 fn parse_uri_or_path(s: &str) -> Option<Uri> {
     if let Ok(uri) = s.parse::<Uri>()
@@ -34,21 +33,14 @@ fn find_member_type(
             continue;
         }
 
-        let mut class_def = None;
-        for cls in &program.classes {
-            if cls.name.name == cls_name {
-                class_def = Some(cls.clone());
-                break;
-            }
-        }
+        let mut class_def = program.classes.get(&cls_name).cloned();
 
         if class_def.is_none()
             && let Some((cls, _)) = parsed_files.par_iter().find_map_any(|entry| {
                 entry
                     .value()
                     .classes
-                    .par_iter()
-                    .find_first(|c| c.name.name == cls_name)
+                    .get(&cls_name)
                     .map(|c| (c.clone(), ()))
             })
         {
@@ -57,31 +49,20 @@ fn find_member_type(
 
         if let Some(cls) = class_def {
             // Check fields
-            for f in &cls.fields {
-                for name in &f.names {
-                    if name.name == member_name
-                        && let Type::Named(tid) = &f.ty
+            if let Some(f) = cls.fields.get(member_name)
+                && let Type::Named(tid) = &f.ty
+            {
+                return Some(tid.name.clone());
+            }
+
+            // Check methods
+            if let Some(ms) = cls.methods.get(member_name) {
+                for m in ms {
+                    if let trainz_ast::gs::types::TypeOrVoid::Type(Type::Named(tid)) =
+                        &m.return_type
                     {
                         return Some(tid.name.clone());
                     }
-                }
-            }
-            // Check methods
-            for m in &cls.methods {
-                if m.name.name == member_name
-                    && let trainz_ast::gs::types::TypeOrVoid::Type(Type::Named(tid)) =
-                        &m.return_type
-                {
-                    return Some(tid.name.clone());
-                }
-            }
-            // Check native methods
-            for m in &cls.native_methods {
-                if m.name.name == member_name
-                    && let trainz_ast::gs::types::TypeOrVoid::Type(Type::Named(tid)) =
-                        &m.return_type
-                {
-                    return Some(tid.name.clone());
                 }
             }
 
@@ -114,25 +95,12 @@ fn infer_receiver_type(
             } else {
                 // It could be a class name (static method access) or a local/field/method returning something.
                 // For now, if it matches a class name, assume static class access.
-                let mut found_class = false;
-                for cls in &program.classes {
-                    if cls.name.name == id.name {
-                        found_class = true;
-                        break;
-                    }
-                }
+                let mut found_class = program.classes.contains_key(&id.name);
+
                 if !found_class {
-                    for entry in parsed_files.iter() {
-                        for cls in &entry.value().classes {
-                            if cls.name.name == id.name {
-                                found_class = true;
-                                break;
-                            }
-                        }
-                        if found_class {
-                            break;
-                        }
-                    }
+                    found_class = parsed_files
+                        .par_iter()
+                        .any(|entry| entry.value().classes.contains_key(&id.name));
                 }
                 if found_class {
                     Some(id.name.clone())
@@ -242,22 +210,19 @@ pub fn gs_goto_definition(
                 let mut current_class = None;
                 let mut current_method = None;
 
-                for cls in &program.classes {
+                for cls in program.classes.values() {
                     if position_in_range(position, cls.range) {
                         current_class = Some(cls.name.name.clone());
 
-                        for method in &cls.methods {
-                            if position_in_range(position, method.range) {
-                                current_method = Some(method.name.name.clone());
-                                break;
-                            }
-                        }
-                        if current_method.is_none() {
-                            for method in &cls.native_methods {
+                        for methods in cls.methods.values() {
+                            for method in methods {
                                 if position_in_range(position, method.range) {
                                     current_method = Some(method.name.name.clone());
                                     break;
                                 }
+                            }
+                            if current_method.is_some() {
+                                break;
                             }
                         }
                         break;
@@ -275,14 +240,11 @@ pub fn gs_goto_definition(
                     let mut current_file_found = false;
 
                     // Look in current file first
-                    for cls in &program.classes {
-                        if cls.name.name == class_name {
-                            for super_cls in &cls.superclasses {
-                                superclasses.push(super_cls.name.clone());
-                            }
-                            current_file_found = true;
-                            break;
+                    if let Some(cls) = program.classes.get(&class_name) {
+                        for super_cls in &cls.superclasses {
+                            superclasses.push(super_cls.name.clone());
                         }
+                        current_file_found = true;
                     }
 
                     if !current_file_found {
@@ -303,16 +265,14 @@ pub fn gs_goto_definition(
                                             "gs_goto_definition found included_program for {:?}",
                                             included_uri
                                         );
-                                        for cls in &included_program.classes {
-                                            if cls.name.name == class_name {
-                                                trace!(
-                                                    "gs_goto_definition found class {} in {:?}",
-                                                    class_name, included_uri
-                                                );
-                                                for super_cls in &cls.superclasses {
-                                                    superclasses.push(super_cls.name.clone());
-                                                }
-                                                break;
+                                        if let Some(cls) = included_program.classes.get(&class_name)
+                                        {
+                                            trace!(
+                                                "gs_goto_definition found class {} in {:?}",
+                                                class_name, included_uri
+                                            );
+                                            for super_cls in &cls.superclasses {
+                                                superclasses.push(super_cls.name.clone());
                                             }
                                         }
                                     }
@@ -338,12 +298,9 @@ pub fn gs_goto_definition(
                             let mut class_uri = None;
 
                             // Search in current file
-                            for cls in &program.classes {
-                                if cls.name.name == cls_name {
-                                    class_def = Some(cls.clone());
-                                    class_uri = Some(uri.clone());
-                                    break;
-                                }
+                            if let Some(cls) = program.classes.get(&cls_name) {
+                                class_def = Some(cls.clone());
+                                class_uri = Some(uri.clone());
                             }
 
                             if class_def.is_none()
@@ -351,13 +308,9 @@ pub fn gs_goto_definition(
                                     parsed_files.par_iter().find_map_any(|entry| {
                                         let included_uri_str = entry.key();
                                         let included_program = entry.value();
-                                        included_program
-                                            .classes
-                                            .par_iter()
-                                            .find_first(|c| c.name.name == cls_name)
-                                            .map(|c| {
-                                                (c.clone(), parse_uri_or_path(included_uri_str))
-                                            })
+                                        included_program.classes.get(&cls_name).map(|c| {
+                                            (c.clone(), parse_uri_or_path(included_uri_str))
+                                        })
                                     })
                             {
                                 class_def = Some(cls);
@@ -366,8 +319,8 @@ pub fn gs_goto_definition(
 
                             if let Some(cls) = class_def {
                                 // Search for method_name in this class
-                                for method in &cls.methods {
-                                    if method.name.name == method_name {
+                                if let Some(ms) = cls.methods.get(&method_name) {
+                                    for method in ms {
                                         // Ensure we're not pointing to the same method from which we started.
                                         // This can happen if a class names itself as its own superclass or through circular includes.
                                         if cls.name.name == class_name
@@ -376,36 +329,7 @@ pub fn gs_goto_definition(
                                             continue;
                                         }
 
-                                        if let Some(target_uri) = class_uri {
-                                            if target_uri != uri {
-                                                return Some(GotoDefinitionResponse::Link(vec![
-                                                    LocationLink {
-                                                        origin_selection_range,
-                                                        target_uri,
-                                                        target_range: method.range,
-                                                        target_selection_range: method.name.range,
-                                                    },
-                                                ]));
-                                            }
-
-                                            locations.push(Location {
-                                                uri: target_uri,
-                                                range: method.name.range,
-                                            });
-                                            return Some(GotoDefinitionResponse::Array(locations));
-                                        }
-                                    }
-                                }
-                                for method in &cls.native_methods {
-                                    if method.name.name == method_name {
-                                        // Ensure we're not pointing to the same method from which we started.
-                                        if cls.name.name == class_name
-                                            && method.name.name == method_name
-                                        {
-                                            continue;
-                                        }
-
-                                        if let Some(target_uri) = class_uri {
+                                        if let Some(target_uri) = class_uri.clone() {
                                             if target_uri != uri {
                                                 return Some(GotoDefinitionResponse::Link(vec![
                                                     LocationLink {
@@ -443,12 +367,17 @@ pub fn gs_goto_definition(
 
         let mut current_class = None;
         let mut current_method = None;
-        for cls in &program.classes {
+        for cls in program.classes.values() {
             if position_in_range(position, cls.range) {
                 current_class = Some(cls.name.name.clone());
-                for method in &cls.methods {
-                    if position_in_range(position, method.range) {
-                        current_method = Some(method.clone());
+                for methods in cls.methods.values() {
+                    for method in methods {
+                        if position_in_range(position, method.range) {
+                            current_method = Some(method.clone());
+                            break;
+                        }
+                    }
+                    if current_method.is_some() {
                         break;
                     }
                 }
@@ -479,15 +408,11 @@ pub fn gs_goto_definition(
         trace!("gs_goto_definition searching for {}", target);
         trace!(
             "gs_goto_definition classes in program: {:?}",
-            program
-                .classes
-                .par_iter()
-                .map(|c| &c.name.name)
-                .collect::<Vec<_>>()
+            program.classes.keys().collect::<Vec<_>>()
         );
         let mut local_definitions = vec![];
 
-        for cls in &program.classes {
+        for cls in program.classes.values() {
             if let Some(expected) = &expected_receiver_class
                 && cls.name.name != *expected
             {
@@ -501,26 +426,14 @@ pub fn gs_goto_definition(
                     range: cls.name.range,
                 });
             }
-            for field in &cls.fields {
-                for name in &field.names {
-                    if name.name == target {
-                        local_definitions.push(Location {
-                            uri: uri.clone(),
-                            range: name.range,
-                        });
-                    }
-                }
+            if let Some(field) = cls.fields.get(&target) {
+                local_definitions.push(Location {
+                    uri: uri.clone(),
+                    range: field.name.range,
+                });
             }
-            for method in &cls.methods {
-                if method.name.name == target {
-                    local_definitions.push(Location {
-                        uri: uri.clone(),
-                        range: method.name.range,
-                    });
-                }
-            }
-            for method in &cls.native_methods {
-                if method.name.name == target {
+            if let Some(ms) = cls.methods.get(&target) {
+                for method in ms {
                     local_definitions.push(Location {
                         uri: uri.clone(),
                         range: method.name.range,
@@ -543,10 +456,8 @@ pub fn gs_goto_definition(
                 found_class = parsed_files.par_iter().find_map_any(|entry| {
                     let included_uri_str = entry.key();
                     let included_program = entry.value();
-                    for class in &included_program.classes {
-                        if class.name.name == target
-                            && let Some(target_uri) = parse_uri_or_path(included_uri_str)
-                        {
+                    if let Some(class) = included_program.classes.get(&target) {
+                        if let Some(target_uri) = parse_uri_or_path(included_uri_str) {
                             trace!(
                                 "gs_goto_definition checking included target_uri: {:?}",
                                 target_uri
@@ -597,12 +508,9 @@ pub fn gs_goto_definition(
                         let mut class_uri = None;
 
                         // Search in current file
-                        for cls in &program.classes {
-                            if cls.name.name == cls_name {
-                                class_def = Some(cls.clone());
-                                class_uri = Some(uri.clone());
-                                break;
-                            }
+                        if let Some(cls) = program.classes.get(&cls_name) {
+                            class_def = Some(cls.clone());
+                            class_uri = Some(uri.clone());
                         }
 
                         if class_def.is_none()
@@ -610,13 +518,9 @@ pub fn gs_goto_definition(
                                 parsed_files.par_iter().find_map_any(|entry| {
                                     let included_uri_str = entry.key();
                                     let included_program = entry.value();
-                                    included_program
-                                        .classes
-                                        .par_iter()
-                                        .find_first(|class| class.name.name == cls_name)
-                                        .map(|class| {
-                                            (class.clone(), parse_uri_or_path(included_uri_str))
-                                        })
+                                    included_program.classes.get(&cls_name).map(|class| {
+                                        (class.clone(), parse_uri_or_path(included_uri_str))
+                                    })
                                 })
                         {
                             class_def = Some(cls);
@@ -625,76 +529,48 @@ pub fn gs_goto_definition(
 
                         if let Some(cls) = class_def {
                             // Check methods
-                            for method in &cls.methods {
-                                if method.name.name == target
-                                    && let Some(target_uri) = class_uri
-                                {
+                            if let Some(ms) = cls.methods.get(&target) {
+                                if let Some(target_uri) = class_uri.clone() {
                                     if target_uri != uri {
                                         return Some(GotoDefinitionResponse::Link(vec![
                                             LocationLink {
-                                                origin_selection_range,
+                                                origin_selection_range: origin_selection_range
+                                                    .clone(),
                                                 target_uri,
-                                                target_range: method.range,
-                                                target_selection_range: method.name.range,
+                                                target_range: ms[0].range,
+                                                target_selection_range: ms[0].name.range,
                                             },
                                         ]));
                                     }
 
                                     locations.push(Location {
                                         uri: target_uri,
-                                        range: method.name.range,
-                                    });
-                                    return Some(GotoDefinitionResponse::Array(locations));
-                                }
-                            }
-
-                            // Check native methods
-                            for method in &cls.native_methods {
-                                if method.name.name == target
-                                    && let Some(target_uri) = class_uri
-                                {
-                                    if target_uri != uri {
-                                        return Some(GotoDefinitionResponse::Link(vec![
-                                            LocationLink {
-                                                origin_selection_range,
-                                                target_uri,
-                                                target_range: method.range,
-                                                target_selection_range: method.name.range,
-                                            },
-                                        ]));
-                                    }
-
-                                    locations.push(Location {
-                                        uri: target_uri,
-                                        range: method.name.range,
+                                        range: ms[0].name.range,
                                     });
                                     return Some(GotoDefinitionResponse::Array(locations));
                                 }
                             }
 
                             // Check fields
-                            for field in &cls.fields {
-                                for name in &field.names {
-                                    if name.name == target
-                                        && let Some(target_uri) = class_uri
-                                    {
-                                        if target_uri != uri {
-                                            return Some(GotoDefinitionResponse::Link(vec![
-                                                LocationLink {
-                                                    origin_selection_range,
-                                                    target_uri,
-                                                    target_range: field.range,
-                                                    target_selection_range: name.range,
-                                                },
-                                            ]));
-                                        }
-
-                                        locations.push(Location {
-                                            uri: target_uri,
-                                            range: name.range,
-                                        });
-                                        return Some(GotoDefinitionResponse::Array(locations));
+                            if let Some(field) = cls.fields.get(&target) {
+                                if let Some(target_uri) = class_uri {
+                                    if target_uri != uri {
+                                        return Some(GotoDefinitionResponse::Link(vec![
+                                            LocationLink {
+                                                origin_selection_range: origin_selection_range
+                                                    .clone(),
+                                                target_uri,
+                                                target_range: field.range,
+                                                target_selection_range: field.name.range,
+                                            },
+                                        ]));
                                     }
+
+                                    locations.push(Location {
+                                        uri: target_uri,
+                                        range: field.name.range,
+                                    });
+                                    return Some(GotoDefinitionResponse::Array(locations));
                                 }
                             }
 

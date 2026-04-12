@@ -27,7 +27,7 @@ program = _{ SOI ~ ((include_statement | class_definition)*) ~ EOI }
     **********************************************
 */
 
-include_statement = { keyword_include ~ include_path ~ semicolon? }
+include_statement = { keyword_include ~ include_path ~ semicolon | keyword_include ~ include_path }
 include_path      = { string_value }
 
 /*
@@ -41,12 +41,12 @@ superclass_name = @{ identifier }
 
 class_modifiers = { (keyword_final | keyword_game | keyword_static | obsolete_statement | keyword_secured)* }
 
-class_inheritance = { (keyword_is_class ~ superclass_name ~ (comma ~ superclass_name)*)? }
+class_inheritance = { (keyword_is_class ~ superclass_name ~ (comma ~ superclass_name)*) | "" }
 
 class_definition = {
     (class_modifiers ~ keyword_class ~ #class_name = class_name ~ class_inheritance ~ class_body ~ semicolon)
 }
-class_body       = { brace_open ~ (class_native_method | class_method | class_member)* ~ brace_close }
+class_body       = { brace_open ~ (class_method | class_member)* ~ brace_close }
 
 /*
     **********************************************
@@ -69,32 +69,18 @@ class_member            =  {
     **********************************************
 */
 
-class_method_base_modifiers   = _{
-    keyword_static
-  | keyword_public
-  | obsolete_statement
-  | keyword_thread
-  | keyword_legacy_compatibility
-  | keyword_mandatory
+class_method_modifiers       =  {
+    (keyword_static | keyword_public | obsolete_statement | keyword_thread | keyword_legacy_compatibility | keyword_mandatory | keyword_native)*
 }
-class_native_method_modifiers =  {
-    (class_method_base_modifiers | keyword_native)*
-}
-class_method_modifiers        =  {
-    class_method_base_modifiers*
-}
-class_method_identifier       = @{ identifier }
-class_method_parameter_name   = @{ identifier }
-class_method_parameter_type   =  { type_array | types }
-class_method_return_type      =  { type_array | type_void | types }
-class_method_parameter        = _{ class_method_parameter_type ~ class_method_parameter_name }
-class_method_parameter_group  = _{ class_method_parameter ~ (comma ~ class_method_parameter)* }
-class_method_parameters       =  { paren_open ~ (type_void | class_method_parameter_group)? ~ paren_close }
-class_native_method           =  {
-    class_native_method_modifiers ~ class_method_return_type ~ #class_method_identifier = class_method_identifier ~ class_method_parameters ~ semicolon
-}
-class_method                  =  {
-    class_method_modifiers ~ class_method_return_type ~ #class_method_identifier = class_method_identifier ~ class_method_parameters ~ method_body
+class_method_identifier      = @{ identifier }
+class_method_parameter_name  = @{ identifier }
+class_method_parameter_type  =  { type_array | types }
+class_method_return_type     =  { type_array | type_void | types }
+class_method_parameter       = _{ class_method_parameter_type ~ class_method_parameter_name }
+class_method_parameter_group = _{ class_method_parameter ~ (comma ~ class_method_parameter)* }
+class_method_parameters      =  { paren_open ~ (type_void | class_method_parameter_group)? ~ paren_close }
+class_method                 =  {
+    class_method_modifiers ~ class_method_return_type ~ #class_method_identifier = class_method_identifier ~ class_method_parameters ~ (method_body | semicolon)
 }
 
 method_body = { brace_open ~ statements ~ brace_close }
@@ -106,7 +92,7 @@ method_body = { brace_open ~ statements ~ brace_close }
 */
 
 label           = @{ identifier }
-statement_label =  { label ~ colon ~ semicolon? }
+statement_label =  { label ~ colon ~ semicolon | label ~ colon }
 
 statement_goto = { keyword_goto ~ label }
 
@@ -250,7 +236,7 @@ statement_assignment = {
     postfix_expr ~ operator_assignment ~ (keyword_boolean | new_array | new_object | statement_expression)
 }
 
-statement_return   = { keyword_return ~ (keyword_boolean | new_array | new_object | statement_expression)? }
+statement_return   = { keyword_return ~ (keyword_boolean | new_array | new_object | statement_expression) | keyword_return }
 statement_break    = { keyword_break }
 statement_continue = { keyword_continue }
 
@@ -279,7 +265,8 @@ statement_for = {
 statement_wait_block = { brace_open ~ statements ~ brace_close }
 
 statement_wait = {
-    keyword_wait ~ paren_open ~ paren_close ~ statement_wait_block ~ semicolon?
+    keyword_wait ~ paren_open ~ paren_close ~ statement_wait_block ~ semicolon
+  | keyword_wait ~ paren_open ~ paren_close ~ statement_wait_block
 }
 
 statement_on  = {
@@ -477,7 +464,7 @@ keywords                     = _{
   | keyword_cast
 }
 
-obsolete_statement = { keyword_obsolete ~ (paren_open ~ integer ~ paren_close)? }
+obsolete_statement = { keyword_obsolete ~ (paren_open ~ integer ~ paren_close) | keyword_obsolete }
 
 /*
     **********************************************

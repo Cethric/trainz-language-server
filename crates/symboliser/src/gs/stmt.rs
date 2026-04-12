@@ -9,7 +9,7 @@ pub(crate) fn process_block(body: &Block) -> Vec<DocumentSymbol> {
     let mut symbols = vec![];
     for statement in body.statements.clone() {
         match &statement {
-            Stmt::Label(label, _) => {
+            Stmt::Label(label, _, _) => {
                 symbols.push(DocumentSymbol {
                     name: label.name.clone(),
                     detail: None,

@@ -58,13 +58,14 @@ pub fn process_stmt(pair: Pair<Rule>) -> Stmt {
                 } else {
                     range
                 };
-                Stmt::Label(label_id, colon_range)
+                Stmt::Label(label_id, colon_range, range)
             } else {
                 Stmt::Label(
                     crate::gs::Identifier {
                         name: "error".to_string(),
                         range,
                     },
+                    range,
                     range,
                 )
             }

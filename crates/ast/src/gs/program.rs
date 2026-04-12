@@ -1,11 +1,12 @@
 use crate::find::HasRange;
 use crate::gs::{ClassDef, Include};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Program {
     pub includes: Vec<Include>,
-    pub classes: Vec<ClassDef>,
+    pub classes: HashMap<String, ClassDef>,
     pub range: crate::Range,
 }
 

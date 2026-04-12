@@ -10,7 +10,7 @@ fn soup_benchmark(c: &mut Criterion) {
         username "My Test Object"
         kind "scenery"
         trainz-build 4.5
-        
+
         mesh-table
         {
             default
@@ -24,7 +24,7 @@ fn soup_benchmark(c: &mut Criterion) {
                 auto-create 1
             }
         }
-        
+
         extensions
         {
             my-ext-1
@@ -34,7 +34,7 @@ fn soup_benchmark(c: &mut Criterion) {
                 baz "hello"
             }
         }
-        
+
         thumbnails
         {
             0
@@ -44,13 +44,13 @@ fn soup_benchmark(c: &mut Criterion) {
                 height 180
             }
         }
-        
+
         description "This is a long description to test string processing. It contains multiple words and should be a bit larger than other strings."
-        
+
         category-class "AS"
         category-region "AU"
         category-era "2010s"
-        
+
         kuid-table
         {
             0 <kuid:123:1>

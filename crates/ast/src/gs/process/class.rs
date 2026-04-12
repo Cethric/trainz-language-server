@@ -3,9 +3,10 @@ use crate::gs::process::helpers::{process_identifier, process_type, process_type
 use crate::gs::process::stmt::process_statements;
 use crate::gs::{
     Block, ClassDef, ClassModifier, FieldDef, FieldModifier, Identifier, MethodDef, MethodModifier,
-    NativeMethodDef, Param,
+    Param,
 };
 use pest::iterators::Pair;
+use std::collections::HashMap;
 use tower_lsp_server::ls_types::Range;
 use tracing::trace;
 use trainz_common::range::{combine_ranges, pair_to_range};
@@ -24,9 +25,8 @@ pub fn process_class_definition(class_definition: Pair<Rule>) -> Option<ClassDef
         },
         keyword_is_class_range: None,
         superclasses: vec![],
-        fields: vec![],
-        methods: vec![],
-        native_methods: vec![],
+        fields: HashMap::new(),
+        methods: HashMap::new(),
         body_range: Range::default(),
         range,
     };
@@ -97,26 +97,29 @@ fn process_class_inner(inner: pest::iterators::Pairs<Rule>, class_def: &mut Clas
                 process_class_inner(pair.into_inner(), class_def);
             }
             Rule::class_member => {
-                class_def.fields.push(process_field_definition(pair));
+                let fields = process_field_definition(pair);
+                for field in fields {
+                    class_def.fields.insert(field.name.name.clone(), field);
+                }
             }
             Rule::class_method => {
-                class_def.methods.push(process_method_definition(pair));
-            }
-            Rule::class_native_method => {
+                let method = process_method_definition(pair);
                 class_def
-                    .native_methods
-                    .push(process_native_method_definition(pair));
+                    .methods
+                    .entry(method.name.name.clone())
+                    .or_default()
+                    .push(method);
             }
             _ => {}
         }
     }
 }
 
-fn process_field_definition(pair: Pair<Rule>) -> FieldDef {
+fn process_field_definition(pair: Pair<Rule>) -> Vec<FieldDef> {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
     let modifiers_pair = inner.next().unwrap();
-    let modifiers = modifiers_pair
+    let modifiers: Vec<(FieldModifier, Range)> = modifiers_pair
         .into_inner()
         .filter_map(|p| {
             let r = pair_to_range(&p);
@@ -137,6 +140,8 @@ fn process_field_definition(pair: Pair<Rule>) -> FieldDef {
         .collect();
 
     let ty = process_type(inner.next().unwrap());
+    let mut fields = vec![];
+
     let mut names = vec![];
     let mut initializers = vec![];
 
@@ -150,13 +155,18 @@ fn process_field_definition(pair: Pair<Rule>) -> FieldDef {
         }
     }
 
-    FieldDef {
-        modifiers,
-        ty,
-        names,
-        initializers,
-        range,
+    for (i, name) in names.into_iter().enumerate() {
+        let initializer = initializers.get(i).cloned();
+        fields.push(FieldDef {
+            modifiers: modifiers.clone(),
+            ty: ty.clone(),
+            name,
+            initializer,
+            range,
+        });
     }
+
+    fields
 }
 
 fn process_method_definition(pair: Pair<Rule>) -> MethodDef {
@@ -166,35 +176,38 @@ fn process_method_definition(pair: Pair<Rule>) -> MethodDef {
     let return_type = process_type_or_void(inner.next().unwrap());
     let name = process_identifier(inner.next().unwrap());
     let params = process_params(inner.next().unwrap());
-    let body_pair = inner.next().unwrap();
-    let body_range = pair_to_range(&body_pair);
 
-    trace!(
-        "process_method_definition: body_pair rule: {:?}",
-        body_pair.as_rule()
-    );
+    let body = if let Some(body_pair) = inner.next() {
+        let body_range = pair_to_range(&body_pair);
+        trace!(
+            "process_method_definition: body_pair rule: {:?}",
+            body_pair.as_rule()
+        );
 
-    let statements = if body_pair.as_rule() == Rule::method_body {
-        // method_body is '{' ~ statements ~ '}'
-        let body_inner = body_pair.into_inner();
-        let mut statements = vec![];
-        for pair in body_inner {
-            trace!(
-                "process_method_definition: body_inner pair rule: {:?}",
-                pair.as_rule()
-            );
-            if pair.as_rule() == Rule::statements {
-                statements.extend(process_statements(pair));
+        let statements = if body_pair.as_rule() == Rule::method_body {
+            // method_body is '{' ~ statements ~ '}'
+            let body_inner = body_pair.into_inner();
+            let mut statements = vec![];
+            for pair in body_inner {
+                trace!(
+                    "process_method_definition: body_inner pair rule: {:?}",
+                    pair.as_rule()
+                );
+                if pair.as_rule() == Rule::statements {
+                    statements.extend(process_statements(pair));
+                }
             }
-        }
-        statements
-    } else {
-        process_statements(body_pair)
-    };
+            statements
+        } else {
+            process_statements(body_pair)
+        };
 
-    let body = Block {
-        statements,
-        range: body_range,
+        Some(Block {
+            statements,
+            range: body_range,
+        })
+    } else {
+        None
     };
 
     MethodDef {
@@ -203,24 +216,6 @@ fn process_method_definition(pair: Pair<Rule>) -> MethodDef {
         name,
         params,
         body,
-        range,
-    }
-}
-
-fn process_native_method_definition(pair: Pair<Rule>) -> NativeMethodDef {
-    let range = pair_to_range(&pair);
-    let mut inner = pair.into_inner();
-    let modifiers = process_method_modifiers(inner.next().unwrap());
-    let return_type = process_type_or_void(inner.next().unwrap());
-    let name = process_identifier(inner.next().unwrap());
-    let params = process_params(inner.next().unwrap());
-
-    NativeMethodDef {
-        modifiers,
-        is_native: true,
-        return_type,
-        name,
-        params,
         range,
     }
 }
@@ -306,7 +301,7 @@ mod tests {
 
     #[test]
     fn test_obsolete_modifiers() {
-        let code = "obsolete class OldClass {\n    obsolete(123) int oldField;\n    obsolete void oldMethod() {}\n};\n";
+        let code = "obsolete\nclass OldClass {\n    obsolete(123)\n    int oldField;\n    obsolete\n    void oldMethod() {}\n};\n";
         let pairs = trainz_parser::gs::parse(code).unwrap();
 
         let class_pair = pairs
@@ -318,23 +313,35 @@ mod tests {
 
         assert_eq!(class_def.modifiers.len(), 1);
         match class_def.modifiers[0].0 {
-            ClassModifier::Obsolete(None) => {}
+            ClassModifier::Obsolete(None) => {
+                let r = class_def.modifiers[0].1;
+                assert_eq!(r.start.line, 0);
+                assert_eq!(r.end.line, 0);
+            }
             _ => panic!("Expected Obsolete(None) for class"),
         }
 
         assert_eq!(class_def.fields.len(), 1);
-        let field = &class_def.fields[0];
+        let field = class_def.fields.get("oldField").unwrap();
         assert_eq!(field.modifiers.len(), 1);
         match field.modifiers[0].0 {
-            FieldModifier::Obsolete(Some(123)) => {}
+            FieldModifier::Obsolete(Some(123)) => {
+                let r = field.modifiers[0].1;
+                assert_eq!(r.start.line, 2);
+                assert_eq!(r.end.line, 2);
+            }
             _ => panic!("Expected Obsolete(Some(123)) for field"),
         }
 
         assert_eq!(class_def.methods.len(), 1);
-        let method = &class_def.methods[0];
+        let method = &class_def.methods.get("oldMethod").unwrap()[0];
         assert_eq!(method.modifiers.len(), 1);
         match method.modifiers[0].0 {
-            MethodModifier::Obsolete(None) => {}
+            MethodModifier::Obsolete(None) => {
+                let r = method.modifiers[0].1;
+                assert_eq!(r.start.line, 4);
+                assert_eq!(r.end.line, 4);
+            }
             _ => panic!("Expected Obsolete(None) for method"),
         }
     }

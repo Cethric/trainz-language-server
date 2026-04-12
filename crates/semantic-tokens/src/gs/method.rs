@@ -11,7 +11,12 @@ pub fn collect_method_tokens(
     body: Option<&[Stmt]>,
     raw_tokens: &mut Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)>,
     known_classes: &std::collections::HashSet<String>,
+    has_separate_declaration: bool,
 ) {
+    let is_native = modifiers
+        .iter()
+        .any(|(m, _)| matches!(m, MethodModifier::Native));
+
     for (modifier, range) in modifiers {
         let (token_type, modifiers_bitset) = match modifier {
             MethodModifier::Static => (
@@ -34,14 +39,20 @@ pub fn collect_method_tokens(
         }
     }
 
-    raw_tokens.push((
-        name.range,
-        SemanticTokenType::METHOD,
-        vec![
-            SemanticTokenModifier::DECLARATION,
-            SemanticTokenModifier::DEFINITION,
-        ],
-    ));
+    let mut method_modifiers = vec![];
+    if is_native {
+        method_modifiers.push(SemanticTokenModifier::DECLARATION);
+        method_modifiers.push(SemanticTokenModifier::DEFINITION);
+    } else if body.is_some() {
+        method_modifiers.push(SemanticTokenModifier::DEFINITION);
+        if !has_separate_declaration {
+            method_modifiers.push(SemanticTokenModifier::DECLARATION);
+        }
+    } else {
+        method_modifiers.push(SemanticTokenModifier::DECLARATION);
+    }
+
+    raw_tokens.push((name.range, SemanticTokenType::METHOD, method_modifiers));
 
     for param in params {
         collect_type_tokens(&param.ty, raw_tokens);

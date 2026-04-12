@@ -24,7 +24,7 @@ pub fn semantic_tokens(
     let known_classes: std::collections::HashSet<String> = program
         .classes
         .par_iter()
-        .map(|c| c.name.name.clone())
+        .map(|(name, _)| name.clone())
         .collect();
 
     // Includes
@@ -52,7 +52,7 @@ pub fn semantic_tokens(
     let class_tokens: Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)> = program
         .classes
         .par_iter()
-        .flat_map(|class| {
+        .flat_map(|(_, class)| {
             let mut class_raw_tokens = vec![];
             for (modifier, range) in &class.modifiers {
                 let (token_type, modifiers) = match modifier {
@@ -87,7 +87,7 @@ pub fn semantic_tokens(
                 class_raw_tokens.push((superclass.range, SemanticTokenType::CLASS, vec![]));
             }
 
-            for field in &class.fields {
+            for field in class.fields.values() {
                 for (modifier, range) in &field.modifiers {
                     let (token_type, modifiers) = match modifier {
                         FieldModifier::Static => (
@@ -109,43 +109,46 @@ pub fn semantic_tokens(
                 // Types
                 collect_type_tokens(&field.ty, &mut class_raw_tokens);
 
-                for name in &field.names {
-                    class_raw_tokens.push((
-                        name.range,
-                        SemanticTokenType::PROPERTY,
-                        vec![
-                            SemanticTokenModifier::DECLARATION,
-                            SemanticTokenModifier::DEFINITION,
-                        ],
-                    ));
-                }
-                for init in &field.initializers {
+                class_raw_tokens.push((
+                    field.name.range,
+                    SemanticTokenType::PROPERTY,
+                    vec![
+                        SemanticTokenModifier::DECLARATION,
+                        SemanticTokenModifier::DEFINITION,
+                    ],
+                ));
+                if let Some(init) = &field.initializer {
                     collect_expr_tokens(init, &mut class_raw_tokens, &known_classes);
                 }
             }
 
-            for method in &class.methods {
-                collect_method_tokens(
-                    &method.modifiers,
-                    &method.return_type,
-                    &method.name,
-                    &method.params,
-                    Some(&method.body.statements),
-                    &mut class_raw_tokens,
-                    &known_classes,
-                );
-            }
+            for methods in class.methods.values() {
+                for method in methods {
+                    let has_separate_declaration = class
+                        .methods
+                        .get(&method.name.name)
+                        .map(|ms| {
+                            ms.iter().any(|m| {
+                                m.body.is_none()
+                                    && !m.modifiers.iter().any(|(mod_type, _)| {
+                                        matches!(mod_type, trainz_ast::gs::MethodModifier::Native)
+                                    })
+                                    && m.range != method.range
+                            })
+                        })
+                        .unwrap_or(false);
 
-            for method in &class.native_methods {
-                collect_method_tokens(
-                    &method.modifiers,
-                    &method.return_type,
-                    &method.name,
-                    &method.params,
-                    None,
-                    &mut class_raw_tokens,
-                    &known_classes,
-                );
+                    collect_method_tokens(
+                        &method.modifiers,
+                        &method.return_type,
+                        &method.name,
+                        &method.params,
+                        method.body.as_ref().map(|b| &b.statements[..]),
+                        &mut class_raw_tokens,
+                        &known_classes,
+                        has_separate_declaration,
+                    );
+                }
             }
             class_raw_tokens
         })

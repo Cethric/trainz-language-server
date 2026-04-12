@@ -4,6 +4,7 @@ use crate::gs::literal::Identifier;
 use crate::gs::stmt::Block;
 use crate::gs::types::{Type, TypeOrVoid};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClassDef {
@@ -12,9 +13,8 @@ pub struct ClassDef {
     pub name: Identifier,
     pub keyword_is_class_range: Option<crate::Range>,
     pub superclasses: Vec<Identifier>,
-    pub fields: Vec<FieldDef>,
-    pub methods: Vec<MethodDef>,
-    pub native_methods: Vec<NativeMethodDef>,
+    pub fields: HashMap<String, FieldDef>,
+    pub methods: HashMap<String, Vec<MethodDef>>,
     pub body_range: crate::Range,
     pub range: crate::Range,
 }
@@ -38,8 +38,8 @@ pub enum ClassModifier {
 pub struct FieldDef {
     pub modifiers: Vec<(FieldModifier, crate::Range)>,
     pub ty: Type,
-    pub names: Vec<Identifier>,
-    pub initializers: Vec<Expr>, // may be fewer than names
+    pub name: Identifier,
+    pub initializer: Option<Expr>,
     pub range: crate::Range,
 }
 
@@ -63,27 +63,11 @@ pub struct MethodDef {
     pub return_type: TypeOrVoid,
     pub name: Identifier,
     pub params: Vec<Param>,
-    pub body: Block,
+    pub body: Option<Block>,
     pub range: crate::Range,
 }
 
 impl HasRange for MethodDef {
-    fn range(&self) -> crate::Range {
-        self.range
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NativeMethodDef {
-    pub modifiers: Vec<(MethodModifier, crate::Range)>,
-    pub is_native: bool, // from keyword_native
-    pub return_type: TypeOrVoid,
-    pub name: Identifier,
-    pub params: Vec<Param>,
-    pub range: crate::Range,
-}
-
-impl HasRange for NativeMethodDef {
     fn range(&self) -> crate::Range {
         self.range
     }
