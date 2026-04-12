@@ -1,12 +1,53 @@
 use dashmap::DashMap;
 use rayon::prelude::*;
+use std::collections::HashSet;
 use std::sync::Arc;
 use tower_lsp_server::ls_types::{GotoDefinitionResponse, Location, LocationLink, Position, Uri};
 use tracing::trace;
-use trainz_ast::find::position_in_range;
+use trainz_ast::find::{HasRange, position_in_range};
 use trainz_ast::gs::find::{find_id_at_position, find_postfix_at_position};
 use trainz_ast::gs::program::Program;
+use trainz_ast::gs::type_eval::{ClassResolver, EvaluatedType, evaluate_expr_type};
 use trainz_ast::gs::{Expr, MethodDef, PostfixOp, Type};
+
+struct CombinedResolver<'a> {
+    current_program: &'a Program,
+    parsed_files: &'a DashMap<String, Arc<Program>>,
+}
+
+impl<'a> ClassResolver for CombinedResolver<'a> {
+    fn find_class(&self, name: &str) -> Option<trainz_ast::gs::ClassDef> {
+        let mut visited = HashSet::new();
+        self.find_recursive(self.current_program, name, &mut visited)
+    }
+}
+
+impl<'a> CombinedResolver<'a> {
+    fn find_recursive(
+        &self,
+        program: &trainz_ast::gs::Program,
+        name: &str,
+        visited: &mut HashSet<String>,
+    ) -> Option<trainz_ast::gs::ClassDef> {
+        if let Some(cls) = program.classes.get(name) {
+            return Some(cls.clone());
+        }
+
+        for include in &program.includes {
+            if let Some(path) = &include.path {
+                let path_str = path.to_string_lossy().to_string();
+                if visited.insert(path_str.clone()) {
+                    if let Some(entry) = self.parsed_files.get(&path_str) {
+                        if let Some(cls) = self.find_recursive(entry.value(), name, visited) {
+                            return Some(cls);
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+}
 
 #[tracing::instrument]
 fn parse_uri_or_path(s: &str) -> Option<Uri> {
@@ -18,63 +59,6 @@ fn parse_uri_or_path(s: &str) -> Option<Uri> {
     Uri::from_file_path(s)
 }
 
-#[tracing::instrument]
-fn find_member_type(
-    program: &Arc<Program>,
-    parsed_files: &DashMap<String, Arc<Program>>,
-    start_class: &str,
-    member_name: &str,
-) -> Option<String> {
-    let mut visited_classes = std::collections::HashSet::new();
-    let mut to_visit = vec![start_class.to_string()];
-
-    while let Some(cls_name) = to_visit.pop() {
-        if !visited_classes.insert(cls_name.clone()) {
-            continue;
-        }
-
-        let mut class_def = program.classes.get(&cls_name).cloned();
-
-        if class_def.is_none()
-            && let Some((cls, _)) = parsed_files.par_iter().find_map_any(|entry| {
-                entry
-                    .value()
-                    .classes
-                    .get(&cls_name)
-                    .map(|c| (c.clone(), ()))
-            })
-        {
-            class_def = Some(cls);
-        }
-
-        if let Some(cls) = class_def {
-            // Check fields
-            if let Some(f) = cls.fields.get(member_name)
-                && let Type::Named(tid) = &f.ty
-            {
-                return Some(tid.name.clone());
-            }
-
-            // Check methods
-            if let Some(ms) = cls.methods.get(member_name) {
-                for m in ms {
-                    if let trainz_ast::gs::types::TypeOrVoid::Type(Type::Named(tid)) =
-                        &m.return_type
-                    {
-                        return Some(tid.name.clone());
-                    }
-                }
-            }
-
-            // If not found, add superclasses
-            for super_cls in &cls.superclasses {
-                to_visit.push(super_cls.name.clone());
-            }
-        }
-    }
-    None
-}
-
 fn infer_receiver_type(
     program: &Arc<Program>,
     parsed_files: &DashMap<String, Arc<Program>>,
@@ -84,62 +68,47 @@ fn infer_receiver_type(
     _current_method: Option<&MethodDef>,
     position: Position,
 ) -> Option<String> {
-    let mut current_type = match expr {
-        Expr::Identifier(id) => {
-            let found_local = program
-                .find_variable_declaration(&id.name, position)
-                .map(|(ty, _)| format!("{}", ty));
-            if found_local.is_some() {
-                found_local
-            } else {
-                // It could be a class name (static method access) or a local/field/method returning something.
-                // For now, if it matches a class name, assume static class access.
-                let mut found_class = program.classes.contains_key(&id.name);
-
-                if !found_class {
-                    found_class = parsed_files
-                        .par_iter()
-                        .any(|entry| entry.value().classes.contains_key(&id.name));
-                }
-                if found_class {
-                    Some(id.name.clone())
-                } else {
-                    // If it's a method call on 'this' implicit, its type is return type of that method.
-                    // We'd have to search methods of current_class_name.
-                    if let Some(cname) = current_class_name {
-                        find_member_type(program, parsed_files, cname, &id.name)
-                    } else {
-                        None
-                    }
-                }
-            }
-        }
-        Expr::NewObject {
-            ty: Type::Named(id),
-            ..
-        } => Some(id.name.clone()),
-        _ => None,
+    let resolver = CombinedResolver {
+        current_program: program,
+        parsed_files,
     };
 
-    for op in ops {
-        match op {
-            PostfixOp::Call(_, _) => {
-                // Return type of current_type
-                // If current_type is a method, this doesn't help without more context, but if we had:
-                // `GetAsset()` and current_type evaluated to the return type of `GetAsset`, we are good.
-                // Actually, if `expr` was an identifier `GetAsset` and `ops` starts with `Call`, the identifier was a method.
-                // Above, we already set `current_type` to the return type of `GetAsset`!
-            }
-            PostfixOp::Deref(id) => {
-                // This gives a field/method. We need to find its return type if followed by Call.
-                if let Some(cname) = current_type {
-                    current_type = find_member_type(program, parsed_files, &cname, &id.name);
-                }
-            }
-            _ => {}
-        }
+    let current_class = current_class_name.and_then(|name| program.classes.get(name));
+
+    // To evaluate the receiver's type, we construct a sub-postfix expression up to the point of dereference.
+    // evaluate_expr_type is left-to-right, so we can just pass the expr and ops_before.
+    let res = if ops.is_empty() {
+        evaluate_expr_type(
+            expr,
+            program,
+            &resolver,
+            position,
+            current_class,
+            &std::collections::HashMap::new(),
+        )
+    } else {
+        let temp_expr = Expr::Postfix {
+            expr: Box::new(expr.clone()),
+            ops: ops.to_vec(),
+            range: expr.range(),
+        };
+        evaluate_expr_type(
+            &temp_expr,
+            program,
+            &resolver,
+            position,
+            current_class,
+            &std::collections::HashMap::new(),
+        )
+    };
+
+    match res {
+        Ok(ty) => match ty {
+            EvaluatedType::Type(Type::Named(id)) => Some(id.name),
+            _ => None,
+        },
+        Err(_) => None,
     }
-    current_type
 }
 
 pub fn gs_goto_definition(
@@ -1418,5 +1387,50 @@ class SignalNSW isclass BaseClass {
         };
         assert_eq!(locs.len(), 1);
         assert_eq!(locs[0].range.start.line, 2);
+    }
+
+    #[test]
+    fn test_gs_goto_definition_static_method_call() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        let source = "class Router {\n    static GameObject GetCurrentThreadGameObject() { return null; }\n};\nclass Test {\n    void Run() {\n        GameObject g = Router.GetCurrentThreadGameObject();\n    }\n};";
+        let pairs = trainz_ast::gs::process::process_trainz_ast(
+            trainz_parser::gs::parse(source).unwrap(),
+            source,
+        );
+        let program = Arc::new(pairs);
+        let uri = Uri::from_str("file:///test.gs").unwrap();
+        let parsed_files = DashMap::new();
+        parsed_files.insert(uri.to_string(), program.clone());
+
+        // Position on "GetCurrentThreadGameObject" in `Router.GetCurrentThreadGameObject();`
+        // 0: class Router {
+        // 1:     static GameObject GetCurrentThreadGameObject() { return null; }
+        // 2: };
+        // 3: class Test {
+        // 4:     void Run() {
+        // 5:         GameObject g = Router.GetCurrentThreadGameObject();
+        let position = Position {
+            line: 5,
+            character: 35,
+        };
+
+        let result = gs_goto_definition(program.clone(), position, uri.clone(), &parsed_files);
+        assert!(
+            result.is_some(),
+            "Expected a definition to be found for static method call"
+        );
+        let locs = match result.unwrap() {
+            GotoDefinitionResponse::Array(locs) => locs,
+            GotoDefinitionResponse::Link(links) => links
+                .into_iter()
+                .map(|l| Location {
+                    uri: l.target_uri,
+                    range: l.target_selection_range,
+                })
+                .collect(),
+            _ => panic!("Expected array or link"),
+        };
+        assert_eq!(locs.len(), 1);
+        assert_eq!(locs[0].range.start.line, 1);
     }
 }

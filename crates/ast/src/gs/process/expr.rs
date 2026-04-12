@@ -1,7 +1,7 @@
 use crate::find::HasRange;
 use crate::gs::process::helpers::{process_identifier, process_type};
 use crate::gs::{
-    BitwiseOp, ComparisonOp, EqualityOp, Expr, Literal, MathOp, PostfixOp, StringLiteral,
+    BitwiseOp, ComparisonOp, EqualityOp, Expr, Literal, MathOp, PostfixOp, StringLiteral, Type,
     UnaryPostfixOp, UnaryPrefixOp,
 };
 use pest::iterators::Pair;
@@ -340,10 +340,13 @@ fn process_postfix_expr(pair: Pair<Rule>) -> Expr {
                     .next()
                     .expect("deref must be followed by primary_expr"),
             );
-            if let Expr::Identifier(id) = next_expr {
-                ops.push(PostfixOp::Deref(id));
-            } else {
-                panic!("Deref must be followed by identifier, got {:?}", next_expr);
+            match next_expr {
+                Expr::Identifier(id) => ops.push(PostfixOp::Deref(id)),
+                Expr::IsClass(id) => ops.push(PostfixOp::Deref(id)),
+                _ => panic!(
+                    "Deref must be followed by identifier or isclass, got {:?}",
+                    next_expr
+                ),
             }
         } else {
             let op = process_postfix_op(op_pair);
@@ -509,17 +512,31 @@ fn process_new_array(pair: Pair<Rule>) -> Expr {
     let keyword_new_pair = inner.next().unwrap();
     let keyword_new_range = pair_to_range(&keyword_new_pair);
     let ty_pair = inner.next().unwrap();
-    let ty = process_type(ty_pair);
+    let mut ty = process_type(ty_pair);
 
-    // Skip bracket_open
-    inner.next();
+    let mut sizes = vec![];
+    while let Some(next) = inner.next() {
+        if next.as_rule() == Rule::bracket_open {
+            let size_pair = inner.next().expect("size expected after bracket_open");
+            sizes.push(process_expr(size_pair));
+            // Skip bracket_close
+            inner.next();
+        }
+    }
 
-    let size_pair = inner.next().unwrap();
-    let size = process_expr(size_pair);
+    // Wrap the base type for each additional dimension beyond the first.
+    for _ in 0..sizes.len().saturating_sub(1) {
+        ty = Type::Array(Box::new(ty), range);
+    }
 
     Expr::NewArray {
         ty,
-        size: Box::new(size),
+        size: Box::new(
+            sizes
+                .first()
+                .cloned()
+                .unwrap_or(Expr::Literal(Literal::Int(0, range))),
+        ),
         range,
         keyword_new_range,
     }
@@ -565,7 +582,10 @@ fn process_primary_expr(pair: Pair<Rule>) -> Expr {
             );
             res
         }
-        Rule::keyword_is_class => Expr::IsClass(range),
+        Rule::keyword_is_class => Expr::IsClass(crate::gs::Identifier {
+            name: "isclass".to_string(),
+            range,
+        }),
         Rule::keyword_me => Expr::Identifier(crate::gs::Identifier {
             name: "me".to_string(),
             range,

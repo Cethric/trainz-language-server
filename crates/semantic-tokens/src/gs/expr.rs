@@ -33,7 +33,7 @@ pub fn collect_expr_tokens(
         } => {
             collect_expr_tokens(left, raw_tokens, known_classes);
             collect_expr_tokens(right, raw_tokens, known_classes);
-            raw_tokens.push((*op_range, SemanticTokenType::OPERATOR, vec![]));
+            raw_tokens.push((*op_range, SemanticTokenType::KEYWORD, vec![]));
         }
         Expr::Equality {
             left,
@@ -169,8 +169,8 @@ pub fn collect_expr_tokens(
             };
             raw_tokens.push((range, token_type, modifiers));
         }
-        Expr::IsClass(range) => {
-            raw_tokens.push((*range, SemanticTokenType::KEYWORD, vec![]));
+        Expr::IsClass(id) => {
+            raw_tokens.push((id.range, SemanticTokenType::KEYWORD, vec![]));
         }
         Expr::Identifier(id) => {
             let (token_type, modifiers) = if id.name == "me" {

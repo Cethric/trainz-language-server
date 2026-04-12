@@ -6,11 +6,16 @@ use super::stmt::process_block;
 use crate::gs::util::{is_class_obsolete, is_method_obsolete};
 
 #[allow(deprecated)]
-#[tracing::instrument]
-pub(crate) fn process_class_symbol(class: &ClassDef) -> DocumentSymbol {
+#[tracing::instrument(skip(resolver))]
+pub(crate) fn process_class_symbol(
+    class: &ClassDef,
+    program: &trainz_ast::gs::Program,
+    resolver: &dyn trainz_ast::gs::type_eval::ClassResolver,
+) -> DocumentSymbol {
     let mut children = vec![];
 
     for field in class.fields.values() {
+        children.extend(super::expr::process_type_symbols(&field.ty));
         children.push(DocumentSymbol {
             name: field.name.name.clone(),
             detail: Some(format!("{}", field.ty)),
@@ -25,7 +30,7 @@ pub(crate) fn process_class_symbol(class: &ClassDef) -> DocumentSymbol {
 
     for methods in class.methods.values() {
         for method in methods {
-            children.push(process_method_symbol(method, class));
+            children.push(process_method_symbol(method, class, program, resolver));
         }
     }
 
@@ -54,13 +59,22 @@ pub(crate) fn process_class_symbol(class: &ClassDef) -> DocumentSymbol {
 }
 
 #[allow(deprecated)]
-#[tracing::instrument]
-fn process_method_symbol(method: &MethodDef, class: &ClassDef) -> DocumentSymbol {
+#[tracing::instrument(skip(resolver))]
+fn process_method_symbol(
+    method: &MethodDef,
+    class: &ClassDef,
+    program: &trainz_ast::gs::Program,
+    resolver: &dyn trainz_ast::gs::type_eval::ClassResolver,
+) -> DocumentSymbol {
     let deprecated = is_method_obsolete(&method.modifiers);
     let is_native = is_method_native(&method.modifiers);
 
     let mut children = vec![];
+    if let trainz_ast::gs::TypeOrVoid::Type(ty) = &method.return_type {
+        children.extend(super::expr::process_type_symbols(ty));
+    }
     for param in &method.params {
+        children.extend(super::expr::process_type_symbols(&param.ty));
         children.push(DocumentSymbol {
             name: param.name.name.clone(),
             detail: Some(format!("{}", param.ty)),
@@ -73,7 +87,7 @@ fn process_method_symbol(method: &MethodDef, class: &ClassDef) -> DocumentSymbol
         });
     }
     if let Some(body) = &method.body {
-        children.extend(process_block(body));
+        children.extend(process_block(body, program, resolver));
     }
 
     use crate::gs::util::is_method_native;

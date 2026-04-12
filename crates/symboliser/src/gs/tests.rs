@@ -11,7 +11,7 @@ mod tests {
         let pairs = GameScriptParser::parse(Rule::program, src)
             .unwrap_or_else(|e| panic!("Parse failed: {}", e));
         let program = process_trainz_ast(pairs, src);
-        let mut symbols = trainz_symboliser(&program);
+        let mut symbols = trainz_symboliser(&program, &program);
         if symbols.len() == 1 && symbols[0].name == "file" {
             symbols.remove(0).children.unwrap_or_default()
         } else {
@@ -66,6 +66,53 @@ mod tests {
     }
 
     #[test]
+    fn test_type_symbolisation() {
+        let src = "
+    class Foo {};
+    class Test {
+        Foo m_foo;
+        void Main(Foo param) {
+            Foo local = cast<Foo>(null);
+            Foo[] arr = new Foo[1];
+        }
+    };";
+        let symbols = get_symbols(src);
+        // Find Test class
+        let test_class = symbols
+            .iter()
+            .find(|s| s.name == "Test")
+            .expect("Should find Test class");
+        let test_children = test_class
+            .children
+            .as_ref()
+            .expect("Test class should have children");
+
+        // m_foo should have Foo as a child symbol (they are siblings in our implementation)
+        assert!(
+            test_children
+                .iter()
+                .any(|s| s.name == "Foo" && s.kind == SymbolKind::CLASS),
+            "Should find Foo class symbol for field type"
+        );
+
+        let main_method = test_children
+            .iter()
+            .find(|s| s.name == "Main")
+            .expect("Should find Main method");
+        let main_children = main_method
+            .children
+            .as_ref()
+            .expect("Main method should have children");
+
+        assert!(
+            main_children
+                .iter()
+                .any(|s| s.name == "Foo" && s.kind == SymbolKind::CLASS),
+            "Should find Foo class symbol for param/local type"
+        );
+    }
+
+    #[test]
     fn test_nested_scoping() {
         let src = "
     class Test {
@@ -82,7 +129,7 @@ mod tests {
         let pairs = GameScriptParser::parse(Rule::program, src)
             .unwrap_or_else(|e| panic!("Parse failed: {}", e));
         let program = process_trainz_ast(pairs, src);
-        let symbols = trainz_symboliser(&program);
+        let symbols = trainz_symboliser(&program, &program);
 
         // Top-level symbol should be "file"
         assert_eq!(symbols.len(), 1);

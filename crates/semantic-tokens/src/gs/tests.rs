@@ -546,3 +546,22 @@ fn test_signal_gs_tokens() {
         "Should find at least two 'new' keyword tokens"
     );
 }
+
+#[test]
+fn test_logical_keywords() {
+    let src = "class Test { void Main() { bool b = true and false; bool c = true or false; } };";
+    let tokens = get_tokens_for_src(src);
+    let type_keyword = get_token_type(tower_lsp_server::ls_types::SemanticTokenType::KEYWORD);
+
+    // Find 'and' keyword
+    let and_token = tokens
+        .iter()
+        .find(|t| t.token_type == type_keyword && t.length == 3);
+    assert!(and_token.is_some(), "Should find 'and' keyword token");
+
+    // Find 'or' keyword
+    let or_token = tokens
+        .iter()
+        .find(|t| t.token_type == type_keyword && t.length == 2);
+    assert!(or_token.is_some(), "Should find 'or' keyword token");
+}

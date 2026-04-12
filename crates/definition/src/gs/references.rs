@@ -313,7 +313,14 @@ fn find_references_in_expr(expr: &Expr, target: &str, uri: &Uri) -> Vec<Location
             }
         }
         Expr::Literal(_) => {}
-        Expr::IsClass(_) => {}
+        Expr::IsClass(id) => {
+            if id.name == target {
+                locations.push(Location {
+                    uri: uri.clone(),
+                    range: id.range,
+                });
+            }
+        }
         Expr::Cast { expr, ty, .. } => {
             locations.extend(find_references_in_expr(expr, target, uri));
             locations.extend(find_references_in_type(ty, target, uri));

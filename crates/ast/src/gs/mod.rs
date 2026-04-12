@@ -7,6 +7,7 @@ pub mod process;
 pub mod program;
 pub mod scope;
 pub mod stmt;
+pub mod type_eval;
 pub mod types;
 
 #[cfg(test)]

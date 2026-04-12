@@ -29,8 +29,11 @@ pub(crate) fn process_include_symbol(include: &Include) -> DocumentSymbol {
 }
 
 #[allow(deprecated)]
-#[tracing::instrument]
-pub fn trainz_symboliser(program: &Program) -> Vec<DocumentSymbol> {
+#[tracing::instrument(skip(resolver))]
+pub fn trainz_symboliser(
+    program: &Program,
+    resolver: &dyn trainz_ast::gs::type_eval::ClassResolver,
+) -> Vec<DocumentSymbol> {
     let mut symbols: Vec<DocumentSymbol> = program
         .includes
         .par_iter()
@@ -39,7 +42,7 @@ pub fn trainz_symboliser(program: &Program) -> Vec<DocumentSymbol> {
     let class_symbols: Vec<DocumentSymbol> = program
         .classes
         .par_iter()
-        .map(|(_, class)| process_class_symbol(class))
+        .map(|(_, class)| process_class_symbol(class, program, resolver))
         .collect();
     symbols.extend(class_symbols);
 

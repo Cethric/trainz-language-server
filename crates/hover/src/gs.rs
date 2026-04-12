@@ -1,17 +1,24 @@
+use std::collections::HashMap;
 use tower_lsp_server::ls_types::{
     Hover, HoverContents, MarkupContent, MarkupKind, Position, Range,
 };
 use trainz_ast::find::HasRange;
-use trainz_ast::gs::FieldModifier;
 use trainz_ast::gs::find::{
     find_field_by_id_range, find_id_at_position, find_method_by_id_range, find_param_by_id_range,
+    find_postfix_at_position,
 };
 use trainz_ast::gs::program::Program;
+use trainz_ast::gs::type_eval::{ClassResolver, EvaluatedType, evaluate_expr_type};
+use trainz_ast::gs::{Expr, FieldModifier, Type};
 
 #[allow(deprecated)]
 #[allow(clippy::type_complexity)]
-#[tracing::instrument]
-pub fn trainz_hover(program: &Program, position: Position) -> Option<Hover> {
+#[tracing::instrument(skip(resolver))]
+pub fn trainz_hover(
+    program: &Program,
+    resolver: &dyn ClassResolver,
+    position: Position,
+) -> Option<Hover> {
     let id = find_id_at_position(program, position)?;
 
     if let Some((ty, name)) = program.find_variable_declaration(&id.name, position) {
@@ -46,29 +53,184 @@ pub fn trainz_hover(program: &Program, position: Position) -> Option<Hover> {
     }
 
     if let Some(method) = find_method_by_id_range(program, id.range) {
-        let mut value = String::new();
-        for (modifier, _) in &method.modifiers {
-            value.push_str(&format!("{} ", modifier));
-        }
-        value.push_str(&format!("{} {}(", method.return_type, method.name.name));
-        for (i, param) in method.params.iter().enumerate() {
-            if i > 0 {
-                value.push_str(", ");
-            }
-            value.push_str(&format!("{} {}", param.ty, param.name.name));
-        }
-        value.push(')');
-
         return Some(Hover {
             contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value,
+                value: format_method_hover(method),
+            }),
+            range: Some(id.range),
+        });
+    }
+
+    // Check if it's a method call or variable in the current context
+    let current_class = trainz_ast::gs::find::find_class_at_position(program, position);
+    if id.name == "me" {
+        if let Some(class) = current_class {
+            return Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: format!("class {}", class.name.name),
+                }),
+                range: Some(id.range),
+            });
+        }
+    }
+
+    if id.name == "isclass" {
+        return Some(Hover {
+            contents: HoverContents::Markup(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: "bool isclass(object cls)".to_string(),
+            }),
+            range: Some(id.range),
+        });
+    }
+
+    if let Some(class) = current_class {
+        if let Some(field) = class.find_field(program, resolver, &id.name) {
+            return Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: format!("field: {} {}", field.ty, field.name.name),
+                }),
+                range: Some(id.range),
+            });
+        }
+        if let Some(methods) = class.find_method(program, resolver, &id.name) {
+            if let Some(method) = methods.first() {
+                return Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: format_method_hover(method),
+                    }),
+                    range: Some(id.range),
+                });
+            }
+        }
+    }
+
+    // Check if it's a member of a postfix expression (chained call)
+    if let Some((postfix_expr, idx)) = find_postfix_at_position(program, position) {
+        if let Expr::Postfix { expr, ops, .. } = postfix_expr {
+            let ops_before = &ops[..idx];
+            let res = if ops_before.is_empty() {
+                evaluate_expr_type(
+                    expr,
+                    program,
+                    resolver,
+                    position,
+                    current_class,
+                    &HashMap::new(),
+                )
+            } else {
+                let temp_expr = Expr::Postfix {
+                    expr: expr.clone(),
+                    ops: ops_before.to_vec(),
+                    range: expr.range(),
+                };
+                evaluate_expr_type(
+                    &temp_expr,
+                    program,
+                    resolver,
+                    position,
+                    current_class,
+                    &HashMap::new(),
+                )
+            };
+
+            match res {
+                Ok(EvaluatedType::Type(Type::Named(class_id))) => {
+                    if let Some(class) = resolver.find_class(&class_id.name) {
+                        if let Some(field) = class.find_field(program, resolver, &id.name) {
+                            return Some(Hover {
+                                contents: HoverContents::Markup(MarkupContent {
+                                    kind: MarkupKind::Markdown,
+                                    value: format!("field: {} {}", field.ty, field.name.name),
+                                }),
+                                range: Some(id.range),
+                            });
+                        } else if let Some(methods) = class.find_method(program, resolver, &id.name)
+                        {
+                            if let Some(method) = methods.first() {
+                                return Some(Hover {
+                                    contents: HoverContents::Markup(MarkupContent {
+                                        kind: MarkupKind::Markdown,
+                                        value: format_method_hover(method),
+                                    }),
+                                    range: Some(id.range),
+                                });
+                            }
+                        }
+                    }
+                    if id.name == "isclass" {
+                        return Some(Hover {
+                            contents: HoverContents::Markup(MarkupContent {
+                                kind: MarkupKind::Markdown,
+                                value: "bool isclass(object cls)".to_string(),
+                            }),
+                            range: Some(id.range),
+                        });
+                    }
+                }
+                Ok(ref eval_res @ EvaluatedType::Array(..))
+                | Ok(ref eval_res @ EvaluatedType::Type(Type::Array(..))) => {
+                    let inner_type_str = match eval_res {
+                        EvaluatedType::Array(inner, _, _) => format!("{}", inner),
+                        EvaluatedType::Type(Type::Array(inner, _)) => format!("{}", inner),
+                        _ => unreachable!(),
+                    };
+
+                    if id.name == "size" {
+                        return Some(Hover {
+                            contents: HoverContents::Markup(MarkupContent {
+                                kind: MarkupKind::Markdown,
+                                value: "int size()".to_string(),
+                            }),
+                            range: Some(id.range),
+                        });
+                    } else if id.name == "copy" {
+                        return Some(Hover {
+                            contents: HoverContents::Markup(MarkupContent {
+                                kind: MarkupKind::Markdown,
+                                value: format!("{}[] copy()", inner_type_str),
+                            }),
+                            range: Some(id.range),
+                        });
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Check if it's a class name
+    if let Some(cls) = resolver.find_class(&id.name) {
+        return Some(Hover {
+            contents: HoverContents::Markup(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: format!("class {}", cls.name.name),
             }),
             range: Some(id.range),
         });
     }
 
     None
+}
+
+fn format_method_hover(method: &trainz_ast::gs::MethodDef) -> String {
+    let mut value = String::new();
+    for (modifier, _) in &method.modifiers {
+        value.push_str(&format!("{} ", modifier));
+    }
+    value.push_str(&format!("{} {}(", method.return_type, method.name.name));
+    for (i, param) in method.params.iter().enumerate() {
+        if i > 0 {
+            value.push_str(", ");
+        }
+        value.push_str(&format!("{} {}", param.ty, param.name.name));
+    }
+    value.push(')');
+    value
 }
 
 fn get_text_from_range(src: &str, range: Range) -> Option<String> {
@@ -128,6 +290,122 @@ mod tests {
     use trainz_parser::gs::parse;
 
     #[test]
+    fn test_trainz_hover_array_methods() {
+        let code = "class Test {
+    void Main() {
+        int[] arr = new int[4];
+        arr.size();
+        arr.copy();
+    }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'size' in 'arr.size()'
+        let pos_size = Position {
+            line: 3,
+            character: 12,
+        };
+        let hover_size =
+            trainz_hover(&program, &program, pos_size).expect("Should find hover for size()");
+        if let HoverContents::Markup(markup) = hover_size.contents {
+            assert_eq!(markup.value, "int size()");
+        }
+
+        // Hover over 'copy' in 'arr.copy()'
+        let pos_copy = Position {
+            line: 4,
+            character: 12,
+        };
+        let hover_copy =
+            trainz_hover(&program, &program, pos_copy).expect("Should find hover for copy()");
+        if let HoverContents::Markup(markup) = hover_copy.contents {
+            assert_eq!(markup.value, "int[] copy()");
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_nested_array_methods() {
+        let code = "class Test {
+    void Main() {
+        int[][] nested = new int[4][2];
+        nested.copy();
+        nested[0].copy();
+    }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'copy' in 'nested.copy()'
+        let pos_copy1 = Position {
+            line: 3,
+            character: 15,
+        };
+        let hover_copy1 = trainz_hover(&program, &program, pos_copy1)
+            .expect("Should find hover for nested.copy()");
+        if let HoverContents::Markup(markup) = hover_copy1.contents {
+            assert_eq!(markup.value, "int[][] copy()");
+        }
+
+        // Hover over 'copy' in 'nested[0].copy()'
+        let pos_copy2 = Position {
+            line: 4,
+            character: 18,
+        };
+        let hover_copy2 = trainz_hover(&program, &program, pos_copy2)
+            .expect("Should find hover for nested[0].copy()");
+        if let HoverContents::Markup(markup) = hover_copy2.contents {
+            assert_eq!(markup.value, "int[] copy()");
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_array_indexing() {
+        let code = "class Test {
+    void Main() {
+        int[] arr = new int[4];
+        int x = arr[0];
+    }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'arr' in 'arr[0]'
+        let pos_arr = Position {
+            line: 3,
+            character: 16,
+        };
+        let hover_arr =
+            trainz_hover(&program, &program, pos_arr).expect("Should find hover for arr in arr[0]");
+        if let HoverContents::Markup(markup) = hover_arr.contents {
+            assert_eq!(markup.value, "int[] arr");
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_isclass() {
+        let code = "class Foo {};
+class Test {
+    void Main() {
+        Foo f = new Foo();
+        f.isclass(null);
+    }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'isclass'
+        let pos = Position {
+            line: 4,
+            character: 12,
+        };
+        let hover = trainz_hover(&program, &program, pos).expect("Should find hover for isclass()");
+        if let HoverContents::Markup(markup) = hover.contents {
+            assert_eq!(markup.value, "bool isclass(object cls)");
+        }
+    }
+
+    #[test]
     fn test_trainz_hover_declaration() {
         let code = "class Test {
   public bool AlreadyThereStr(string[] strArray, string searchStr)
@@ -148,7 +426,7 @@ mod tests {
             line: 4,
             character: 9,
         };
-        let hover_i = trainz_hover(&program, pos_i).unwrap();
+        let hover_i = trainz_hover(&program, &program, pos_i).unwrap();
         if let HoverContents::Markup(markup) = hover_i.contents {
             assert_eq!(markup.value, "int i");
         }
@@ -158,7 +436,7 @@ mod tests {
             line: 5,
             character: 10,
         };
-        let hover_search = trainz_hover(&program, pos_search).unwrap();
+        let hover_search = trainz_hover(&program, &program, pos_search).unwrap();
         if let HoverContents::Markup(markup) = hover_search.contents {
             assert_eq!(markup.value, "parameter: string searchStr");
         }
@@ -181,8 +459,8 @@ mod tests {
             line: 4,
             character: 42,
         };
-        let hover_field =
-            trainz_hover(&program, pos_field).expect("Should find hover for m_queryResult");
+        let hover_field = trainz_hover(&program, &program, pos_field)
+            .expect("Should find hover for m_queryResult");
         if let HoverContents::Markup(markup) = hover_field.contents {
             assert_eq!(markup.value, "field: int m_queryResult");
         }
@@ -192,8 +470,8 @@ mod tests {
             line: 5,
             character: 33,
         };
-        let hover_define =
-            trainz_hover(&program, pos_define).expect("Should find hover for ERROR_INVALID_STATE");
+        let hover_define = trainz_hover(&program, &program, pos_define)
+            .expect("Should find hover for ERROR_INVALID_STATE");
         if let HoverContents::Markup(markup) = hover_define.contents {
             assert_eq!(markup.value, "int ERROR_INVALID_STATE = 2");
         }
@@ -211,20 +489,340 @@ mod tests {
         let program = process_trainz_ast(pairs, code);
 
         // Hover over 'CountTags' in 'Run'
-        let _pos_call = Position {
+        let pos_call = Position {
             line: 3,
             character: 4,
         };
-        // This will currently return None because trainz_hover doesn't resolve method calls.
-        // But if I hover over the definition, it should work.
+        let hover_call =
+            trainz_hover(&program, &program, pos_call).expect("Should find hover for method call");
+        if let HoverContents::Markup(markup) = hover_call.contents {
+            assert_eq!(markup.value, "public void CountTags(int pid, string s)");
+        }
+
         let pos_def = Position {
             line: 1,
             character: 14,
         };
-        let hover_def =
-            trainz_hover(&program, pos_def).expect("Should find hover for method definition");
+        let hover_def = trainz_hover(&program, &program, pos_def)
+            .expect("Should find hover for method definition");
         if let HoverContents::Markup(markup) = hover_def.contents {
             assert_eq!(markup.value, "public void CountTags(int pid, string s)");
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_static_method() {
+        let code = "class Router {
+    static GameObject GetCurrentThreadGameObject() { return null; }
+};
+
+class Test {
+    void Main() {
+        GameObject g = Router.GetCurrentThreadGameObject();
+    }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'GetCurrentThreadGameObject' in 'Main'
+        let pos_call = Position {
+            line: 6,
+            character: 35,
+        };
+        let hover_call = trainz_hover(&program, &program, pos_call)
+            .expect("Should find hover for static method call");
+        if let HoverContents::Markup(markup) = hover_call.contents {
+            assert_eq!(
+                markup.value,
+                "static GameObject GetCurrentThreadGameObject()"
+            );
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_inheritance() {
+        let code = "class Base {
+    public int baseField = 0;
+    public void BaseMethod(int a) {}
+};
+class Derived isclass Base {
+    void Main() {
+        BaseMethod(1);
+        int x = baseField;
+    }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'BaseMethod' call in 'Derived::Main'
+        let pos_method = Position {
+            line: 6,
+            character: 8,
+        };
+        let hover_method = trainz_hover(&program, &program, pos_method)
+            .expect("Should find hover for inherited method");
+        if let HoverContents::Markup(markup) = hover_method.contents {
+            assert_eq!(markup.value, "public void BaseMethod(int a)");
+        }
+
+        // Hover over 'baseField' in 'Derived::Main'
+        let pos_field = Position {
+            line: 7,
+            character: 16,
+        };
+        let hover_field = trainz_hover(&program, &program, pos_field)
+            .expect("Should find hover for inherited field");
+        if let HoverContents::Markup(markup) = hover_field.contents {
+            assert_eq!(markup.value, "field: int baseField");
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_chained_calls() {
+        let code = "class Logger {
+    public Logger Log(string msg) { return me; }
+    public int Count = 0;
+};
+class Test {
+    void Main() {
+        Logger l = new Logger();
+        l.Log(\"a\").Log(\"b\").Count;
+    }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over second 'Log' in 'l.Log(\"a\").Log(\"b\")'
+        let pos_log2 = Position {
+            line: 7,
+            character: 21,
+        };
+        let hover_log2 =
+            trainz_hover(&program, &program, pos_log2).expect("Should find hover for second Log()");
+        if let HoverContents::Markup(markup) = hover_log2.contents {
+            assert_eq!(markup.value, "public Logger Log(string msg)");
+        }
+
+        // Hover over 'Count' at the end of the chain
+        let pos_count = Position {
+            line: 7,
+            character: 29,
+        };
+        let hover_count =
+            trainz_hover(&program, &program, pos_count).expect("Should find hover for Count field");
+        if let HoverContents::Markup(markup) = hover_count.contents {
+            assert_eq!(markup.value, "field: int Count");
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_class_name() {
+        let code = "class Foo {};
+class Test {
+    void Main() {
+        Foo f = new Foo();
+    }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'Foo' in 'Foo f'
+        let pos_decl = Position {
+            line: 3,
+            character: 8,
+        };
+        let hover_decl = trainz_hover(&program, &program, pos_decl)
+            .expect("Should find hover for class name in declaration");
+        if let HoverContents::Markup(markup) = hover_decl.contents {
+            assert_eq!(markup.value, "class Foo");
+        }
+
+        // Hover over 'Foo' in 'new Foo()'
+        let pos_new = Position {
+            line: 3,
+            character: 20,
+        };
+        let hover_new = trainz_hover(&program, &program, pos_new)
+            .expect("Should find hover for class name in new expression");
+        if let HoverContents::Markup(markup) = hover_new.contents {
+            assert_eq!(markup.value, "class Foo");
+        }
+
+        // Hover over 'Base' in 'class Derived isclass Base'
+        let code2 = "class Base {}; class Derived isclass Base {};";
+        let pairs2 = parse(code2).unwrap();
+        let program2 = process_trainz_ast(pairs2, code2);
+        let pos_base = Position {
+            line: 0,
+            character: 38,
+        };
+        let hover_base = trainz_hover(&program2, &program2, pos_base)
+            .expect("Should find hover for superclass name");
+        if let HoverContents::Markup(markup) = hover_base.contents {
+            assert_eq!(markup.value, "class Base");
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_isclass_standalone() {
+        let code = "class Foo {};
+class Test {
+    void Main() {
+        isclass(Foo);
+    }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'isclass'
+        let pos = Position {
+            line: 3,
+            character: 8,
+        };
+        // This currently fails at find_id_at_position if we don't fix it
+        let hover = trainz_hover(&program, &program, pos);
+        assert!(
+            hover.is_some(),
+            "Should find hover for standalone isclass()"
+        );
+        if let Some(h) = hover {
+            if let HoverContents::Markup(markup) = h.contents {
+                assert_eq!(markup.value, "bool isclass(object cls)");
+            }
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_array_type_declaration() {
+        let code = "class Foo {};
+class Test {
+    void Main() {
+        Foo[] arr = new Foo[10];
+    }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'Foo' in 'Foo[] arr'
+        let pos_decl = Position {
+            line: 3,
+            character: 8,
+        };
+        let hover_decl = trainz_hover(&program, &program, pos_decl);
+        assert!(
+            hover_decl.is_some(),
+            "Should find hover for class name in array declaration"
+        );
+        if let Some(h) = hover_decl {
+            if let HoverContents::Markup(markup) = h.contents {
+                assert_eq!(markup.value, "class Foo");
+            }
+        }
+
+        // Hover over 'Foo' in 'new Foo[10]'
+        let pos_new = Position {
+            line: 3,
+            character: 24,
+        };
+        let hover_new = trainz_hover(&program, &program, pos_new);
+        assert!(
+            hover_new.is_some(),
+            "Should find hover for class name in new array expression"
+        );
+        if let Some(h) = hover_new {
+            if let HoverContents::Markup(markup) = h.contents {
+                assert_eq!(markup.value, "class Foo");
+            }
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_field_array_type() {
+        let code = "class Foo {};
+class Test {
+    Foo[] arr;
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'Foo' in 'Foo[] arr'
+        let pos = Position {
+            line: 2,
+            character: 5,
+        };
+        let hover = trainz_hover(&program, &program, pos);
+        assert!(
+            hover.is_some(),
+            "Should find hover for class name in field array declaration"
+        );
+        if let Some(h) = hover {
+            if let HoverContents::Markup(markup) = h.contents {
+                assert_eq!(markup.value, "class Foo");
+            }
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_method_types() {
+        let code = "class Foo {};
+class Test {
+    Foo Method(Foo param) { return new Foo(); }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'Foo' in return type
+        let pos_ret = Position {
+            line: 2,
+            character: 4,
+        };
+        let hover_ret = trainz_hover(&program, &program, pos_ret);
+        assert!(
+            hover_ret.is_some(),
+            "Should find hover for class name in return type"
+        );
+        if let Some(h) = hover_ret {
+            if let HoverContents::Markup(markup) = h.contents {
+                assert_eq!(markup.value, "class Foo");
+            }
+        }
+
+        // Hover over 'Foo' in parameter type
+        let pos_param = Position {
+            line: 2,
+            character: 15,
+        };
+        let hover_param = trainz_hover(&program, &program, pos_param);
+        assert!(
+            hover_param.is_some(),
+            "Should find hover for class name in parameter type"
+        );
+        if let Some(h) = hover_param {
+            if let HoverContents::Markup(markup) = h.contents {
+                assert_eq!(markup.value, "class Foo");
+            }
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_me_keyword() {
+        let code = "class Test {
+    void Main() {
+        me.Main();
+    }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'me'
+        let pos = Position {
+            line: 2,
+            character: 8,
+        };
+        let hover =
+            trainz_hover(&program, &program, pos).expect("Should find hover for me keyword");
+        if let HoverContents::Markup(markup) = hover.contents {
+            assert_eq!(markup.value, "class Test");
         }
     }
 }

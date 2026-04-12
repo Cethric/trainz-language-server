@@ -3,6 +3,7 @@ use crate::find::{HasRange, position_in_range};
 use crate::gs::program::Program;
 use crate::gs::{
     Block, ClassDef, Expr, FieldDef, Identifier, LoopBody, MethodDef, PostfixOp, Stmt, Type,
+    TypeOrVoid,
 };
 use rayon::prelude::*;
 use tracing::trace;
@@ -49,6 +50,14 @@ fn find_postfix_in_stmt(stmt: &Stmt, pos: Position) -> Option<(&Expr, usize)> {
     match stmt {
         Stmt::Return(expr, _, _) => expr.as_ref().and_then(|e| find_postfix_in_expr(e, pos)),
         Stmt::Expr(expr) => find_postfix_in_expr(expr, pos),
+        Stmt::Decl(decl) => {
+            for val in &decl.values {
+                if let Some(res) = find_postfix_in_expr(val, pos) {
+                    return Some(res);
+                }
+            }
+            None
+        }
         Stmt::If(if_stmt) => find_postfix_in_expr(&if_stmt.cond, pos)
             .or_else(|| find_postfix_in_block(&if_stmt.then_block, pos))
             .or_else(|| {
@@ -269,6 +278,9 @@ fn find_in_class(class: &ClassDef, pos: Position) -> Option<&Identifier> {
 }
 
 fn find_in_field(field: &FieldDef, pos: Position) -> Option<&Identifier> {
+    if let Some(id) = find_in_type(&field.ty, pos) {
+        return Some(id);
+    }
     if position_in_range(pos, field.name.range) {
         return Some(&field.name);
     }
@@ -285,10 +297,18 @@ fn find_in_method(method: &MethodDef, pos: Position) -> Option<&Identifier> {
         "find_in_method: checking method {} with range {:?}",
         method.name.name, method.range
     );
+    if let TypeOrVoid::Type(ty) = &method.return_type {
+        if let Some(id) = find_in_type(ty, pos) {
+            return Some(id);
+        }
+    }
     if position_in_range(pos, method.name.range) {
         return Some(&method.name);
     }
     for param in &method.params {
+        if let Some(id) = find_in_type(&param.ty, pos) {
+            return Some(id);
+        }
         if position_in_range(pos, param.name.range) {
             return Some(&param.name);
         }
@@ -506,9 +526,17 @@ fn find_in_expr(expr: &Expr, pos: Position) -> Option<&Identifier> {
             }
             None
         }
-        Expr::NewArray { size, .. } => find_in_expr(size, pos),
+        Expr::NewArray { ty, size, .. } => {
+            find_in_type(ty, pos).or_else(|| find_in_expr(size, pos))
+        }
         Expr::Literal(_) => None,
-        Expr::IsClass(_) => None,
+        Expr::IsClass(id) => {
+            if position_in_range(pos, id.range) {
+                Some(id)
+            } else {
+                None
+            }
+        }
         Expr::Identifier(id) => {
             if position_in_range(pos, id.range) {
                 Some(id)

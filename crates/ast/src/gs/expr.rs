@@ -81,7 +81,7 @@ pub enum Expr {
         keyword_new_range: crate::Range,
     },
     Literal(Literal),
-    IsClass(crate::Range),
+    IsClass(Identifier),
     Identifier(Identifier),
     Grouped(Box<Expr>, crate::Range),
 }
@@ -102,7 +102,7 @@ impl HasRange for Expr {
             Expr::NewObject { range, .. } => *range,
             Expr::NewArray { range, .. } => *range,
             Expr::Literal(lit) => lit.range(),
-            Expr::IsClass(range) => *range,
+            Expr::IsClass(id) => id.range,
             Expr::Identifier(id) => id.range,
             Expr::Grouped(_, range) => *range,
         }

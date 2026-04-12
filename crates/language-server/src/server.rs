@@ -4,6 +4,7 @@ use crate::state::{GameScriptLanguageServer, ParsedFileType};
 use dashmap::DashMap;
 use ls_types::CodeActionProviderCapability;
 use rayon::prelude::*;
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -53,6 +54,48 @@ use trainz_symboliser::soup::soup_symboliser;
 
 const GAME_SCRIPT_LANGUAGE_ID: &str = "game-script";
 const SOUP_LANGUAGE_ID: &str = "soup";
+
+struct RecursiveIncludeResolver<'a> {
+    current_program: &'a trainz_ast::gs::Program,
+    parsed_files: &'a DashMap<String, crate::state::ParsedFile>,
+}
+
+impl<'a> trainz_ast::gs::type_eval::ClassResolver for RecursiveIncludeResolver<'a> {
+    fn find_class(&self, name: &str) -> Option<trainz_ast::gs::ClassDef> {
+        let mut visited = HashSet::new();
+        self.find_recursive(self.current_program, name, &mut visited)
+    }
+}
+
+impl<'a> RecursiveIncludeResolver<'a> {
+    fn find_recursive(
+        &self,
+        program: &trainz_ast::gs::Program,
+        name: &str,
+        visited: &mut HashSet<String>,
+    ) -> Option<trainz_ast::gs::ClassDef> {
+        if let Some(cls) = program.classes.get(name) {
+            return Some(cls.clone());
+        }
+
+        for include in &program.includes {
+            if let Some(path) = &include.path {
+                let path_str = path.to_string_lossy().to_string();
+                if visited.insert(path_str.clone()) {
+                    if let Some(file) = self.parsed_files.get(&path_str) {
+                        if let ParsedFileType::GameScript(included_program) = &file.value().parsed {
+                            if let Some(cls) = self.find_recursive(included_program, name, visited)
+                            {
+                                return Some(cls);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+}
 
 impl LanguageServer for GameScriptLanguageServer {
     #[tracing::instrument]
@@ -597,7 +640,13 @@ impl LanguageServer for GameScriptLanguageServer {
             }
 
             let diagnostics = diagnostics_lock.get_or_init(|| match &parsed_file_type {
-                ParsedFileType::GameScript(program) => gs::trainz_diagnostics(program),
+                ParsedFileType::GameScript(program) => {
+                    let resolver = RecursiveIncludeResolver {
+                        current_program: program,
+                        parsed_files: &self.parsed_files,
+                    };
+                    gs::trainz_diagnostics(program, &resolver)
+                }
                 ParsedFileType::Soup(soup) => {
                     if let Some(validators) = self.validators.get() {
                         soup_diagnostics(soup, validators, Some(&document_path))
@@ -796,11 +845,21 @@ impl LanguageServer for GameScriptLanguageServer {
 
         if document_symbols_lock.get().is_none() {
             let validators = self.validators.get().cloned();
-            let symbols = tokio::task::spawn_blocking(move || match &parsed_file_type {
-                ParsedFileType::GameScript(program) => {
-                    trainz_symboliser::gs::trainz_symboliser(program)
+            let parsed_files_clone = self.parsed_files.clone();
+            let symbols = tokio::task::spawn_blocking(move || {
+                let resolver = RecursiveIncludeResolver {
+                    current_program: match &parsed_file_type {
+                        ParsedFileType::GameScript(p) => p,
+                        _ => unreachable!("Should only be called for GameScript"),
+                    },
+                    parsed_files: &parsed_files_clone,
+                };
+                match &parsed_file_type {
+                    ParsedFileType::GameScript(program) => {
+                        trainz_symboliser::gs::trainz_symboliser(program, &resolver)
+                    }
+                    ParsedFileType::Soup(soup) => soup_symboliser(soup, validators.as_ref()),
                 }
-                ParsedFileType::Soup(soup) => soup_symboliser(soup, validators.as_ref()),
             })
             .await
             .map_err(|e| {
@@ -1242,8 +1301,15 @@ impl LanguageServer for GameScriptLanguageServer {
                             .report_with_message("Searching GameScript file", 25)
                             .await;
                     }
-                    hover_result =
-                        trainz_hover(program, params.text_document_position_params.position);
+                    let resolver = RecursiveIncludeResolver {
+                        current_program: program,
+                        parsed_files: &self.parsed_files,
+                    };
+                    hover_result = trainz_hover(
+                        program,
+                        &resolver,
+                        params.text_document_position_params.position,
+                    );
                 }
             }
         }
@@ -1289,7 +1355,11 @@ impl LanguageServer for GameScriptLanguageServer {
                 if let Some(document) = self.parsed_files.get(&path_str) {
                     if hover_result.is_none() {
                         if let ParsedFileType::GameScript(program) = &document.parsed {
-                            hover_result = trainz_hover(program, target_range.start);
+                            let resolver = RecursiveIncludeResolver {
+                                current_program: program,
+                                parsed_files: &self.parsed_files,
+                            };
+                            hover_result = trainz_hover(program, &resolver, target_range.start);
                             if let Some(hr) = &mut hover_result {
                                 hr.range = origin_range;
                             }

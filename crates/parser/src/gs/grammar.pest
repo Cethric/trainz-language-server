@@ -306,7 +306,7 @@ new_object = {
 }
 
 new_array = {
-    keyword_new ~ types ~ bracket_open ~ statement_expression ~ bracket_close
+    keyword_new ~ types ~ (bracket_open ~ statement_expression ~ bracket_close)+
 }
 
 /*
@@ -397,6 +397,8 @@ keyword_goto                 = @{ "goto" ~ !ASCII_ALPHANUMERIC }
 keyword_if                   = @{ "if" ~ !ASCII_ALPHANUMERIC }
 keyword_include              = @{ "include" ~ !ASCII_ALPHANUMERIC }
 keyword_inherited            = @{ "inherited" ~ !ASCII_ALPHANUMERIC }
+keyword_and                  = @{ "and" ~ !ASCII_ALPHANUMERIC }
+keyword_or                   = @{ "or" ~ !ASCII_ALPHANUMERIC }
 keyword_is_class             = @{ "isclass" ~ !ASCII_ALPHANUMERIC }
 keyword_legacy_compatibility = @{ "legacy_compatibility" ~ !ASCII_ALPHANUMERIC }
 keyword_mandatory            = @{ "mandatory" ~ !ASCII_ALPHANUMERIC }
@@ -433,6 +435,8 @@ keywords                     = _{
   | keyword_if
   | keyword_include
   | keyword_inherited
+  | keyword_and
+  | keyword_or
   | keyword_is_class
   | keyword_legacy_compatibility
   | keyword_mandatory
@@ -472,7 +476,7 @@ type_void   = @{ "void" ~ !ASCII_ALPHANUMERIC }
 type_identifier = @{ identifier }
 
 types      = _{ type_float | type_bool | type_int | type_object | type_string | type_identifier }
-type_array =  { types ~ bracket_open ~ bracket_close }
+type_array =  { types ~ (bracket_open ~ bracket_close)+ }
 
 /*
     **********************************************
@@ -492,8 +496,8 @@ operator_comparison_less_than     = @{ "<" }
 operator_comparison_greater_than  = @{ ">" }
 operator_comparison               = _{ operator_comparison_less_equal | operator_comparison_greater_equal | operator_comparison_less_than | operator_comparison_greater_than }
 
-operator_logical_and = @{ "and" }
-operator_logical_or  = @{ "or" }
+operator_logical_and = @{ keyword_and }
+operator_logical_or  = @{ keyword_or }
 
 operator_bitwise_shift_left  = @{ "<<" }
 operator_bitwise_shift_right = @{ ">>" }

@@ -1,11 +1,17 @@
+use std::collections::HashMap;
 use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind};
 use tracing::trace;
 use trainz_ast::find::HasRange;
-use trainz_ast::gs::{Expr, Literal, PostfixOp};
+use trainz_ast::gs::type_eval::{ClassResolver, EvaluatedType, evaluate_expr_type};
+use trainz_ast::gs::{Expr, Literal, PostfixOp, Type};
 
 #[allow(deprecated)]
-#[tracing::instrument]
-pub(crate) fn process_expr(expr: &Expr) -> Vec<DocumentSymbol> {
+#[tracing::instrument(skip(resolver))]
+pub(crate) fn process_expr(
+    expr: &Expr,
+    program: &trainz_ast::gs::Program,
+    resolver: &dyn ClassResolver,
+) -> Vec<DocumentSymbol> {
     let mut symbols = vec![];
     trace!("symboliser: processing expr {:?}", expr);
 
@@ -13,8 +19,8 @@ pub(crate) fn process_expr(expr: &Expr) -> Vec<DocumentSymbol> {
         Expr::Assign {
             left, right, range, ..
         } => {
-            symbols.extend(process_expr(left));
-            symbols.extend(process_expr(right));
+            symbols.extend(process_expr(left, program, resolver));
+            symbols.extend(process_expr(right, program, resolver));
             symbols.push(DocumentSymbol {
                 name: "assign".to_string(),
                 detail: None,
@@ -32,8 +38,8 @@ pub(crate) fn process_expr(expr: &Expr) -> Vec<DocumentSymbol> {
         | Expr::Comparison { left, right, .. }
         | Expr::Bitwise { left, right, .. }
         | Expr::BinaryMath { left, right, .. } => {
-            symbols.extend(process_expr(left));
-            symbols.extend(process_expr(right));
+            symbols.extend(process_expr(left, program, resolver));
+            symbols.extend(process_expr(right, program, resolver));
         }
         Expr::Unary {
             op, expr, range, ..
@@ -70,24 +76,61 @@ pub(crate) fn process_expr(expr: &Expr) -> Vec<DocumentSymbol> {
                 _ => {
                     // Only recurse into operand, don't create a symbol for the operator itself
                     // unless it's a folded literal handled above.
-                    symbols.extend(process_expr(expr));
+                    symbols.extend(process_expr(expr, program, resolver));
                 }
             }
         }
-        Expr::Postfix { expr, ops, .. } => {
-            symbols.extend(process_expr(expr));
-            for op in ops {
+        Expr::Postfix {
+            expr: inner, ops, ..
+        } => {
+            symbols.extend(process_expr(inner, program, resolver));
+            for (idx, op) in ops.iter().enumerate() {
                 match op {
                     PostfixOp::Call(args, _) => {
                         for arg in args {
-                            symbols.extend(process_expr(arg));
+                            symbols.extend(process_expr(arg, program, resolver));
                         }
                     }
                     PostfixOp::Deref(id) => {
+                        let mut kind = SymbolKind::METHOD;
+                        let ops_before = &ops[..idx];
+                        let res = if ops_before.is_empty() {
+                            evaluate_expr_type(
+                                inner,
+                                program,
+                                resolver,
+                                id.range.start,
+                                None,
+                                &HashMap::new(),
+                            )
+                        } else {
+                            let temp_expr = Expr::Postfix {
+                                expr: inner.clone(),
+                                ops: ops_before.to_vec(),
+                                range: inner.range(),
+                            };
+                            evaluate_expr_type(
+                                &temp_expr,
+                                program,
+                                resolver,
+                                id.range.start,
+                                None,
+                                &HashMap::new(),
+                            )
+                        };
+
+                        if let Ok(EvaluatedType::Type(Type::Named(class_id))) = res {
+                            if let Some(class) = resolver.find_class(&class_id.name) {
+                                if class.find_field(program, resolver, &id.name).is_some() {
+                                    kind = SymbolKind::PROPERTY;
+                                }
+                            }
+                        }
+
                         symbols.push(DocumentSymbol {
                             name: id.name.clone(),
                             detail: None,
-                            kind: SymbolKind::METHOD,
+                            kind,
                             tags: None,
                             deprecated: None,
                             range: id.range,
@@ -96,24 +139,27 @@ pub(crate) fn process_expr(expr: &Expr) -> Vec<DocumentSymbol> {
                         });
                     }
                     PostfixOp::Index(indices, _) => {
-                        for idx in indices {
-                            symbols.extend(process_expr(idx));
+                        for idx_expr in indices {
+                            symbols.extend(process_expr(idx_expr, program, resolver));
                         }
                     }
                     PostfixOp::Unary(_, _) => {}
                 }
             }
         }
-        Expr::Cast { expr, .. } => {
-            symbols.extend(process_expr(expr));
+        Expr::Cast { expr, ty, .. } => {
+            symbols.extend(process_type_symbols(ty));
+            symbols.extend(process_expr(expr, program, resolver));
         }
-        Expr::NewObject { args, .. } => {
+        Expr::NewObject { args, ty, .. } => {
+            symbols.extend(process_type_symbols(ty));
             for arg in args {
-                symbols.extend(process_expr(arg));
+                symbols.extend(process_expr(arg, program, resolver));
             }
         }
-        Expr::NewArray { size, .. } => {
-            symbols.extend(process_expr(size));
+        Expr::NewArray { size, ty, .. } => {
+            symbols.extend(process_type_symbols(ty));
+            symbols.extend(process_expr(size, program, resolver));
         }
         Expr::Literal(lit) => {
             let name = match lit {
@@ -152,10 +198,15 @@ pub(crate) fn process_expr(expr: &Expr) -> Vec<DocumentSymbol> {
                 return symbols;
             }
             trace!("symboliser: processing identifier {}", id.name);
+            let kind = if resolver.find_class(&id.name).is_some() {
+                SymbolKind::CLASS
+            } else {
+                SymbolKind::VARIABLE
+            };
             symbols.push(DocumentSymbol {
                 name: id.name.clone(),
                 detail: None,
-                kind: SymbolKind::VARIABLE,
+                kind,
                 tags: None,
                 deprecated: None,
                 range: id.range,
@@ -163,22 +214,45 @@ pub(crate) fn process_expr(expr: &Expr) -> Vec<DocumentSymbol> {
                 children: None,
             });
         }
-        Expr::IsClass(range) => {
+        Expr::IsClass(id) => {
             symbols.push(DocumentSymbol {
-                name: "isClass".to_string(),
+                name: "isclass".to_string(),
                 detail: None,
                 kind: SymbolKind::OPERATOR,
                 tags: None,
                 deprecated: None,
-                range: *range,
-                selection_range: *range,
+                range: id.range,
+                selection_range: id.range,
                 children: None,
             });
         }
         Expr::Grouped(expr, _) => {
-            symbols.extend(process_expr(expr));
+            symbols.extend(process_expr(expr, program, resolver));
         }
     }
 
+    symbols
+}
+
+pub(crate) fn process_type_symbols(ty: &Type) -> Vec<DocumentSymbol> {
+    let mut symbols = vec![];
+    match ty {
+        Type::Named(id) => {
+            symbols.push(DocumentSymbol {
+                name: id.name.clone(),
+                detail: None,
+                kind: SymbolKind::CLASS,
+                tags: None,
+                deprecated: None,
+                range: id.range,
+                selection_range: id.range,
+                children: None,
+            });
+        }
+        Type::Array(inner, _) => {
+            symbols.extend(process_type_symbols(inner));
+        }
+        _ => {}
+    }
     symbols
 }

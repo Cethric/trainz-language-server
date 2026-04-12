@@ -69,11 +69,18 @@ pub fn process_type(pair: Pair<Rule>) -> Type {
         Rule::type_string => Type::String(range),
         Rule::type_identifier => Type::Named(process_identifier(pair)),
         Rule::type_array => {
-            let inner_type = pair
-                .into_inner()
-                .next()
-                .expect("array should have inner type");
-            Type::Array(Box::new(process_type(inner_type)), range)
+            let mut inner = pair.into_inner();
+            let base_type_pair = inner.next().expect("array should have base type");
+            let mut ty = process_type(base_type_pair);
+
+            while let Some(next) = inner.next() {
+                if next.as_rule() == Rule::bracket_open {
+                    // Skip bracket_close
+                    inner.next();
+                    ty = Type::Array(Box::new(ty), range);
+                }
+            }
+            ty
         }
         _ => {
             // If it's some other rule (like class_method_parameter_type),
