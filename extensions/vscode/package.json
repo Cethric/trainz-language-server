@@ -90,6 +90,12 @@
           ],
           "minItems": 0,
           "description": "Path to additional Trainz GS include files"
+        },
+        "trainz-language-server.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Controls the trace level logged to the Trainz Language Server trace output channel."
         }
       }
     },
