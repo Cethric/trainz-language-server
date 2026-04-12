@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import {ExtensionContext, languages, LogOutputChannel, Uri, window, workspace, WorkspaceFolder, SemanticTokens, SemanticTokensBuilder, SemanticTokensLegend} from 'vscode';
+import {ExtensionContext, languages, LogOutputChannel, Uri, window, workspace, WorkspaceFolder, SemanticTokens, SemanticTokensBuilder, SemanticTokensLegend, Progress, ProgressLocation} from 'vscode';
 import {Executable, LanguageClient, LanguageClientOptions, ServerOptions} from 'vscode-languageclient/node';
 
 // let defaultClient: LanguageClient;
@@ -8,6 +8,76 @@ const clients = new Map<string, LanguageClient>();
 const symbolKindMappings = new Map<string, Map<number, vscode.SymbolKind>>();
 const tokenTypeMappings = new Map<string, Map<number, number>>();
 const tokenModifierMappings = new Map<string, Map<number, number>>();
+
+// Progress tracking
+const activeProgress = new Map<string, { resolve: () => void; progress: Progress<{ message?: string; increment?: number }> }>();
+
+function ensureSymbolKindMapping(folderKey: string, client: LanguageClient): Map<number, vscode.SymbolKind> | undefined {
+    if (symbolKindMappings.has(folderKey)) {
+        return symbolKindMappings.get(folderKey);
+    }
+
+    const serverCapabilities = client.initializeResult?.capabilities;
+    if (serverCapabilities?.documentSymbolProvider && (serverCapabilities.documentSymbolProvider as any).legend && (serverCapabilities.documentSymbolProvider as any).legend.symbolKinds) {
+        const legend = (serverCapabilities.documentSymbolProvider as any).legend;
+        const mapping = new Map<number, vscode.SymbolKind>();
+        legend.symbolKinds.forEach((kind: string, index: number) => {
+            const vscKind = (vscode.SymbolKind as any)[kind.charAt(0).toUpperCase() + kind.slice(1)];
+            if (vscKind !== undefined) {
+                mapping.set(index + 1, vscKind);
+            }
+        });
+        symbolKindMappings.set(folderKey, mapping);
+        return mapping;
+    }
+    return undefined;
+}
+
+function ensureSemanticTokenMappings(folderKey: string, client: LanguageClient): { typeMapping: Map<number, number>; modifierMapping: Map<number, number> } | undefined {
+    if (tokenTypeMappings.has(folderKey) && tokenModifierMappings.has(folderKey)) {
+        return {
+            typeMapping: tokenTypeMappings.get(folderKey)!,
+            modifierMapping: tokenModifierMappings.get(folderKey)!
+        };
+    }
+
+    const serverCapabilities = client.initializeResult?.capabilities;
+    if (serverCapabilities?.semanticTokensProvider && serverCapabilities.semanticTokensProvider.legend) {
+        const serverLegend = serverCapabilities.semanticTokensProvider.legend;
+        const clientTokenTypes = [
+            'namespace', 'type', 'class', 'enum', 'interface', 'struct', 'typeParameter',
+            'parameter', 'variable', 'property', 'enumMember', 'event', 'function',
+            'method', 'macro', 'keyword', 'modifier', 'comment', 'string', 'number',
+            'regexp', 'operator'
+        ];
+        const clientTokenModifiers = [
+            'declaration', 'definition', 'readonly', 'static', 'deprecated', 'abstract',
+            'async', 'modification', 'documentation', 'defaultLibrary'
+        ];
+
+        const typeMapping = new Map<number, number>();
+        serverLegend.tokenTypes.forEach((type, index) => {
+            const clientIndex = clientTokenTypes.indexOf(type);
+            if (clientIndex !== -1) {
+                typeMapping.set(index, clientIndex);
+            }
+        });
+
+        const modifierMapping = new Map<number, number>();
+        serverLegend.tokenModifiers.forEach((mod, index) => {
+            const clientIndex = clientTokenModifiers.indexOf(mod);
+            if (clientIndex !== -1) {
+                modifierMapping.set(index, clientIndex);
+            }
+        });
+
+        tokenTypeMappings.set(folderKey, typeMapping);
+        tokenModifierMappings.set(folderKey, modifierMapping);
+
+        return { typeMapping, modifierMapping };
+    }
+    return undefined;
+}
 
 const semanticTokensLegend: SemanticTokensLegend = {
   tokenTypes: [
@@ -43,14 +113,6 @@ function sortedWorkspaceFolders(): string[] {
 
 workspace.onDidChangeWorkspaceFolders(() => _sortedWorkspaceFolders = undefined);
 
-function getWorkspaceFolderKey(folder: WorkspaceFolder): string {
-    let key = folder.uri.toString();
-    if (!key.endsWith('/')) {
-        key = `${key}/`;
-    }
-    return key;
-}
-
 function getOuterMostWorkspaceFolder(folder: WorkspaceFolder): WorkspaceFolder {
     const sorted = sortedWorkspaceFolders();
     for (const element of sorted) {
@@ -66,13 +128,62 @@ function getOuterMostWorkspaceFolder(folder: WorkspaceFolder): WorkspaceFolder {
 }
 
 function getClientForDocument(document: vscode.TextDocument): LanguageClient | undefined {
-    const folder = workspace.getWorkspaceFolder(document.uri);
+    const uri = document.uri;
+
+    // Untitled files go to a default client (if we had one)
+    if (uri.scheme === 'untitled') {
+        return undefined; // This LSP doesn't support untitled files
+    }
+
+    let folder = workspace.getWorkspaceFolder(uri);
     if (!folder) {
         return undefined;
     }
 
-    const outerMostFolder = getOuterMostWorkspaceFolder(folder);
-    return clients.get(getWorkspaceFolderKey(outerMostFolder));
+    // If we have nested workspace folders, we only start a server on the outer most workspace folder
+    folder = getOuterMostWorkspaceFolder(folder);
+    return clients.get(folder.uri.toString());
+}
+
+function createLanguageClient(
+    context: ExtensionContext,
+    serverOptions: ServerOptions,
+    clientOptions: LanguageClientOptions,
+    diagnosticCollection: vscode.DiagnosticCollection,
+    folder?: WorkspaceFolder
+): LanguageClient {
+    const client = new LanguageClient(
+        'trainz-language-server',
+        folder ? `Trainz Language Server (${folder.name})` : 'Trainz Language Server',
+        serverOptions,
+        clientOptions
+    );
+
+    client.start().then(() => {
+        // Set up notification handlers immediately
+        client.onNotification(
+            'textDocument/publishDiagnostics',
+            (params: any) => {
+                handleDiagnostics(client, diagnosticCollection, params);
+            }
+        );
+
+        // Handle progress notifications
+        client.onNotification(
+            '$/progress',
+            (params: any) => {
+                console.log('Received progress notification:', params);
+                handleProgress(params);
+            }
+        );
+
+        // Defer mapping creation to avoid blocking the main thread during startup
+        // Mappings will be created lazily when first needed
+    }).catch((error) => {
+        console.error('Failed to start language client', error);
+    });
+
+    return client;
 }
 
 export function activate(context: ExtensionContext) {
@@ -81,14 +192,12 @@ export function activate(context: ExtensionContext) {
     let validation = config.get<string>('validation-path') || undefined;
     let search = config.get<string[]>('search-paths') || undefined;
 
-
     const outputChannel: LogOutputChannel = window.createOutputChannel('trainz-language-server', {log: true});
     const traceOutputChannel = window.createOutputChannel('trainz-language-server trace', {log: true});
     context.subscriptions.push(traceOutputChannel);
 
     const run: Executable = {
         command,
-        // transport: TransportKind.stdio,
         options: {
             env: {
                 ...process.env,
@@ -109,17 +218,18 @@ export function activate(context: ExtensionContext) {
             {scheme: 'file', pattern: '**/*.gs', language: 'game-script'},
             {scheme: 'file', pattern: '**/*.txt', language: 'soup'}
         ],
-
         synchronize: {
             fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
         },
-
         outputChannel,
         traceOutputChannel,
         stdioEncoding: 'utf8',
         progressOnInitialization: true,
         initializationOptions: {
             capabilities: {
+                window: {
+                    workDoneProgress: true
+                },
                 textDocument: {
                     semanticTokens: {
                         dynamicRegistration: false,
@@ -133,91 +243,38 @@ export function activate(context: ExtensionContext) {
     const diagnosticCollection = languages.createDiagnosticCollection('trainz-language-server');
     context.subscriptions.push(diagnosticCollection);
 
-    function didOpenTextDocument(document: vscode.TextDocument) {
-        let folder = workspace.getWorkspaceFolder(document.uri);
+    function didOpenTextDocument(document: vscode.TextDocument): void {
+        // We are only interested in language mode text
+        if ((document.languageId !== 'game-script' && document.languageId !== 'soup') ||
+            (document.uri.scheme !== 'file' && document.uri.scheme !== 'untitled')) {
+            return;
+        }
+
+        const uri = document.uri;
+
+        // Untitled files are not supported by this LSP
+        if (uri.scheme === 'untitled') {
+            return;
+        }
+
+        let folder = workspace.getWorkspaceFolder(uri);
+        // Files outside a folder can't be handled
         if (!folder) {
             return;
         }
 
+        // If we have nested workspace folders we only start a server on the outer most workspace folder
         folder = getOuterMostWorkspaceFolder(folder);
-        const folderKey = getWorkspaceFolderKey(folder);
 
-        if (!clients.has(folderKey)) {
+        if (!clients.has(folder.uri.toString())) {
             const folderClientOptions: LanguageClientOptions = {
                 ...clientOptions,
-                workspaceFolder: folder
+                workspaceFolder: folder,
+                diagnosticCollectionName: 'trainz-language-server'
             };
 
-            const client = new LanguageClient(
-                'trainz-language-server',
-                `Trainz Language Server (${folder.name})`,
-                serverOptions,
-                folderClientOptions
-            );
-
-            client.start().then(() => {
-                client.onNotification(
-                    'textDocument/publishDiagnostics',
-                    (params: any) => {
-                        handleDiagnostics(client, diagnosticCollection, params);
-                    }
-                );
-
-                // Get server capabilities and create mappings
-                const serverCapabilities = client.initializeResult!.capabilities;
-
-                // For symbol kinds
-                if (serverCapabilities.documentSymbolProvider && (serverCapabilities.documentSymbolProvider as any).legend && (serverCapabilities.documentSymbolProvider as any).legend.symbolKinds) {
-                    const legend = (serverCapabilities.documentSymbolProvider as any).legend;
-                    const mapping = new Map<number, vscode.SymbolKind>();
-                    legend.symbolKinds.forEach((kind: string, index: number) => {
-                        const vscKind = (vscode.SymbolKind as any)[kind.charAt(0).toUpperCase() + kind.slice(1)];
-                        if (vscKind !== undefined) {
-                            mapping.set(index + 1, vscKind);
-                        }
-                    });
-                    symbolKindMappings.set(folderKey, mapping);
-                }
-
-                // For semantic tokens
-                if (serverCapabilities.semanticTokensProvider && serverCapabilities.semanticTokensProvider.legend) {
-                    const serverLegend = serverCapabilities.semanticTokensProvider.legend;
-                    const clientTokenTypes = [
-                        'namespace', 'type', 'class', 'enum', 'interface', 'struct', 'typeParameter',
-                        'parameter', 'variable', 'property', 'enumMember', 'event', 'function',
-                        'method', 'macro', 'keyword', 'modifier', 'comment', 'string', 'number',
-                        'regexp', 'operator'
-                    ];
-                    const clientTokenModifiers = [
-                        'declaration', 'definition', 'readonly', 'static', 'deprecated', 'abstract',
-                        'async', 'modification', 'documentation', 'defaultLibrary'
-                    ];
-
-                    const typeMapping = new Map<number, number>();
-                    serverLegend.tokenTypes.forEach((type, index) => {
-                        const clientIndex = clientTokenTypes.indexOf(type);
-                        if (clientIndex !== -1) {
-                            typeMapping.set(index, clientIndex);
-                        }
-                    });
-
-                    const modifierMapping = new Map<number, number>();
-                    serverLegend.tokenModifiers.forEach((mod, index) => {
-                        const clientIndex = clientTokenModifiers.indexOf(mod);
-                        if (clientIndex !== -1) {
-                            modifierMapping.set(index, clientIndex);
-                        }
-                    });
-
-                    tokenTypeMappings.set(folderKey, typeMapping);
-                    tokenModifierMappings.set(folderKey, modifierMapping);
-                }
-            }).catch((error) => {
-                console.error('Failed to start language client for', folder.uri.toString(), error);
-            });
-
-            clients.set(folderKey, client);
-            context.subscriptions.push(client);
+            const client = createLanguageClient(context, serverOptions, folderClientOptions, diagnosticCollection, folder);
+            clients.set(folder.uri.toString(), client);
         }
     }
 
@@ -225,25 +282,24 @@ export function activate(context: ExtensionContext) {
         diagnosticCollection.delete(document.uri);
     }
 
-    registerLanguageFeatures(context);
-
+    // Register listeners
     workspace.onDidOpenTextDocument(didOpenTextDocument);
     workspace.onDidCloseTextDocument(handleDocumentClose);
     workspace.textDocuments.forEach(didOpenTextDocument);
 
     workspace.onDidChangeWorkspaceFolders((event) => {
         for (const folder of event.removed) {
-            const folderKey = getWorkspaceFolderKey(folder);
-            const client = clients.get(folderKey);
+            const client = clients.get(folder.uri.toString());
             if (client) {
-                clients.delete(folderKey);
+                clients.delete(folder.uri.toString());
                 client.stop().catch(console.error);
             }
 
-            symbolKindMappings.delete(folderKey);
-            tokenTypeMappings.delete(folderKey);
-            tokenModifierMappings.delete(folderKey);
+            symbolKindMappings.delete(folder.uri.toString());
+            tokenTypeMappings.delete(folder.uri.toString());
+            tokenModifierMappings.delete(folder.uri.toString());
 
+            // Clean up diagnostics for documents in removed folders
             for (const document of workspace.textDocuments) {
                 const documentFolder = workspace.getWorkspaceFolder(document.uri);
                 if (!documentFolder) {
@@ -251,20 +307,91 @@ export function activate(context: ExtensionContext) {
                 }
 
                 const outerMost = getOuterMostWorkspaceFolder(documentFolder);
-                if (getWorkspaceFolderKey(outerMost) === folderKey) {
+                if (outerMost.uri.toString() === folder.uri.toString()) {
                     diagnosticCollection.delete(document.uri);
                 }
             }
         }
 
+        // Restart clients for added folders
         workspace.textDocuments.forEach(didOpenTextDocument);
     });
+
+    // Register language features
+    registerLanguageFeatures(context);
 }
 
 export async function deactivate(): Promise<void> {
-    await Promise.all(
-        [...clients.values()].map((client) => client.stop().catch(console.error))
-    );
+    const promises: Thenable<void>[] = [];
+    for (const client of clients.values()) {
+        promises.push(client.stop());
+    }
+    return Promise.all(promises).then(() => undefined);
+}
+
+/**
+ * Handle progress notifications from the language server
+ */
+function handleProgress(params: any) {
+    console.log('Handling progress:', params);
+    const { token, value } = params;
+
+    if (value.kind === 'begin') {
+        console.log('Starting progress:', value.title || 'Language Server Operation');
+        // Start a new progress
+        window.withProgress({
+            location: ProgressLocation.Notification,
+            title: value.title || 'Language Server Operation',
+            cancellable: value.cancellable || false
+        }, (progress, cancellationToken) => {
+            return new Promise<void>((resolve) => {
+                activeProgress.set(token, { resolve, progress });
+
+                // Update initial progress
+                if (value.message) {
+                    progress.report({ message: value.message });
+                }
+                if (value.percentage !== undefined) {
+                    progress.report({ increment: value.percentage });
+                }
+
+                // Handle cancellation
+                cancellationToken.onCancellationRequested(() => {
+                    console.log('Progress cancelled for token:', token);
+                    // Note: In a real implementation, you might want to send a cancellation
+                    // request back to the server, but that's complex and depends on server support
+                    resolve();
+                    activeProgress.delete(token);
+                });
+            });
+        });
+    } else if (value.kind === 'report') {
+        console.log('Updating progress for token:', token);
+        // Update existing progress
+        const active = activeProgress.get(token);
+        if (active) {
+            const report: { message?: string; increment?: number } = {};
+            if (value.message) {
+                report.message = value.message;
+            }
+            if (value.percentage !== undefined) {
+                report.increment = value.percentage;
+            }
+            active.progress.report(report);
+        } else {
+            console.log('No active progress found for token:', token);
+        }
+    } else if (value.kind === 'end') {
+        console.log('Ending progress for token:', token);
+        // End progress
+        const active = activeProgress.get(token);
+        if (active) {
+            active.resolve();
+            activeProgress.delete(token);
+        } else {
+            console.log('No active progress found for token:', token);
+        }
+    }
 }
 
 function handleDiagnostics(
@@ -374,8 +501,8 @@ function convertDocumentSymbols(
     let mapping: Map<number, vscode.SymbolKind> | undefined;
     if (folder) {
         const outerMost = getOuterMostWorkspaceFolder(folder);
-        const folderKey = getWorkspaceFolderKey(outerMost);
-        mapping = symbolKindMappings.get(folderKey);
+        const folderKey = outerMost.uri.toString();
+        mapping = ensureSymbolKindMapping(folderKey, client);
     }
 
     return symbols.map((symbol) => {
@@ -759,14 +886,14 @@ function registerLanguageFeatures(context: ExtensionContext) {
                         }
 
                         const outerMost = getOuterMostWorkspaceFolder(folder);
-                        const folderKey = getWorkspaceFolderKey(outerMost);
+                        const folderKey = outerMost.uri.toString();
 
-                        const typeMapping = tokenTypeMappings.get(folderKey);
-                        const modifierMapping = tokenModifierMappings.get(folderKey);
-
-                        if (!typeMapping || !modifierMapping) {
+                        const mappings = ensureSemanticTokenMappings(folderKey, client);
+                        if (!mappings) {
                             return null;
                         }
+
+                        const { typeMapping, modifierMapping } = mappings;
 
                         const response = await client.sendRequest<any>(
                             'textDocument/semanticTokens/full',
