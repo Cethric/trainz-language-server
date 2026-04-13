@@ -385,15 +385,13 @@ game class Signal isclass Trackside
     let stmts = &method.body.as_ref().unwrap().statements;
 
     // GSTrackSearch myGST = me.BeginTrackSearch(true);
-    if let crate::gs::Stmt::Decl(decl) = &stmts[0] {
-        if let Some(expr) = decl.values.first() {
-            if let crate::gs::Expr::Postfix { expr: base, .. } = expr {
-                if let crate::gs::Expr::Identifier(id) = &**base {
-                    assert_eq!(id.name, "me");
-                } else {
-                    panic!("Expected 'me' as base of postfix, got {:?}", base);
-                }
-            }
+    if let crate::gs::Stmt::Decl(decl) = &stmts[0]
+        && let Some(crate::gs::Expr::Postfix { expr: base, .. }) = decl.values.first()
+    {
+        if let crate::gs::Expr::Identifier(id) = &**base {
+            assert_eq!(id.name, "me");
+        } else {
+            panic!("Expected 'me' as base of postfix, got {:?}", base);
         }
     } else {
         panic!("Expected declaration as first statement");

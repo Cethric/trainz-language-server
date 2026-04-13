@@ -22,6 +22,12 @@ impl<'a> ClassResolver for CombinedResolver<'a> {
     }
 }
 
+impl<'a> trainz_ast::gs::dependency_graph::ProgramResolver for CombinedResolver<'a> {
+    fn resolve_program(&self, path: &str) -> Option<Arc<Program>> {
+        self.parsed_files.get(path).map(|p| p.value().clone())
+    }
+}
+
 impl<'a> CombinedResolver<'a> {
     fn find_recursive(
         &self,
@@ -36,12 +42,11 @@ impl<'a> CombinedResolver<'a> {
         for include in &program.includes {
             if let Some(path) = &include.path {
                 let path_str = path.to_string_lossy().to_string();
-                if visited.insert(path_str.clone()) {
-                    if let Some(entry) = self.parsed_files.get(&path_str) {
-                        if let Some(cls) = self.find_recursive(entry.value(), name, visited) {
-                            return Some(cls);
-                        }
-                    }
+                if visited.insert(path_str.clone())
+                    && let Some(entry) = self.parsed_files.get(&path_str)
+                    && let Some(cls) = self.find_recursive(entry.value(), name, visited)
+                {
+                    return Some(cls);
                 }
             }
         }
@@ -331,7 +336,7 @@ pub fn gs_goto_definition(
             }
         }
 
-        let mut locations = vec![];
+        let mut locations: Vec<LocationLink> = vec![];
 
         if let Some((_, name_id)) = program.find_variable_declaration(&target, position) {
             return Some(GotoDefinitionResponse::Scalar(Location {
@@ -385,8 +390,6 @@ pub fn gs_goto_definition(
             "gs_goto_definition classes in program: {:?}",
             program.classes.keys().collect::<Vec<_>>()
         );
-        let mut local_definitions = vec![];
-
         for cls in program.classes.values() {
             if let Some(expected) = &expected_receiver_class
                 && cls.name.name != *expected
@@ -396,49 +399,57 @@ pub fn gs_goto_definition(
             // trace!("gs_goto_definition checking class: {}", cls.name.name);
             if expected_receiver_class.is_none() && cls.name.name == target {
                 trace!("gs_goto_definition found local class: {}", cls.name.name);
-                local_definitions.push(Location {
-                    uri: uri.clone(),
-                    range: cls.name.range,
+                locations.push(LocationLink {
+                    origin_selection_range,
+                    target_uri: uri.clone(),
+                    target_range: cls.range,
+                    target_selection_range: cls.name.range,
                 });
             }
             if let Some(field) = cls.fields.get(&target) {
-                local_definitions.push(Location {
-                    uri: uri.clone(),
-                    range: field.name.range,
+                locations.push(LocationLink {
+                    origin_selection_range,
+                    target_uri: uri.clone(),
+                    target_range: field.range,
+                    target_selection_range: field.name.range,
                 });
             }
             if let Some(ms) = cls.methods.get(&target) {
                 for method in ms {
-                    local_definitions.push(Location {
-                        uri: uri.clone(),
-                        range: method.name.range,
+                    locations.push(LocationLink {
+                        origin_selection_range,
+                        target_uri: uri.clone(),
+                        target_range: method.range,
+                        target_selection_range: method.name.range,
                     });
                 }
             }
         }
 
-        if !local_definitions.is_empty() {
-            locations.extend(local_definitions);
-        }
-
-        // If not found as a local definition, search other files.
+        // If not found as a local definition, search included files.
         if locations.is_empty() {
-            trace!("gs_goto_definition searching other files for {}", target);
+            trace!("gs_goto_definition searching included files for {}", target);
 
-            // 1. Check if it's a class in ANY parsed file.
+            let resolver = CombinedResolver {
+                current_program: &program,
+                parsed_files,
+            };
+
+            let transitive_programs =
+                trainz_ast::gs::dependency_graph::get_transitive_programs(&program, &resolver);
+
+            // 1. Check if it's a class in ANY included file.
             let mut found_class = None;
             if expected_receiver_class.is_none() {
-                found_class = parsed_files.par_iter().find_map_any(|entry| {
-                    let included_uri_str = entry.key();
-                    let included_program = entry.value();
-                    if let Some(class) = included_program.classes.get(&target)
-                        && let Some(target_uri) = parse_uri_or_path(included_uri_str)
-                    {
-                        trace!(
-                            "gs_goto_definition checking included target_uri: {:?}",
-                            target_uri
-                        );
-                        if target_uri != uri {
+                found_class = transitive_programs.par_iter().find_map_any(
+                    |(included_uri_str, included_program)| {
+                        if let Some(class) = included_program.classes.get(&target)
+                            && let Some(target_uri) = parse_uri_or_path(included_uri_str)
+                        {
+                            trace!(
+                                "gs_goto_definition found class in transitive include: {}",
+                                target
+                            );
                             return Some(GotoDefinitionResponse::Link(vec![LocationLink {
                                 origin_selection_range,
                                 target_uri,
@@ -446,25 +457,19 @@ pub fn gs_goto_definition(
                                 target_selection_range: class.name.range,
                             }]));
                         }
-                        return Some(GotoDefinitionResponse::Array(vec![Location {
-                            uri: target_uri,
-                            range: class.name.range,
-                        }]));
-                    }
-                    None
-                });
+                        None
+                    },
+                );
             }
 
-            if let Some(resp) = found_class {
-                match resp {
-                    GotoDefinitionResponse::Link(_) => return Some(resp),
-                    GotoDefinitionResponse::Array(locs) => locations.extend(locs),
-                    _ => {}
-                }
+            if let Some(resp) = found_class
+                && let GotoDefinitionResponse::Link(links) = resp
+            {
+                locations.extend(links)
             }
 
             // 2. If it might be a method or member, find the class context and search up the hierarchy.
-            if locations.is_empty() {
+            if locations.is_empty() || expected_receiver_class.is_some() {
                 let start_class = expected_receiver_class.clone().or(current_class.clone());
 
                 if let Some(class_name) = start_class {
@@ -489,14 +494,13 @@ pub fn gs_goto_definition(
                         }
 
                         if class_def.is_none()
-                            && let Some((cls, uri)) =
-                                parsed_files.par_iter().find_map_any(|entry| {
-                                    let included_uri_str = entry.key();
-                                    let included_program = entry.value();
+                            && let Some((cls, uri)) = transitive_programs.par_iter().find_map_any(
+                                |(included_uri_str, included_program)| {
                                     included_program.classes.get(&cls_name).map(|class| {
                                         (class.clone(), parse_uri_or_path(included_uri_str))
                                     })
-                                })
+                                },
+                            )
                         {
                             class_def = Some(cls);
                             class_uri = uri;
@@ -507,47 +511,29 @@ pub fn gs_goto_definition(
                             if let Some(ms) = cls.methods.get(&target)
                                 && let Some(target_uri) = class_uri.clone()
                             {
-                                if target_uri != uri {
-                                    return Some(GotoDefinitionResponse::Link(vec![
-                                        LocationLink {
-                                            origin_selection_range: origin_selection_range,
-                                            target_uri,
-                                            target_range: ms[0].range,
-                                            target_selection_range: ms[0].name.range,
-                                        },
-                                    ]));
+                                for m in ms {
+                                    locations.push(LocationLink {
+                                        origin_selection_range,
+                                        target_uri: target_uri.clone(),
+                                        target_range: m.range,
+                                        target_selection_range: m.name.range,
+                                    });
                                 }
-
-                                locations.push(Location {
-                                    uri: target_uri,
-                                    range: ms[0].name.range,
-                                });
-                                return Some(GotoDefinitionResponse::Array(locations));
                             }
 
                             // Check fields
                             if let Some(field) = cls.fields.get(&target)
                                 && let Some(target_uri) = class_uri
                             {
-                                if target_uri != uri {
-                                    return Some(GotoDefinitionResponse::Link(vec![
-                                        LocationLink {
-                                            origin_selection_range: origin_selection_range,
-                                            target_uri,
-                                            target_range: field.range,
-                                            target_selection_range: field.name.range,
-                                        },
-                                    ]));
-                                }
-
-                                locations.push(Location {
-                                    uri: target_uri,
-                                    range: field.name.range,
+                                locations.push(LocationLink {
+                                    origin_selection_range,
+                                    target_uri,
+                                    target_range: field.range,
+                                    target_selection_range: field.name.range,
                                 });
-                                return Some(GotoDefinitionResponse::Array(locations));
                             }
 
-                            // If not found, add superclasses to to_visit
+                            // Always add superclasses to to_visit to find all overloads/shadowed members
                             for super_cls in &cls.superclasses {
                                 to_visit.push(super_cls.name.clone());
                             }
@@ -558,7 +544,7 @@ pub fn gs_goto_definition(
         }
 
         if !locations.is_empty() {
-            return Some(GotoDefinitionResponse::Array(locations));
+            return Some(GotoDefinitionResponse::Link(locations));
         }
     }
 
@@ -608,19 +594,18 @@ mod tests {
             super_source,
         ));
 
-        let sub_source =
-            "class SubClass isclass SuperClass { void AnotherMethod() { MyMethod(); } };";
+        let sub_source = "include \"super.gs\"\nclass SubClass isclass SuperClass { void AnotherMethod() { MyMethod(); } };";
         let sub_pairs = parse(sub_source).unwrap();
-        let sub_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
-            sub_pairs, sub_source,
-        ));
+        let mut sub_program = trainz_ast::gs::process::process_trainz_ast(sub_pairs, sub_source);
+        sub_program.includes[0].path = Some(super_uri.into());
+        let sub_program = Arc::new(sub_program);
 
         let parsed_files = DashMap::new();
         parsed_files.insert(super_uri.to_string(), super_program);
         parsed_files.insert(sub_uri.to_string(), sub_program.clone());
 
         let position = Position {
-            line: 0,
+            line: 1,
             character: 60,
         }; // Middle of "MyMethod"
 
@@ -652,17 +637,18 @@ mod tests {
             gp_pairs, gp_source,
         ));
 
-        let p_source = "class Parent isclass GrandParent { };";
+        let p_source = "include \"gp.gs\"\nclass Parent isclass GrandParent { };";
         let p_pairs = parse(p_source).unwrap();
-        let p_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
-            p_pairs, p_source,
-        ));
+        let mut p_program = trainz_ast::gs::process::process_trainz_ast(p_pairs, p_source);
+        p_program.includes[0].path = Some(gp_uri.into());
+        let p_program = Arc::new(p_program);
 
-        let c_source = "class Child isclass Parent { void ChildMethod() { GPMethod(); } };";
+        let c_source =
+            "include \"p.gs\"\nclass Child isclass Parent { void ChildMethod() { GPMethod(); } };";
         let c_pairs = parse(c_source).unwrap();
-        let c_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
-            c_pairs, c_source,
-        ));
+        let mut c_program = trainz_ast::gs::process::process_trainz_ast(c_pairs, c_source);
+        c_program.includes[0].path = Some(p_uri.into());
+        let c_program = Arc::new(c_program);
 
         let parsed_files = DashMap::new();
         parsed_files.insert(gp_uri.to_string(), gp_program);
@@ -670,7 +656,7 @@ mod tests {
         parsed_files.insert(c_uri.to_string(), c_program.clone());
 
         let position = Position {
-            line: 0,
+            line: 1,
             character: 52,
         }; // Middle of "GPMethod"
 
@@ -702,17 +688,17 @@ mod tests {
             gp_pairs, gp_source,
         ));
 
-        let p_source = "class Parent isclass GrandParent { };";
+        let p_source = "include \"gp.gs\"\nclass Parent isclass GrandParent { };";
         let p_pairs = parse(p_source).unwrap();
-        let p_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
-            p_pairs, p_source,
-        ));
+        let mut p_program = trainz_ast::gs::process::process_trainz_ast(p_pairs, p_source);
+        p_program.includes[0].path = Some(gp_uri.into());
+        let p_program = Arc::new(p_program);
 
-        let c_source = "class Child isclass Parent { void ChildMethod() { gp_member = 1; } };";
+        let c_source = "include \"p.gs\"\nclass Child isclass Parent { void ChildMethod() { gp_member = 1; } };";
         let c_pairs = parse(c_source).unwrap();
-        let c_program = Arc::new(trainz_ast::gs::process::process_trainz_ast(
-            c_pairs, c_source,
-        ));
+        let mut c_program = trainz_ast::gs::process::process_trainz_ast(c_pairs, c_source);
+        c_program.includes[0].path = Some(p_uri.into());
+        let c_program = Arc::new(c_program);
 
         let parsed_files = DashMap::new();
         parsed_files.insert(gp_uri.to_string(), gp_program);
@@ -720,7 +706,7 @@ mod tests {
         parsed_files.insert(c_uri.to_string(), c_program.clone());
 
         let position = Position {
-            line: 0,
+            line: 1,
             character: 52,
         }; // Middle of "gp_member"
 
@@ -991,16 +977,23 @@ mod tests {
         let result = gs_goto_definition(program, position, uri, &parsed_files);
 
         assert!(result.is_some());
-        if let Some(GotoDefinitionResponse::Array(locations)) = result {
-            assert_eq!(locations.len(), 1);
-            let loc = &locations[0];
-            assert_eq!(loc.range.start.line, 2);
-            assert_eq!(loc.range.start.character, 21);
-            assert_eq!(loc.range.end.line, 2);
-            assert_eq!(loc.range.end.character, 30);
-        } else {
-            panic!("Expected Array response, got {:?}", result);
-        }
+        let locs = match result.unwrap() {
+            GotoDefinitionResponse::Array(locs) => locs,
+            GotoDefinitionResponse::Link(links) => links
+                .into_iter()
+                .map(|l| Location {
+                    uri: l.target_uri,
+                    range: l.target_selection_range,
+                })
+                .collect(),
+            _ => panic!("Expected array or link"),
+        };
+        assert_eq!(locs.len(), 1);
+        let loc = &locs[0];
+        assert_eq!(loc.range.start.line, 2);
+        assert_eq!(loc.range.start.character, 21);
+        assert_eq!(loc.range.end.line, 2);
+        assert_eq!(loc.range.end.character, 30);
     }
 
     #[test]
@@ -1432,5 +1425,122 @@ class SignalNSW isclass BaseClass {
         };
         assert_eq!(locs.len(), 1);
         assert_eq!(locs[0].range.start.line, 1);
+    }
+
+    #[test]
+    fn test_gs_goto_definition_overload_inheritance() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        let source = r#"
+class A {
+    void foo() {}
+};
+class B isclass A {
+    void foo(int x) {}
+};
+class C isclass B {
+    void Main() {
+        me.foo();
+    }
+};
+        "#;
+        let pairs = trainz_ast::gs::process::process_trainz_ast(
+            trainz_parser::gs::parse(source).unwrap(),
+            source,
+        );
+        let program = Arc::new(pairs);
+        let parsed_files = DashMap::new();
+        let uri = Uri::from_str("test://file").unwrap();
+        parsed_files.insert(uri.to_string(), program.clone());
+
+        let position = Position {
+            line: 9,
+            character: 11,
+        }; // on "foo" in me.foo();
+        let result = gs_goto_definition(program, position, uri.clone(), &parsed_files);
+        assert!(result.is_some(), "Definition not found");
+
+        let locs = match result.unwrap() {
+            GotoDefinitionResponse::Array(locs) => locs,
+            GotoDefinitionResponse::Link(links) => links
+                .into_iter()
+                .map(|l| Location {
+                    uri: l.target_uri,
+                    range: l.target_selection_range,
+                })
+                .collect(),
+            _ => panic!("Expected array or link"),
+        };
+        // It should find both foo() in A and foo(int) in B
+        assert_eq!(
+            locs.len(),
+            2,
+            "Should find both overloads, but found: {:?}",
+            locs
+        );
+    }
+
+    #[test]
+    fn test_gs_goto_definition_scoped_search() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        let source_a = "class A {};";
+        let source_b = "class B {};";
+
+        let program_a = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            trainz_parser::gs::parse(source_a).unwrap(),
+            source_a,
+        ));
+        let program_b = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            trainz_parser::gs::parse(source_b).unwrap(),
+            source_b,
+        ));
+
+        let parsed_files = DashMap::new();
+        let uri_a = Uri::from_str("file:///a.gs").unwrap();
+        let uri_b = Uri::from_str("file:///b.gs").unwrap();
+        parsed_files.insert(uri_a.to_string(), program_a.clone());
+        parsed_files.insert(uri_b.to_string(), program_b.clone());
+
+        // Searching for "B" in a.gs, but a.gs does NOT include b.gs
+        // We simulate this by passing "B" as the target manually in our head,
+        // but gs_goto_definition finds the ID at position.
+
+        // Let's make a.gs use B
+        let source_a_with_b = "class A { B b; };";
+        let program_a_with_b = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+            trainz_parser::gs::parse(source_a_with_b).unwrap(),
+            source_a_with_b,
+        ));
+        parsed_files.insert(uri_a.to_string(), program_a_with_b.clone());
+
+        let position = Position {
+            line: 0,
+            character: 10,
+        }; // on "B" in "B b;"
+
+        let result = gs_goto_definition(program_a_with_b, position, uri_a.clone(), &parsed_files);
+
+        // Should NOT find B because it's not included
+        assert!(
+            result.is_none(),
+            "Should not find B because it is not included"
+        );
+
+        // Now include b.gs in a.gs
+        let source_a_with_include = "include \"b.gs\"\nclass A { B b; };";
+        let mut program_a_inc = trainz_ast::gs::process::process_trainz_ast(
+            trainz_parser::gs::parse(source_a_with_include).unwrap(),
+            source_a_with_include,
+        );
+        program_a_inc.includes[0].path = Some("file:///b.gs".into());
+        let program_a_inc = Arc::new(program_a_inc);
+        parsed_files.insert(uri_a.to_string(), program_a_inc.clone());
+
+        let position = Position {
+            line: 1,
+            character: 10,
+        }; // on "B" in "B b;"
+
+        let result = gs_goto_definition(program_a_inc, position, uri_a, &parsed_files);
+        assert!(result.is_some(), "Should find B because it is now included");
     }
 }

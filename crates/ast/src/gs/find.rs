@@ -2,8 +2,8 @@ use crate::Position;
 use crate::find::{HasRange, position_in_range};
 use crate::gs::program::Program;
 use crate::gs::{
-    Block, ClassDef, Expr, FieldDef, Identifier, LoopBody, MethodDef, PostfixOp, Stmt, Type,
-    TypeOrVoid,
+    Block, ClassDef, Expr, FieldDef, Identifier, Include, LoopBody, MethodDef, PostfixOp, Stmt,
+    Type, TypeOrVoid,
 };
 use rayon::prelude::*;
 use tracing::trace;
@@ -186,7 +186,7 @@ fn find_postfix_in_expr(expr: &Expr, pos: Position) -> Option<(&Expr, usize)> {
     }
 }
 
-pub fn find_method_at_position<'a>(program: &'a Program, pos: Position) -> Option<&'a MethodDef> {
+pub fn find_method_at_position(program: &Program, pos: Position) -> Option<&MethodDef> {
     program.classes.values().find_map(|cls| {
         if position_in_range(pos, cls.range) {
             for methods in cls.methods.values() {
@@ -201,27 +201,21 @@ pub fn find_method_at_position<'a>(program: &'a Program, pos: Position) -> Optio
     })
 }
 
-pub fn find_class_at_position<'a>(program: &'a Program, pos: Position) -> Option<&'a ClassDef> {
+pub fn find_class_at_position(program: &Program, pos: Position) -> Option<&ClassDef> {
     program
         .classes
         .values()
         .find(|cls| position_in_range(pos, cls.range))
 }
 
-pub fn find_field_by_id_range<'a>(
-    program: &'a Program,
-    range: crate::Range,
-) -> Option<&'a FieldDef> {
+pub fn find_field_by_id_range(program: &Program, range: crate::Range) -> Option<&FieldDef> {
     program
         .classes
         .values()
         .find_map(|cls| cls.fields.values().find(|field| field.name.range == range))
 }
 
-pub fn find_method_by_id_range<'a>(
-    program: &'a Program,
-    range: crate::Range,
-) -> Option<&'a MethodDef> {
+pub fn find_method_by_id_range(program: &Program, range: crate::Range) -> Option<&MethodDef> {
     program.classes.values().find_map(|cls| {
         cls.methods
             .values()
@@ -229,10 +223,7 @@ pub fn find_method_by_id_range<'a>(
     })
 }
 
-pub fn find_param_by_id_range<'a>(
-    program: &'a Program,
-    range: crate::Range,
-) -> Option<&'a crate::gs::Param> {
+pub fn find_param_by_id_range(program: &Program, range: crate::Range) -> Option<&crate::gs::Param> {
     program.classes.values().find_map(|cls| {
         cls.methods.values().find_map(|methods| {
             methods
@@ -251,6 +242,13 @@ pub fn find_id_at_position(program: &Program, pos: Position) -> Option<&Identifi
         );
         find_in_class(class, pos)
     })
+}
+
+pub fn find_include_at_position(program: &Program, pos: Position) -> Option<&Include> {
+    program
+        .includes
+        .iter()
+        .find(|include| position_in_range(pos, include.range))
 }
 
 fn find_in_class(class: &ClassDef, pos: Position) -> Option<&Identifier> {
@@ -297,10 +295,10 @@ fn find_in_method(method: &MethodDef, pos: Position) -> Option<&Identifier> {
         "find_in_method: checking method {} with range {:?}",
         method.name.name, method.range
     );
-    if let TypeOrVoid::Type(ty) = &method.return_type {
-        if let Some(id) = find_in_type(ty, pos) {
-            return Some(id);
-        }
+    if let TypeOrVoid::Type(ty) = &method.return_type
+        && let Some(id) = find_in_type(ty, pos)
+    {
+        return Some(id);
     }
     if position_in_range(pos, method.name.range) {
         return Some(&method.name);
@@ -328,8 +326,7 @@ fn find_in_block(block: &Block, pos: Position) -> Option<&Identifier> {
     );
     for stmt in &block.statements {
         trace!(
-            "find_in_block: checking statement rule {:?} with range {:?}",
-            stmt,
+            "find_in_block: checking statement rule with range {:?}",
             stmt.range()
         );
         if position_in_range(pos, stmt.range())
@@ -342,7 +339,6 @@ fn find_in_block(block: &Block, pos: Position) -> Option<&Identifier> {
 }
 
 fn find_in_stmt(stmt: &Stmt, pos: Position) -> Option<&Identifier> {
-    trace!("find_in_stmt checking rule: {:?}", stmt);
     match stmt {
         Stmt::Label(id, _, _) => {
             if position_in_range(pos, id.range) {

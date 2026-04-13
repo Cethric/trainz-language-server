@@ -482,7 +482,7 @@ fn process_new_object(pair: Pair<Rule>) -> Expr {
     let ty = process_type(ty_pair);
 
     let mut args = vec![];
-    while let Some(next) = inner.next() {
+    for next in inner {
         match next.as_rule() {
             Rule::new_object_arguments => {
                 for arg_pair in next.into_inner() {
@@ -545,57 +545,15 @@ fn process_new_array(pair: Pair<Rule>) -> Expr {
 #[tracing::instrument]
 fn process_primary_expr(pair: Pair<Rule>) -> Expr {
     let range = pair_to_range(&pair);
-    match pair.as_rule() {
-        Rule::statement_cast => return process_cast(pair),
-        Rule::new_object => return process_new_object(pair),
-        Rule::new_array => return process_new_array(pair),
-        _ => {}
-    }
-    let mut inner_pairs = pair.clone().into_inner();
-    let inner = if let Some(first) = inner_pairs.next() {
-        first
-    } else {
-        return Expr::Identifier(crate::gs::Identifier {
-            name: pair.as_str().to_string(),
-            range,
-        });
-    };
-    trace!(
-        "process_primary_expr: rule {:?} (parent: {:?})",
-        inner.as_rule(),
-        pair.as_rule()
-    );
-    match inner.as_rule() {
-        Rule::unary_expr | Rule::postfix_expr | Rule::primary_expr => process_expr(inner),
-        Rule::static_cast | Rule::dynamic_cast => process_cast(pair),
-        Rule::variable => {
-            let res = Expr::Identifier(process_identifier(
-                inner.clone().into_inner().next().unwrap(),
-            ));
-            trace!(
-                "process_primary_expr: created variable {} at {:?}",
-                match &res {
-                    Expr::Identifier(id) => &id.name,
-                    _ => "",
-                },
-                range
-            );
-            res
-        }
-        Rule::keyword_is_class => Expr::IsClass(crate::gs::Identifier {
-            name: "isclass".to_string(),
-            range,
-        }),
-        Rule::keyword_me => Expr::Identifier(crate::gs::Identifier {
-            name: "me".to_string(),
-            range,
-        }),
-        Rule::literal => process_literal(inner),
-        Rule::grouped_expr => process_expr(inner),
+    let rule = pair.as_rule();
+    match rule {
+        Rule::statement_cast => process_cast(pair),
+        Rule::new_object => process_new_object(pair),
+        Rule::new_array => process_new_array(pair),
         Rule::statement_method => {
             // statement_method = { statement_method_name ~ statement_method_call }
             // Represent as Postfix(Identifier, [Call])
-            let mut inner = inner.clone().into_inner();
+            let mut inner = pair.into_inner();
             let name_pair = inner.next().unwrap();
             let name = process_identifier(name_pair);
             let call_pair = inner.next().unwrap();
@@ -614,7 +572,7 @@ fn process_primary_expr(pair: Pair<Rule>) -> Expr {
         Rule::inherited_method => {
             // inherited_method = { keyword_inherited ~ statement_method_call }
             // We can represent this as Postfix(Identifier("inherited"), [Call])
-            let mut inner = inner.into_inner();
+            let mut inner = pair.into_inner();
             let keyword_pair = inner.next().unwrap();
             let keyword_range = pair_to_range(&keyword_pair);
             let call_pair = inner.next().unwrap();
@@ -641,31 +599,70 @@ fn process_primary_expr(pair: Pair<Rule>) -> Expr {
             trace!("process_primary_expr: created inherited at {:?}", range);
             res
         }
-        Rule::array_literal => {
-            let mut elements = vec![];
-            for p in inner.into_inner() {
-                elements.push(process_expr(p));
-            }
-            // For now, let's represent array literal as a call to "array" or just a special expression
-            // Since we don't have Expr::ArrayLiteral in the AST yet, let's use a placeholder or add it.
-            // Looking at crates/ast/src/gs/expr.rs... it doesn't have ArrayLiteral.
-            // I'll use a Postfix call to a virtual "array" function for now to avoid changing the AST too much
-            // if I don't have to.
-            Expr::Postfix {
-                expr: Box::new(Expr::Identifier(crate::gs::Identifier {
-                    name: "array".to_string(),
-                    range,
-                })),
-                ops: vec![PostfixOp::Call(elements, range)],
-                range,
-            }
-        }
         _ => {
-            trace!("process_primary_expr: unknown rule {:?}", inner.as_rule());
-            Expr::Identifier(crate::gs::Identifier {
-                name: format!("UNKNOWN_RULE_{:?}", inner.as_rule()),
-                range,
-            })
+            let mut inner_pairs = pair.clone().into_inner();
+            let inner = if let Some(first) = inner_pairs.next() {
+                first
+            } else {
+                return Expr::Identifier(crate::gs::Identifier {
+                    name: pair.as_str().to_string(),
+                    range,
+                });
+            };
+            trace!(
+                "process_primary_expr: rule {:?} (parent: {:?})",
+                inner.as_rule(),
+                pair.as_rule()
+            );
+            match inner.as_rule() {
+                Rule::unary_expr | Rule::postfix_expr | Rule::primary_expr => process_expr(inner),
+                Rule::static_cast | Rule::dynamic_cast => process_cast(pair),
+                Rule::variable => {
+                    let res = Expr::Identifier(process_identifier(
+                        inner.clone().into_inner().next().unwrap(),
+                    ));
+                    trace!(
+                        "process_primary_expr: created variable {} at {:?}",
+                        match &res {
+                            Expr::Identifier(id) => &id.name,
+                            _ => "",
+                        },
+                        range
+                    );
+                    res
+                }
+                Rule::keyword_is_class => Expr::IsClass(crate::gs::Identifier {
+                    name: "isclass".to_string(),
+                    range,
+                }),
+                Rule::keyword_me => Expr::Identifier(crate::gs::Identifier {
+                    name: "me".to_string(),
+                    range,
+                }),
+                Rule::literal => process_literal(inner),
+                Rule::grouped_expr => process_expr(inner),
+                Rule::array_literal => {
+                    let mut elements = vec![];
+                    for p in inner.into_inner() {
+                        elements.push(process_expr(p));
+                    }
+                    Expr::Postfix {
+                        expr: Box::new(Expr::Identifier(crate::gs::Identifier {
+                            name: "array".to_string(),
+                            range,
+                        })),
+                        ops: vec![PostfixOp::Call(elements, range)],
+                        range,
+                    }
+                }
+                _ => {
+                    trace!("process_primary_expr: unknown rule {:?}", inner.as_rule());
+                    Expr::Identifier(crate::gs::Identifier {
+                        name: format!("UNKNOWN_RULE_{:?}", inner.as_rule()),
+                        range,
+                    })
+                }
+            }
         }
     }
 }

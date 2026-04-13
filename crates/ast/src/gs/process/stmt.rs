@@ -116,18 +116,22 @@ pub fn process_stmt(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<
             Stmt::Continue(kw_range, range)
         }
         Rule::statement_expression | Rule::assignment_expr => Stmt::Expr(process_expr(pair)),
-        Rule::statement_if => Stmt::If(process_if(scopes, parent_scope_id, pair)),
-        Rule::statement_while => Stmt::While(process_while(scopes, parent_scope_id, pair)),
-        Rule::statement_for => Stmt::For(process_for(scopes, parent_scope_id, pair)),
+        Rule::statement_if => Stmt::If(Box::new(process_if(scopes, parent_scope_id, pair))),
+        Rule::statement_while => {
+            Stmt::While(Box::new(process_while(scopes, parent_scope_id, pair)))
+        }
+        Rule::statement_for => Stmt::For(Box::new(process_for(scopes, parent_scope_id, pair))),
         Rule::on_body | Rule::on_body_block | Rule::statements => {
             let b_range = pair_to_range(&pair);
             let scope_id = push_scope(scopes, Some(parent_scope_id), b_range, vec![]);
             let stmts = process_statements(scopes, scope_id, pair);
             Stmt::Block(create_block(scope_id, stmts, b_range))
         }
-        Rule::statement_wait => Stmt::Wait(process_wait(scopes, parent_scope_id, pair)),
-        Rule::statement_on => Stmt::On(process_on(scopes, parent_scope_id, pair)),
-        Rule::statement_switch => Stmt::Switch(process_switch(scopes, parent_scope_id, pair)),
+        Rule::statement_wait => Stmt::Wait(Box::new(process_wait(scopes, parent_scope_id, pair))),
+        Rule::statement_on => Stmt::On(Box::new(process_on(scopes, parent_scope_id, pair))),
+        Rule::statement_switch => {
+            Stmt::Switch(Box::new(process_switch(scopes, parent_scope_id, pair)))
+        }
         Rule::statement_block => {
             let b_range = pair_to_range(&pair);
             let scope_id = push_scope(scopes, Some(parent_scope_id), b_range, vec![]);

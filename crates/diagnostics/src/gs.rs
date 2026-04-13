@@ -7,19 +7,46 @@ use tower_lsp_server::ls_types::{
 };
 use tracing::debug;
 use trainz_ast::find::HasRange;
+use trainz_ast::gs::dependency_graph;
 use trainz_ast::gs::program::Program;
 use trainz_ast::gs::stmt::{Block, Stmt};
 use trainz_ast::gs::type_eval;
 use trainz_ast::gs::types::TypeOrVoid;
-use trainz_ast::gs::{ClassDef, Expr};
+use trainz_ast::gs::{ClassDef, Expr, MethodDef};
 
-#[tracing::instrument(skip(resolver))]
+#[tracing::instrument(skip(resolver, program_resolver))]
 pub fn trainz_diagnostics(
+    path: &str,
     program: &Program,
     resolver: &dyn type_eval::ClassResolver,
+    program_resolver: &dyn dependency_graph::ProgramResolver,
 ) -> Vec<Diagnostic> {
-    debug!("Include paths: {:?}", program.includes);
+    debug!(
+        "Include paths: {:?}",
+        program
+            .includes
+            .iter()
+            .map(|i| i.name.clone())
+            .collect::<Vec<_>>()
+    );
     let mut diagnostics = vec![];
+
+    // Check cyclic includes
+    diagnostics.extend(
+        dependency_graph::find_cyclic_includes(path, program, program_resolver)
+            .into_iter()
+            .map(|include| Diagnostic {
+                range: include.range,
+                severity: Some(DiagnosticSeverity::WARNING),
+                code: Some(NumberOrString::Number(1)),
+                code_description: None,
+                source: Some(String::from("game-script lsp")),
+                message: format!("Cyclic include detected: {}", include.name),
+                related_information: None,
+                tags: None,
+                data: None,
+            }),
+    );
 
     // Check missing includes
     diagnostics.extend(
@@ -28,7 +55,7 @@ pub fn trainz_diagnostics(
             .par_iter()
             .filter(|include| include.path.is_none())
             .map(|include| {
-                debug!("Include not found: {:?}", include);
+                debug!("Include not found: {:?}", include.name);
                 Diagnostic {
                     range: include.range,
                     severity: Some(DiagnosticSeverity::WARNING),
@@ -146,20 +173,19 @@ fn check_stmt(
                     array_sizes.insert(id.name.clone(), *size);
                 }
 
-                if let Ok(eval_ty) = val_ty {
-                    if let Some(actual_ty) = eval_ty.to_type() {
-                        if !type_eval::is_type_compatible(&decl.ty, &actual_ty, program, resolver) {
-                            diagnostics.push(Diagnostic {
-                                range: val.range(),
-                                severity: Some(DiagnosticSeverity::ERROR),
-                                message: format!(
-                                    "Assignment type mismatch: cannot assign '{}' to '{}'",
-                                    actual_ty, decl.ty
-                                ),
-                                ..Default::default()
-                            });
-                        }
-                    }
+                if let Ok(eval_ty) = val_ty
+                    && let Some(actual_ty) = eval_ty.to_type()
+                    && !type_eval::is_type_compatible(&decl.ty, &actual_ty, program, resolver)
+                {
+                    diagnostics.push(Diagnostic {
+                        range: val.range(),
+                        severity: Some(DiagnosticSeverity::ERROR),
+                        message: format!(
+                            "Assignment type mismatch: cannot assign '{}' to '{}'",
+                            actual_ty, decl.ty
+                        ),
+                        ..Default::default()
+                    });
                 }
             }
         }
@@ -178,21 +204,18 @@ fn check_stmt(
                             e.range().start,
                             class,
                             array_sizes,
-                        ) {
-                            if let Some(actual_ty) = eval_ty.to_type() {
-                                if !type_eval::is_type_compatible(t, &actual_ty, program, resolver)
-                                {
-                                    diagnostics.push(Diagnostic {
-                                        range: e.range(),
-                                        severity: Some(DiagnosticSeverity::ERROR),
-                                        message: format!(
-                                            "Return type mismatch: expected '{}', got '{}'",
-                                            t, actual_ty
-                                        ),
-                                        ..Default::default()
-                                    });
-                                }
-                            }
+                        ) && let Some(actual_ty) = eval_ty.to_type()
+                            && !type_eval::is_type_compatible(t, &actual_ty, program, resolver)
+                        {
+                            diagnostics.push(Diagnostic {
+                                range: e.range(),
+                                severity: Some(DiagnosticSeverity::ERROR),
+                                message: format!(
+                                    "Return type mismatch: expected '{}', got '{}'",
+                                    t, actual_ty
+                                ),
+                                ..Default::default()
+                            });
                         }
                     }
                     (None, TypeOrVoid::Type(t)) => {
@@ -255,8 +278,8 @@ fn check_stmt(
                 diagnostics,
                 array_sizes,
             );
-            match &while_stmt.body {
-                trainz_ast::gs::LoopBody::Block(b) => check_block(
+            if let trainz_ast::gs::LoopBody::Block(b) = &while_stmt.body {
+                check_block(
                     b,
                     program,
                     resolver,
@@ -264,8 +287,7 @@ fn check_stmt(
                     diagnostics,
                     array_sizes.clone(),
                     expected_return_type,
-                ),
-                _ => {}
+                )
             }
         }
         Stmt::For(for_stmt) => {
@@ -286,8 +308,8 @@ fn check_stmt(
                 diagnostics,
                 array_sizes,
             );
-            if let trainz_ast::gs::Expr::Identifier(id) = &for_stmt.init.target {
-                if let Ok(type_eval::EvaluatedType::Array(_, Some(size), _)) =
+            if let trainz_ast::gs::Expr::Identifier(id) = &for_stmt.init.target
+                && let Ok(type_eval::EvaluatedType::Array(_, Some(size), _)) =
                     type_eval::evaluate_expr_type(
                         &for_stmt.init.value,
                         program,
@@ -296,9 +318,8 @@ fn check_stmt(
                         class,
                         array_sizes,
                     )
-                {
-                    array_sizes.insert(id.name.clone(), size);
-                }
+            {
+                array_sizes.insert(id.name.clone(), size);
             }
 
             // For loop might update sizes, but usually not in init/cond/step
@@ -313,8 +334,8 @@ fn check_stmt(
             if let Some(step) = &for_stmt.step {
                 check_expr(step, program, resolver, class, diagnostics, array_sizes);
             }
-            match &for_stmt.body {
-                trainz_ast::gs::LoopBody::Block(b) => check_block(
+            if let trainz_ast::gs::LoopBody::Block(b) = &for_stmt.body {
+                check_block(
                     b,
                     program,
                     resolver,
@@ -322,8 +343,7 @@ fn check_stmt(
                     diagnostics,
                     array_sizes.clone(),
                     expected_return_type,
-                ),
-                _ => {}
+                )
             }
         }
         Stmt::Switch(switch_stmt) => {
@@ -379,6 +399,31 @@ fn check_stmt(
     }
 }
 
+fn find_best_overload<'a>(
+    methods: &'a [MethodDef],
+    args: &[Expr],
+    arg_types: &[Option<trainz_ast::gs::types::Type>],
+    program: &Program,
+    resolver: &dyn type_eval::ClassResolver,
+) -> Option<&'a MethodDef> {
+    methods.iter().max_by_key(|m| {
+        let mut score = 0;
+        if m.params.len() == args.len() {
+            score += 100;
+            for (p, at) in m.params.iter().zip(arg_types.iter()) {
+                if let Some(at) = at
+                    && type_eval::is_type_compatible(&p.ty, at, program, resolver)
+                {
+                    score += 10;
+                }
+            }
+        } else {
+            score -= (m.params.len() as i32 - args.len() as i32).abs() * 10;
+        }
+        score
+    })
+}
+
 fn check_expr(
     expr: &Expr,
     program: &Program,
@@ -410,20 +455,19 @@ fn check_expr(
             let right_ty =
                 type_eval::evaluate_expr_type(right, program, resolver, pos, class, array_sizes);
 
-            if let (Ok(l_eval), Ok(r_eval)) = (left_ty, right_ty) {
-                if let (Some(l_ty), Some(r_ty)) = (l_eval.to_type(), r_eval.to_type()) {
-                    if !type_eval::is_type_compatible(&l_ty, &r_ty, program, resolver) {
-                        diagnostics.push(Diagnostic {
-                            range: right.range(),
-                            severity: Some(DiagnosticSeverity::ERROR),
-                            message: format!(
-                                "Assignment type mismatch: cannot assign '{}' to '{}'",
-                                r_ty, l_ty
-                            ),
-                            ..Default::default()
-                        });
-                    }
-                }
+            if let (Ok(l_eval), Ok(r_eval)) = (left_ty, right_ty)
+                && let (Some(l_ty), Some(r_ty)) = (l_eval.to_type(), r_eval.to_type())
+                && !type_eval::is_type_compatible(&l_ty, &r_ty, program, resolver)
+            {
+                diagnostics.push(Diagnostic {
+                    range: right.range(),
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    message: format!(
+                        "Assignment type mismatch: cannot assign '{}' to '{}'",
+                        r_ty, l_ty
+                    ),
+                    ..Default::default()
+                });
             }
         }
         Expr::BinaryMath { left, right, .. } => {
@@ -486,38 +530,67 @@ fn check_expr(
                                 );
                             }
 
-                            if let Some(method) =
-                                methods.iter().find(|m| m.params.len() == args.len())
-                            {
-                                for (j, (param, arg_ty)) in
-                                    method.params.iter().zip(arg_types.iter()).enumerate()
-                                {
-                                    if let Some(actual_ty) = arg_ty {
-                                        if !type_eval::is_type_compatible(
-                                            &param.ty, actual_ty, program, resolver,
-                                        ) {
-                                            diagnostics.push(Diagnostic {
-                                                range: args[j].range(),
-                                                severity: Some(DiagnosticSeverity::ERROR),
-                                                message: format!(
-                                                    "Argument type mismatch: expected '{}', got '{}'",
-                                                    param.ty, actual_ty
-                                                ),
-                                                ..Default::default()
-                                            });
+                            let mut perfect_match = false;
+                            for method in methods {
+                                if method.params.len() == args.len() {
+                                    let mut mismatch = false;
+                                    for (param, arg_ty) in
+                                        method.params.iter().zip(arg_types.iter())
+                                    {
+                                        if let Some(actual_ty) = arg_ty {
+                                            if !type_eval::is_type_compatible(
+                                                &param.ty, actual_ty, program, resolver,
+                                            ) {
+                                                mismatch = true;
+                                                break;
+                                            }
+                                        } else {
+                                            mismatch = true;
+                                            break;
                                         }
                                     }
+                                    if !mismatch {
+                                        perfect_match = true;
+                                        break;
+                                    }
                                 }
-                            } else {
-                                diagnostics.push(Diagnostic {
-                                    range: *op_range,
-                                    severity: Some(DiagnosticSeverity::ERROR),
-                                    message: format!(
-                                        "No overload of method takes {} arguments",
-                                        args.len()
-                                    ),
-                                    ..Default::default()
-                                });
+                            }
+
+                            if !perfect_match {
+                                if let Some(best) =
+                                    find_best_overload(methods, args, &arg_types, program, resolver)
+                                {
+                                    let suggestion = format!(
+                                        "{}({})",
+                                        best.name.name,
+                                        best.params
+                                            .iter()
+                                            .map(|p| p.ty.to_string())
+                                            .collect::<Vec<_>>()
+                                            .join(", ")
+                                    );
+
+                                    diagnostics.push(Diagnostic {
+                                        range: *op_range,
+                                        severity: Some(DiagnosticSeverity::WARNING),
+                                        message: format!(
+                                            "No matching overload of method takes {} arguments with these types. Closest match: {}",
+                                            args.len(),
+                                            suggestion
+                                        ),
+                                        ..Default::default()
+                                    });
+                                } else {
+                                    diagnostics.push(Diagnostic {
+                                        range: *op_range,
+                                        severity: Some(DiagnosticSeverity::ERROR),
+                                        message: format!(
+                                            "No overload of method takes {} arguments",
+                                            args.len()
+                                        ),
+                                        ..Default::default()
+                                    });
+                                }
                             }
                         }
                     }
@@ -530,7 +603,7 @@ fn check_expr(
                 }
 
                 // Update current_type for next op in chain
-                if let Ok(_) = current_type {
+                if current_type.is_ok() {
                     let temp_expr = Expr::Postfix {
                         expr: sub_expr.clone(),
                         ops: ops[..=i].to_vec(),

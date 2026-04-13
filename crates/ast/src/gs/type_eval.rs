@@ -1,5 +1,5 @@
 use crate::find::HasRange;
-use crate::gs::find::find_class_at_position;
+use crate::gs::find::{find_class_at_position, find_method_at_position};
 use crate::gs::program::Program;
 use crate::gs::types::{Type, TypeOrVoid};
 use crate::gs::{ClassDef, Expr, Literal, PostfixOp};
@@ -20,10 +20,10 @@ impl EvaluatedType {
             EvaluatedType::Type(t) => Some(t.clone()),
             EvaluatedType::Array(t, _, range) => Some(Type::Array(Box::new(t.clone()), *range)),
             EvaluatedType::Methods(methods) => {
-                if let Some(m) = methods.first() {
-                    if let TypeOrVoid::Type(t) = &m.return_type {
-                        return Some(t.clone());
-                    }
+                if let Some(m) = methods.first()
+                    && let TypeOrVoid::Type(t) = &m.return_type
+                {
+                    return Some(t.clone());
                 }
                 None
             }
@@ -114,6 +114,41 @@ pub fn evaluate_expr_type(
 
             // 2. Look in current class fields
             if let Some(class) = current_class.or_else(|| find_class_at_position(program, pos)) {
+                if id.name == "inherited" {
+                    if let Some(current_method) = find_method_at_position(program, pos) {
+                        let mut all_parent_methods = Vec::new();
+                        for super_id in &class.superclasses {
+                            if let Some(super_class) = resolver.find_class(&super_id.name) {
+                                if let Some(methods) = super_class.find_method(
+                                    program,
+                                    resolver,
+                                    &current_method.name.name,
+                                ) {
+                                    all_parent_methods.extend(methods);
+                                } else {
+                                    return Err(format!(
+                                        "Method '{}' not defined in inherited class '{}'",
+                                        current_method.name.name, super_id.name
+                                    ));
+                                }
+                            } else {
+                                return Err(format!(
+                                    "Inherited class '{}' not found",
+                                    super_id.name
+                                ));
+                            }
+                        }
+                        if all_parent_methods.is_empty() {
+                            return Err(format!(
+                                "Method '{}' not defined in any inherited class",
+                                current_method.name.name
+                            ));
+                        }
+                        return Ok(EvaluatedType::Methods(all_parent_methods));
+                    }
+                    return Err("Cannot use 'inherited' outside of a method".to_string());
+                }
+
                 if let Some(field) = class.find_field(program, resolver, &id.name) {
                     return match &field.ty {
                         Type::Array(inner, range) => {
@@ -272,17 +307,15 @@ pub fn evaluate_expr_type(
                     PostfixOp::Index(indices, op_range) => match current_type {
                         EvaluatedType::Array(inner, size, _) => {
                             if indices.len() == 1 {
-                                if let Some(size) = size {
-                                    if let Some(Expr::Literal(Literal::Int(idx_val, _))) =
+                                if let Some(size) = size
+                                    && let Some(Expr::Literal(Literal::Int(idx_val, _))) =
                                         indices.first()
-                                    {
-                                        if *idx_val as usize >= size {
-                                            return Err(format!(
-                                                "Array index out of range: {} >= {}",
-                                                idx_val, size
-                                            ));
-                                        }
-                                    }
+                                    && *idx_val as usize >= size
+                                {
+                                    return Err(format!(
+                                        "Array index out of range: {} >= {}",
+                                        idx_val, size
+                                    ));
                                 }
                                 current_type = match &inner {
                                     Type::Array(nested_inner, nested_range) => {

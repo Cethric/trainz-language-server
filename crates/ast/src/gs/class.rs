@@ -25,7 +25,7 @@ pub struct ClassDef {
 impl ClassDef {
     pub fn find_field<'a>(
         &'a self,
-        program: &'a Program,
+        _program: &'a Program,
         resolver: &'a dyn crate::gs::type_eval::ClassResolver,
         name: &str,
     ) -> Option<FieldDef> {
@@ -33,10 +33,10 @@ impl ClassDef {
             return Some(field.clone());
         }
         for super_id in &self.superclasses {
-            if let Some(super_class) = resolver.find_class(&super_id.name) {
-                if let Some(field) = super_class.find_field(program, resolver, name) {
-                    return Some(field);
-                }
+            if let Some(super_class) = resolver.find_class(&super_id.name)
+                && let Some(field) = super_class.find_field(_program, resolver, name)
+            {
+                return Some(field);
             }
         }
         None
@@ -44,21 +44,26 @@ impl ClassDef {
 
     pub fn find_method<'a>(
         &'a self,
-        program: &'a Program,
+        _program: &'a Program,
         resolver: &'a dyn crate::gs::type_eval::ClassResolver,
         name: &str,
     ) -> Option<Vec<MethodDef>> {
+        let mut all_methods = Vec::new();
         if let Some(methods) = self.methods.get(name) {
-            return Some(methods.clone());
+            all_methods.extend(methods.clone());
         }
         for super_id in &self.superclasses {
-            if let Some(super_class) = resolver.find_class(&super_id.name) {
-                if let Some(methods) = super_class.find_method(program, resolver, name) {
-                    return Some(methods);
-                }
+            if let Some(super_class) = resolver.find_class(&super_id.name)
+                && let Some(methods) = super_class.find_method(_program, resolver, name)
+            {
+                all_methods.extend(methods);
             }
         }
-        None
+        if all_methods.is_empty() {
+            None
+        } else {
+            Some(all_methods)
+        }
     }
 
     pub fn is_subclass_of(
@@ -74,10 +79,10 @@ impl ClassDef {
             if super_id.name == other_name {
                 return true;
             }
-            if let Some(super_class) = resolver.find_class(&super_id.name) {
-                if super_class.is_subclass_of(other_name, _program, resolver) {
-                    return true;
-                }
+            if let Some(super_class) = resolver.find_class(&super_id.name)
+                && super_class.is_subclass_of(other_name, _program, resolver)
+            {
+                return true;
             }
         }
         false

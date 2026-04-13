@@ -39,7 +39,7 @@ fn test_keyword_literal_tokens() {
         .filter(|t| t.token_type == type_keyword && t.length == 4)
         .collect();
     assert!(
-        type_keyword_len4_tokens.len() >= 1,
+        !type_keyword_len4_tokens.is_empty(),
         "Should find 'true' or 'null' as keyword tokens"
     );
 }
@@ -220,7 +220,7 @@ fn test_str_tokens() {
 
     let mut tokens = Vec::new();
     let known_classes = std::collections::HashSet::new();
-    for (_, class) in &ast.classes {
+    for class in ast.classes.values() {
         for ms in class.methods.values() {
             for method in ms {
                 if let Some(body) = &method.body {

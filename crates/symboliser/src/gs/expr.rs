@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use std::collections::HashMap;
 use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind};
 use tracing::trace;
@@ -13,7 +14,6 @@ pub(crate) fn process_expr(
     resolver: &dyn ClassResolver,
 ) -> Vec<DocumentSymbol> {
     let mut symbols = vec![];
-    trace!("symboliser: processing expr {:?}", expr);
 
     match expr {
         Expr::Assign {
@@ -119,12 +119,11 @@ pub(crate) fn process_expr(
                             )
                         };
 
-                        if let Ok(EvaluatedType::Type(Type::Named(class_id))) = res {
-                            if let Some(class) = resolver.find_class(&class_id.name) {
-                                if class.find_field(program, resolver, &id.name).is_some() {
-                                    kind = SymbolKind::PROPERTY;
-                                }
-                            }
+                        if let Ok(EvaluatedType::Type(Type::Named(class_id))) = res
+                            && let Some(class) = resolver.find_class(&class_id.name)
+                            && class.find_field(program, resolver, &id.name).is_some()
+                        {
+                            kind = SymbolKind::PROPERTY;
                         }
 
                         symbols.push(DocumentSymbol {

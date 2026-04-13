@@ -1,11 +1,13 @@
-use std::collections::HashMap;
+use rayon::prelude::*;
+use std::collections::{HashMap, HashSet};
 use tower_lsp_server::ls_types::{
     Hover, HoverContents, MarkupContent, MarkupKind, Position, Range,
 };
 use trainz_ast::find::HasRange;
+use trainz_ast::gs::dependency_graph::ProgramResolver;
 use trainz_ast::gs::find::{
-    find_field_by_id_range, find_id_at_position, find_method_by_id_range, find_param_by_id_range,
-    find_postfix_at_position,
+    find_field_by_id_range, find_id_at_position, find_include_at_position, find_method_by_id_range,
+    find_param_by_id_range, find_postfix_at_position,
 };
 use trainz_ast::gs::program::Program;
 use trainz_ast::gs::type_eval::{ClassResolver, EvaluatedType, evaluate_expr_type};
@@ -13,12 +15,47 @@ use trainz_ast::gs::{Expr, FieldModifier, Type};
 
 #[allow(deprecated)]
 #[allow(clippy::type_complexity)]
-#[tracing::instrument(skip(resolver))]
+#[tracing::instrument(skip(resolver, program_resolver))]
 pub fn trainz_hover(
     program: &Program,
     resolver: &dyn ClassResolver,
+    program_resolver: &dyn ProgramResolver,
     position: Position,
 ) -> Option<Hover> {
+    if let Some(include) = find_include_at_position(program, position)
+        && let Some(path) = &include.path
+    {
+        let path_str = path.to_string_lossy().to_string();
+        if let Some(included_program) = program_resolver.resolve_program(&path_str) {
+            let transitive = trainz_ast::gs::dependency_graph::get_transitive_programs(
+                &included_program,
+                program_resolver,
+            );
+
+            let mut classes = HashSet::<String>::new();
+            for (_, p) in std::iter::once(("".to_string(), included_program)).chain(transitive) {
+                for class_name in p.classes.keys() {
+                    classes.insert(class_name.clone());
+                }
+            }
+
+            if !classes.is_empty() {
+                let mut names = classes
+                    .par_iter()
+                    .map(|c| format!("- {}", c))
+                    .collect::<Vec<String>>();
+                names.sort();
+                return Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: format!("Includes classes:\n{}", names.join("\n")),
+                    }),
+                    range: Some(include.range),
+                });
+            }
+        }
+    }
+
     let id = find_id_at_position(program, position)?;
 
     if let Some((ty, name)) = program.find_variable_declaration(&id.name, position) {
@@ -31,10 +68,10 @@ pub fn trainz_hover(
                 .any(|m| matches!(m.0, FieldModifier::Define));
 
             if is_define {
-                if let Some(init) = &field.initializer {
-                    if let Some(init_str) = get_text_from_range(&program.src, init.range()) {
-                        value = format!("{} {} = {}", ty, name.name, init_str);
-                    }
+                if let Some(init) = &field.initializer
+                    && let Some(init_str) = get_text_from_range(&program.src, init.range())
+                {
+                    value = format!("{} {} = {}", ty, name.name, init_str);
                 }
             } else {
                 value = format!("field: {} {}", ty, name.name);
@@ -64,16 +101,16 @@ pub fn trainz_hover(
 
     // Check if it's a method call or variable in the current context
     let current_class = trainz_ast::gs::find::find_class_at_position(program, position);
-    if id.name == "me" {
-        if let Some(class) = current_class {
-            return Some(Hover {
-                contents: HoverContents::Markup(MarkupContent {
-                    kind: MarkupKind::Markdown,
-                    value: format!("class {}", class.name.name),
-                }),
-                range: Some(id.range),
-            });
-        }
+    if id.name == "me"
+        && let Some(class) = current_class
+    {
+        return Some(Hover {
+            contents: HoverContents::Markup(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: format!("class {}", class.name.name),
+            }),
+            range: Some(id.range),
+        });
     }
 
     if id.name == "isclass" {
@@ -97,109 +134,118 @@ pub fn trainz_hover(
             });
         }
         if let Some(methods) = class.find_method(program, resolver, &id.name) {
-            if let Some(method) = methods.first() {
-                return Some(Hover {
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: format_method_hover(method),
-                    }),
-                    range: Some(id.range),
-                });
+            let mut value = String::new();
+            for (i, method) in methods.iter().enumerate() {
+                if i > 0 {
+                    value.push_str("\n\n---\n\n");
+                }
+                value.push_str(&format_method_hover(method));
             }
+            return Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value,
+                }),
+                range: Some(id.range),
+            });
         }
     }
 
     // Check if it's a member of a postfix expression (chained call)
-    if let Some((postfix_expr, idx)) = find_postfix_at_position(program, position) {
-        if let Expr::Postfix { expr, ops, .. } = postfix_expr {
-            let ops_before = &ops[..idx];
-            let res = if ops_before.is_empty() {
-                evaluate_expr_type(
-                    expr,
-                    program,
-                    resolver,
-                    position,
-                    current_class,
-                    &HashMap::new(),
-                )
-            } else {
-                let temp_expr = Expr::Postfix {
-                    expr: expr.clone(),
-                    ops: ops_before.to_vec(),
-                    range: expr.range(),
-                };
-                evaluate_expr_type(
-                    &temp_expr,
-                    program,
-                    resolver,
-                    position,
-                    current_class,
-                    &HashMap::new(),
-                )
+    if let Some((postfix_expr, idx)) = find_postfix_at_position(program, position)
+        && let Expr::Postfix { expr, ops, .. } = postfix_expr
+    {
+        let ops_before = &ops[..idx];
+        let res = if ops_before.is_empty() {
+            evaluate_expr_type(
+                expr,
+                program,
+                resolver,
+                position,
+                current_class,
+                &HashMap::new(),
+            )
+        } else {
+            let temp_expr = Expr::Postfix {
+                expr: expr.clone(),
+                ops: ops_before.to_vec(),
+                range: expr.range(),
             };
+            evaluate_expr_type(
+                &temp_expr,
+                program,
+                resolver,
+                position,
+                current_class,
+                &HashMap::new(),
+            )
+        };
 
-            match res {
-                Ok(EvaluatedType::Type(Type::Named(class_id))) => {
-                    if let Some(class) = resolver.find_class(&class_id.name) {
-                        if let Some(field) = class.find_field(program, resolver, &id.name) {
-                            return Some(Hover {
-                                contents: HoverContents::Markup(MarkupContent {
-                                    kind: MarkupKind::Markdown,
-                                    value: format!("field: {} {}", field.ty, field.name.name),
-                                }),
-                                range: Some(id.range),
-                            });
-                        } else if let Some(methods) = class.find_method(program, resolver, &id.name)
-                        {
-                            if let Some(method) = methods.first() {
-                                return Some(Hover {
-                                    contents: HoverContents::Markup(MarkupContent {
-                                        kind: MarkupKind::Markdown,
-                                        value: format_method_hover(method),
-                                    }),
-                                    range: Some(id.range),
-                                });
+        match res {
+            Ok(EvaluatedType::Type(Type::Named(class_id))) => {
+                if let Some(class) = resolver.find_class(&class_id.name) {
+                    if let Some(field) = class.find_field(program, resolver, &id.name) {
+                        return Some(Hover {
+                            contents: HoverContents::Markup(MarkupContent {
+                                kind: MarkupKind::Markdown,
+                                value: format!("field: {} {}", field.ty, field.name.name),
+                            }),
+                            range: Some(id.range),
+                        });
+                    } else if let Some(methods) = class.find_method(program, resolver, &id.name) {
+                        let mut value = String::new();
+                        for (i, method) in methods.iter().enumerate() {
+                            if i > 0 {
+                                value.push_str("\n\n---\n\n");
                             }
+                            value.push_str(&format_method_hover(method));
                         }
-                    }
-                    if id.name == "isclass" {
                         return Some(Hover {
                             contents: HoverContents::Markup(MarkupContent {
                                 kind: MarkupKind::Markdown,
-                                value: "bool isclass(object cls)".to_string(),
+                                value,
                             }),
                             range: Some(id.range),
                         });
                     }
                 }
-                Ok(ref eval_res @ EvaluatedType::Array(..))
-                | Ok(ref eval_res @ EvaluatedType::Type(Type::Array(..))) => {
-                    let inner_type_str = match eval_res {
-                        EvaluatedType::Array(inner, _, _) => format!("{}", inner),
-                        EvaluatedType::Type(Type::Array(inner, _)) => format!("{}", inner),
-                        _ => unreachable!(),
-                    };
-
-                    if id.name == "size" {
-                        return Some(Hover {
-                            contents: HoverContents::Markup(MarkupContent {
-                                kind: MarkupKind::Markdown,
-                                value: "int size()".to_string(),
-                            }),
-                            range: Some(id.range),
-                        });
-                    } else if id.name == "copy" {
-                        return Some(Hover {
-                            contents: HoverContents::Markup(MarkupContent {
-                                kind: MarkupKind::Markdown,
-                                value: format!("{}[] copy()", inner_type_str),
-                            }),
-                            range: Some(id.range),
-                        });
-                    }
+                if id.name == "isclass" {
+                    return Some(Hover {
+                        contents: HoverContents::Markup(MarkupContent {
+                            kind: MarkupKind::Markdown,
+                            value: "bool isclass(object cls)".to_string(),
+                        }),
+                        range: Some(id.range),
+                    });
                 }
-                _ => {}
             }
+            Ok(ref eval_res @ EvaluatedType::Array(..))
+            | Ok(ref eval_res @ EvaluatedType::Type(Type::Array(..))) => {
+                let inner_type_str = match eval_res {
+                    EvaluatedType::Array(inner, _, _) => format!("{}", inner),
+                    EvaluatedType::Type(Type::Array(inner, _)) => format!("{}", inner),
+                    _ => unreachable!(),
+                };
+
+                if id.name == "size" {
+                    return Some(Hover {
+                        contents: HoverContents::Markup(MarkupContent {
+                            kind: MarkupKind::Markdown,
+                            value: "int size()".to_string(),
+                        }),
+                        range: Some(id.range),
+                    });
+                } else if id.name == "copy" {
+                    return Some(Hover {
+                        contents: HoverContents::Markup(MarkupContent {
+                            kind: MarkupKind::Markdown,
+                            value: format!("{}[] copy()", inner_type_str),
+                        }),
+                        range: Some(id.range),
+                    });
+                }
+            }
+            _ => {}
         }
     }
 
@@ -286,6 +332,8 @@ fn get_text_from_range(src: &str, range: Range) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use std::sync::Arc;
     use trainz_ast::gs::process::process_trainz_ast;
     use trainz_parser::gs::parse;
 
@@ -306,8 +354,8 @@ mod tests {
             line: 3,
             character: 12,
         };
-        let hover_size =
-            trainz_hover(&program, &program, pos_size).expect("Should find hover for size()");
+        let hover_size = trainz_hover(&program, &program, &program, pos_size)
+            .expect("Should find hover for size()");
         if let HoverContents::Markup(markup) = hover_size.contents {
             assert_eq!(markup.value, "int size()");
         }
@@ -317,8 +365,8 @@ mod tests {
             line: 4,
             character: 12,
         };
-        let hover_copy =
-            trainz_hover(&program, &program, pos_copy).expect("Should find hover for copy()");
+        let hover_copy = trainz_hover(&program, &program, &program, pos_copy)
+            .expect("Should find hover for copy()");
         if let HoverContents::Markup(markup) = hover_copy.contents {
             assert_eq!(markup.value, "int[] copy()");
         }
@@ -341,7 +389,7 @@ mod tests {
             line: 3,
             character: 15,
         };
-        let hover_copy1 = trainz_hover(&program, &program, pos_copy1)
+        let hover_copy1 = trainz_hover(&program, &program, &program, pos_copy1)
             .expect("Should find hover for nested.copy()");
         if let HoverContents::Markup(markup) = hover_copy1.contents {
             assert_eq!(markup.value, "int[][] copy()");
@@ -352,7 +400,7 @@ mod tests {
             line: 4,
             character: 18,
         };
-        let hover_copy2 = trainz_hover(&program, &program, pos_copy2)
+        let hover_copy2 = trainz_hover(&program, &program, &program, pos_copy2)
             .expect("Should find hover for nested[0].copy()");
         if let HoverContents::Markup(markup) = hover_copy2.contents {
             assert_eq!(markup.value, "int[] copy()");
@@ -375,8 +423,8 @@ mod tests {
             line: 3,
             character: 16,
         };
-        let hover_arr =
-            trainz_hover(&program, &program, pos_arr).expect("Should find hover for arr in arr[0]");
+        let hover_arr = trainz_hover(&program, &program, &program, pos_arr)
+            .expect("Should find hover for arr in arr[0]");
         if let HoverContents::Markup(markup) = hover_arr.contents {
             assert_eq!(markup.value, "int[] arr");
         }
@@ -399,7 +447,8 @@ class Test {
             line: 4,
             character: 12,
         };
-        let hover = trainz_hover(&program, &program, pos).expect("Should find hover for isclass()");
+        let hover = trainz_hover(&program, &program, &program, pos)
+            .expect("Should find hover for isclass()");
         if let HoverContents::Markup(markup) = hover.contents {
             assert_eq!(markup.value, "bool isclass(object cls)");
         }
@@ -426,7 +475,7 @@ class Test {
             line: 4,
             character: 9,
         };
-        let hover_i = trainz_hover(&program, &program, pos_i).unwrap();
+        let hover_i = trainz_hover(&program, &program, &program, pos_i).unwrap();
         if let HoverContents::Markup(markup) = hover_i.contents {
             assert_eq!(markup.value, "int i");
         }
@@ -436,7 +485,7 @@ class Test {
             line: 5,
             character: 10,
         };
-        let hover_search = trainz_hover(&program, &program, pos_search).unwrap();
+        let hover_search = trainz_hover(&program, &program, &program, pos_search).unwrap();
         if let HoverContents::Markup(markup) = hover_search.contents {
             assert_eq!(markup.value, "parameter: string searchStr");
         }
@@ -459,7 +508,7 @@ class Test {
             line: 4,
             character: 42,
         };
-        let hover_field = trainz_hover(&program, &program, pos_field)
+        let hover_field = trainz_hover(&program, &program, &program, pos_field)
             .expect("Should find hover for m_queryResult");
         if let HoverContents::Markup(markup) = hover_field.contents {
             assert_eq!(markup.value, "field: int m_queryResult");
@@ -470,7 +519,7 @@ class Test {
             line: 5,
             character: 33,
         };
-        let hover_define = trainz_hover(&program, &program, pos_define)
+        let hover_define = trainz_hover(&program, &program, &program, pos_define)
             .expect("Should find hover for ERROR_INVALID_STATE");
         if let HoverContents::Markup(markup) = hover_define.contents {
             assert_eq!(markup.value, "int ERROR_INVALID_STATE = 2");
@@ -493,8 +542,8 @@ class Test {
             line: 3,
             character: 4,
         };
-        let hover_call =
-            trainz_hover(&program, &program, pos_call).expect("Should find hover for method call");
+        let hover_call = trainz_hover(&program, &program, &program, pos_call)
+            .expect("Should find hover for method call");
         if let HoverContents::Markup(markup) = hover_call.contents {
             assert_eq!(markup.value, "public void CountTags(int pid, string s)");
         }
@@ -503,7 +552,7 @@ class Test {
             line: 1,
             character: 14,
         };
-        let hover_def = trainz_hover(&program, &program, pos_def)
+        let hover_def = trainz_hover(&program, &program, &program, pos_def)
             .expect("Should find hover for method definition");
         if let HoverContents::Markup(markup) = hover_def.contents {
             assert_eq!(markup.value, "public void CountTags(int pid, string s)");
@@ -529,7 +578,7 @@ class Test {
             line: 6,
             character: 35,
         };
-        let hover_call = trainz_hover(&program, &program, pos_call)
+        let hover_call = trainz_hover(&program, &program, &program, pos_call)
             .expect("Should find hover for static method call");
         if let HoverContents::Markup(markup) = hover_call.contents {
             assert_eq!(
@@ -559,7 +608,7 @@ class Derived isclass Base {
             line: 6,
             character: 8,
         };
-        let hover_method = trainz_hover(&program, &program, pos_method)
+        let hover_method = trainz_hover(&program, &program, &program, pos_method)
             .expect("Should find hover for inherited method");
         if let HoverContents::Markup(markup) = hover_method.contents {
             assert_eq!(markup.value, "public void BaseMethod(int a)");
@@ -570,7 +619,7 @@ class Derived isclass Base {
             line: 7,
             character: 16,
         };
-        let hover_field = trainz_hover(&program, &program, pos_field)
+        let hover_field = trainz_hover(&program, &program, &program, pos_field)
             .expect("Should find hover for inherited field");
         if let HoverContents::Markup(markup) = hover_field.contents {
             assert_eq!(markup.value, "field: int baseField");
@@ -597,8 +646,8 @@ class Test {
             line: 7,
             character: 21,
         };
-        let hover_log2 =
-            trainz_hover(&program, &program, pos_log2).expect("Should find hover for second Log()");
+        let hover_log2 = trainz_hover(&program, &program, &program, pos_log2)
+            .expect("Should find hover for second Log()");
         if let HoverContents::Markup(markup) = hover_log2.contents {
             assert_eq!(markup.value, "public Logger Log(string msg)");
         }
@@ -608,8 +657,8 @@ class Test {
             line: 7,
             character: 29,
         };
-        let hover_count =
-            trainz_hover(&program, &program, pos_count).expect("Should find hover for Count field");
+        let hover_count = trainz_hover(&program, &program, &program, pos_count)
+            .expect("Should find hover for Count field");
         if let HoverContents::Markup(markup) = hover_count.contents {
             assert_eq!(markup.value, "field: int Count");
         }
@@ -631,7 +680,7 @@ class Test {
             line: 3,
             character: 8,
         };
-        let hover_decl = trainz_hover(&program, &program, pos_decl)
+        let hover_decl = trainz_hover(&program, &program, &program, pos_decl)
             .expect("Should find hover for class name in declaration");
         if let HoverContents::Markup(markup) = hover_decl.contents {
             assert_eq!(markup.value, "class Foo");
@@ -642,7 +691,7 @@ class Test {
             line: 3,
             character: 20,
         };
-        let hover_new = trainz_hover(&program, &program, pos_new)
+        let hover_new = trainz_hover(&program, &program, &program, pos_new)
             .expect("Should find hover for class name in new expression");
         if let HoverContents::Markup(markup) = hover_new.contents {
             assert_eq!(markup.value, "class Foo");
@@ -656,7 +705,7 @@ class Test {
             line: 0,
             character: 38,
         };
-        let hover_base = trainz_hover(&program2, &program2, pos_base)
+        let hover_base = trainz_hover(&program2, &program2, &program2, pos_base)
             .expect("Should find hover for superclass name");
         if let HoverContents::Markup(markup) = hover_base.contents {
             assert_eq!(markup.value, "class Base");
@@ -680,15 +729,15 @@ class Test {
             character: 8,
         };
         // This currently fails at find_id_at_position if we don't fix it
-        let hover = trainz_hover(&program, &program, pos);
+        let hover = trainz_hover(&program, &program, &program, pos);
         assert!(
             hover.is_some(),
             "Should find hover for standalone isclass()"
         );
-        if let Some(h) = hover {
-            if let HoverContents::Markup(markup) = h.contents {
-                assert_eq!(markup.value, "bool isclass(object cls)");
-            }
+        if let Some(h) = hover
+            && let HoverContents::Markup(markup) = h.contents
+        {
+            assert_eq!(markup.value, "bool isclass(object cls)");
         }
     }
 
@@ -708,15 +757,15 @@ class Test {
             line: 3,
             character: 8,
         };
-        let hover_decl = trainz_hover(&program, &program, pos_decl);
+        let hover_decl = trainz_hover(&program, &program, &program, pos_decl);
         assert!(
             hover_decl.is_some(),
             "Should find hover for class name in array declaration"
         );
-        if let Some(h) = hover_decl {
-            if let HoverContents::Markup(markup) = h.contents {
-                assert_eq!(markup.value, "class Foo");
-            }
+        if let Some(h) = hover_decl
+            && let HoverContents::Markup(markup) = h.contents
+        {
+            assert_eq!(markup.value, "class Foo");
         }
 
         // Hover over 'Foo' in 'new Foo[10]'
@@ -724,15 +773,15 @@ class Test {
             line: 3,
             character: 24,
         };
-        let hover_new = trainz_hover(&program, &program, pos_new);
+        let hover_new = trainz_hover(&program, &program, &program, pos_new);
         assert!(
             hover_new.is_some(),
             "Should find hover for class name in new array expression"
         );
-        if let Some(h) = hover_new {
-            if let HoverContents::Markup(markup) = h.contents {
-                assert_eq!(markup.value, "class Foo");
-            }
+        if let Some(h) = hover_new
+            && let HoverContents::Markup(markup) = h.contents
+        {
+            assert_eq!(markup.value, "class Foo");
         }
     }
 
@@ -750,15 +799,15 @@ class Test {
             line: 2,
             character: 5,
         };
-        let hover = trainz_hover(&program, &program, pos);
+        let hover = trainz_hover(&program, &program, &program, pos);
         assert!(
             hover.is_some(),
             "Should find hover for class name in field array declaration"
         );
-        if let Some(h) = hover {
-            if let HoverContents::Markup(markup) = h.contents {
-                assert_eq!(markup.value, "class Foo");
-            }
+        if let Some(h) = hover
+            && let HoverContents::Markup(markup) = h.contents
+        {
+            assert_eq!(markup.value, "class Foo");
         }
     }
 
@@ -776,15 +825,15 @@ class Test {
             line: 2,
             character: 4,
         };
-        let hover_ret = trainz_hover(&program, &program, pos_ret);
+        let hover_ret = trainz_hover(&program, &program, &program, pos_ret);
         assert!(
             hover_ret.is_some(),
             "Should find hover for class name in return type"
         );
-        if let Some(h) = hover_ret {
-            if let HoverContents::Markup(markup) = h.contents {
-                assert_eq!(markup.value, "class Foo");
-            }
+        if let Some(h) = hover_ret
+            && let HoverContents::Markup(markup) = h.contents
+        {
+            assert_eq!(markup.value, "class Foo");
         }
 
         // Hover over 'Foo' in parameter type
@@ -792,15 +841,15 @@ class Test {
             line: 2,
             character: 15,
         };
-        let hover_param = trainz_hover(&program, &program, pos_param);
+        let hover_param = trainz_hover(&program, &program, &program, pos_param);
         assert!(
             hover_param.is_some(),
             "Should find hover for class name in parameter type"
         );
-        if let Some(h) = hover_param {
-            if let HoverContents::Markup(markup) = h.contents {
-                assert_eq!(markup.value, "class Foo");
-            }
+        if let Some(h) = hover_param
+            && let HoverContents::Markup(markup) = h.contents
+        {
+            assert_eq!(markup.value, "class Foo");
         }
     }
 
@@ -819,10 +868,68 @@ class Test {
             line: 2,
             character: 8,
         };
-        let hover =
-            trainz_hover(&program, &program, pos).expect("Should find hover for me keyword");
+        let hover = trainz_hover(&program, &program, &program, pos)
+            .expect("Should find hover for me keyword");
         if let HoverContents::Markup(markup) = hover.contents {
             assert_eq!(markup.value, "class Test");
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_include() {
+        let code_a = "class A { void MethodA() {} }; include \"b.gs\"";
+        let code_b = "class B { void MethodB() {} };";
+        let code_main = "include \"a.gs\"";
+
+        // Setup mock resolver
+        struct MockResolver {
+            programs: HashMap<String, Arc<Program>>,
+        }
+        impl ClassResolver for MockResolver {
+            fn find_class(&self, name: &str) -> Option<trainz_ast::gs::ClassDef> {
+                for p in self.programs.values() {
+                    if let Some(cls) = p.classes.get(name) {
+                        return Some(cls.clone());
+                    }
+                }
+                None
+            }
+        }
+        impl ProgramResolver for MockResolver {
+            fn resolve_program(&self, path: &str) -> Option<Arc<Program>> {
+                self.programs.get(path).cloned()
+            }
+        }
+
+        let pairs_a = parse(code_a).unwrap();
+        let mut program_a_val = process_trainz_ast(pairs_a, code_a);
+        program_a_val.includes[0].path = Some(PathBuf::from("b.gs"));
+        let program_a = Arc::new(program_a_val);
+
+        let pairs_b = parse(code_b).unwrap();
+        let program_b = Arc::new(process_trainz_ast(pairs_b, code_b));
+
+        let pairs_main = parse(code_main).unwrap();
+        let mut program_main = process_trainz_ast(pairs_main, code_main);
+        program_main.includes[0].path = Some(PathBuf::from("a.gs"));
+
+        let mut programs = HashMap::new();
+        programs.insert("a.gs".to_string(), program_a);
+        programs.insert("b.gs".to_string(), program_b);
+
+        let resolver = MockResolver { programs };
+
+        let pos = Position {
+            line: 0,
+            character: 5,
+        }; // Over "include"
+        let hover = trainz_hover(&program_main, &resolver, &resolver, pos)
+            .expect("Should find hover for include");
+
+        if let HoverContents::Markup(markup) = hover.contents {
+            assert!(markup.value.contains("Includes classes:"));
+            assert!(markup.value.contains("- A"));
+            assert!(markup.value.contains("- B"));
         }
     }
 }

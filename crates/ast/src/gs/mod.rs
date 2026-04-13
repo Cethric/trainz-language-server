@@ -1,4 +1,5 @@
 pub mod class;
+pub mod dependency_graph;
 pub mod expr;
 pub mod find;
 pub mod include;

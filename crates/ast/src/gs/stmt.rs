@@ -47,12 +47,12 @@ pub enum Stmt {
     Continue(crate::Range, crate::Range),             // keyword range, stmt range
     Goto(Identifier, crate::Range, crate::Range),     // identifier, keyword range, stmt range
     Expr(Expr),
-    If(IfStmt),
-    While(WhileStmt),
-    For(ForStmt),
-    Wait(WaitStmt),
-    On(OnStmt),
-    Switch(SwitchStmt),
+    If(Box<IfStmt>),
+    While(Box<WhileStmt>),
+    For(Box<ForStmt>),
+    Wait(Box<WaitStmt>),
+    On(Box<OnStmt>),
+    Switch(Box<SwitchStmt>),
     Block(Block),
 }
 

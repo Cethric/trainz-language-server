@@ -143,11 +143,7 @@ pub fn semantic_tokens(
                         .unwrap_or(false);
 
                     collect_method_tokens(
-                        &method.modifiers,
-                        &method.return_type,
-                        &method.name,
-                        &method.params,
-                        method.body.as_ref().map(|b| &b.statements[..]),
+                        method,
                         &mut class_raw_tokens,
                         &known_classes,
                         has_separate_declaration,

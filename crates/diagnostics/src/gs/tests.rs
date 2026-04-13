@@ -6,7 +6,15 @@ use trainz_parser::gs::parse;
 fn get_diagnostics(src: &str) -> Vec<Diagnostic> {
     let pairs = parse(src).expect("Should parse");
     let program = process_trainz_ast(pairs, src);
-    trainz_diagnostics(&program, &program)
+
+    struct EmptyProgramResolver;
+    impl trainz_ast::gs::dependency_graph::ProgramResolver for EmptyProgramResolver {
+        fn resolve_program(&self, _path: &str) -> Option<std::sync::Arc<trainz_ast::gs::Program>> {
+            None
+        }
+    }
+
+    trainz_diagnostics("test.gs", &program, &program, &EmptyProgramResolver)
 }
 
 #[test]
@@ -244,11 +252,11 @@ class Test {
     assert!(diagnostics.len() >= 2);
     assert!(diagnostics.iter().any(|d| {
         d.message
-            .contains("Argument type mismatch: expected 'int', got 'string'")
+            .contains("No matching overload of method takes 1 arguments")
     }));
     assert!(diagnostics.iter().any(|d| {
         d.message
-            .contains("No overload of method takes 2 arguments")
+            .contains("No matching overload of method takes 2 arguments")
     }));
 }
 
@@ -316,4 +324,172 @@ class Test {
 "#;
     let diagnostics = get_diagnostics(src);
     assert!(!diagnostics.is_empty(), "Expected error for string.size()");
+}
+
+#[test]
+fn test_me_deep_inheritance() {
+    let src = r#"
+        class GrandBase {
+            void GrandMethod() {}
+        };
+        class Base isclass GrandBase {
+            void BaseMethod() {}
+        };
+        class Derived isclass Base {
+            void Main() {
+                me.GrandMethod();
+            }
+        };
+    "#;
+    let diagnostics = get_diagnostics(src);
+    assert!(
+        diagnostics.is_empty(),
+        "Expected no diagnostics for deep inherited method call, got: {:?}",
+        diagnostics
+    );
+}
+
+#[test]
+fn test_overload_validation() {
+    let src = r#"
+class Base {
+    void Foo(int i) {}
+};
+
+class Derived isclass Base {
+    void Foo(string s) {}
+    
+    void Test() {
+        Foo(1);          // OK: matches Base::Foo(int)
+        Foo("hello");    // OK: matches Derived::Foo(string)
+        Foo(1.5);        // Warning: Suggest Foo(int) or Foo(string)
+    }
+};
+"#;
+    let diagnostics = get_diagnostics(src);
+    // Foo(1.5) should have a diagnostic
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d.message.contains("No matching overload"))
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d.message.contains("Closest match: Foo(int)"))
+    );
+}
+
+#[test]
+fn test_inherited_validation() {
+    let src = r#"
+class Base {
+    void Test(int i) {}
+};
+
+class Derived isclass Base {
+    void Test(int i) {
+        inherited(i);    // OK: matches Base::Test(int)
+        inherited("hi"); // Warning: Base::Test takes int, not string
+    }
+    
+    void Bar() {
+        inherited(); // Error: Bar not in Base
+    }
+};
+"#;
+    let diagnostics = get_diagnostics(src);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d.message.contains("not defined in inherited class 'Base'"))
+    );
+    assert!(diagnostics.iter().any(|d| {
+        d.message
+            .contains("No matching overload of method takes 1 arguments")
+    }));
+}
+
+#[test]
+fn test_me_overload_inheritance() {
+    let src = r#"
+        class A {
+            void foo() {}
+        };
+        class B isclass A {
+            void foo(int x) {}
+        };
+        class C isclass B {
+            void Main() {
+                me.foo();
+            }
+        };
+    "#;
+    let diagnostics = get_diagnostics(src);
+    assert!(
+        diagnostics.is_empty(),
+        "Expected no diagnostics for inherited overload call, got: {:?}",
+        diagnostics
+    );
+}
+
+#[test]
+fn test_cyclic_include_warning() {
+    use crate::gs::trainz_diagnostics;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use trainz_ast::gs::ClassDef;
+    use trainz_ast::gs::Program;
+    use trainz_ast::gs::dependency_graph::ProgramResolver;
+    use trainz_ast::gs::type_eval::ClassResolver;
+
+    let src_a = "include \"b.gs\"\nclass A {};";
+    let src_b = "include \"a.gs\"\nclass B {};";
+
+    let program_a = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+        trainz_parser::gs::parse(src_a).unwrap(),
+        src_a,
+    ));
+    let program_b = Arc::new(trainz_ast::gs::process::process_trainz_ast(
+        trainz_parser::gs::parse(src_b).unwrap(),
+        src_b,
+    ));
+
+    // Manually set resolved paths
+    let mut program_a_val = (*program_a).clone();
+    program_a_val.includes[0].path = Some("b.gs".into());
+    let program_a = Arc::new(program_a_val);
+
+    let mut program_b_val = (*program_b).clone();
+    program_b_val.includes[0].path = Some("a.gs".into());
+    let program_b = Arc::new(program_b_val);
+
+    struct TestResolver {
+        programs: HashMap<String, Arc<Program>>,
+    }
+    impl ProgramResolver for TestResolver {
+        fn resolve_program(&self, path: &str) -> Option<Arc<Program>> {
+            self.programs.get(path).cloned()
+        }
+    }
+    impl ClassResolver for TestResolver {
+        fn find_class(&self, _name: &str) -> Option<ClassDef> {
+            None
+        }
+    }
+
+    let mut programs = HashMap::new();
+    programs.insert("a.gs".to_string(), program_a.clone());
+    programs.insert("b.gs".to_string(), program_b.clone());
+    let resolver = TestResolver { programs };
+
+    let diagnostics = trainz_diagnostics("a.gs", &program_a, &resolver, &resolver);
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d.message.contains("Cyclic include")),
+        "Expected cyclic include warning, got: {:?}",
+        diagnostics
+    );
 }
