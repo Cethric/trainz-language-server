@@ -117,12 +117,12 @@ async fn test_hover_both_comments() {
     let result = service.inner().hover(params).await.unwrap();
     assert!(result.is_some());
 
-    if let Some(hover) = result {
-        if let HoverContents::Markup(markup) = hover.contents {
-            // Preceding comment should be ignored because there's a same-line comment
-            assert!(!markup.value.contains("Preceding comment"));
-            assert!(markup.value.contains("Following comment"));
-        }
+    if let Some(hover) = result
+        && let HoverContents::Markup(markup) = hover.contents
+    {
+        // Preceding comment should be ignored because there's a same-line comment
+        assert!(!markup.value.contains("Preceding comment"));
+        assert!(markup.value.contains("Following comment"));
     }
 
     let _ = fs::remove_dir_all(&temp_dir);
@@ -175,11 +175,11 @@ async fn test_hover_local_var_comment() {
     let result = service.inner().hover(params).await.unwrap();
     assert!(result.is_some());
 
-    if let Some(hover) = result {
-        if let HoverContents::Markup(markup) = hover.contents {
-            assert!(markup.value.contains("int i"));
-            assert!(markup.value.contains("index variable"));
-        }
+    if let Some(hover) = result
+        && let HoverContents::Markup(markup) = hover.contents
+    {
+        assert!(markup.value.contains("int i"));
+        assert!(markup.value.contains("index variable"));
     }
 
     let _ = fs::remove_dir_all(&temp_dir);
@@ -231,11 +231,11 @@ async fn test_hover_method_comment() {
     let result = service.inner().hover(params).await.unwrap();
     assert!(result.is_some());
 
-    if let Some(hover) = result {
-        if let HoverContents::Markup(markup) = hover.contents {
-            assert!(markup.value.contains("void Run()"));
-            assert!(markup.value.contains("starts execution"));
-        }
+    if let Some(hover) = result
+        && let HoverContents::Markup(markup) = hover.contents
+    {
+        assert!(markup.value.contains("void Run()"));
+        assert!(markup.value.contains("starts execution"));
     }
 
     let _ = fs::remove_dir_all(&temp_dir);
@@ -287,11 +287,11 @@ async fn test_hover_block_comment_same_line() {
     let result = service.inner().hover(params).await.unwrap();
     assert!(result.is_some());
 
-    if let Some(hover) = result {
-        if let HoverContents::Markup(markup) = hover.contents {
-            assert!(markup.value.contains("int m_val"));
-            assert!(markup.value.contains("internal value"));
-        }
+    if let Some(hover) = result
+        && let HoverContents::Markup(markup) = hover.contents
+    {
+        assert!(markup.value.contains("int m_val"));
+        assert!(markup.value.contains("internal value"));
     }
 
     let _ = fs::remove_dir_all(&temp_dir);
@@ -343,11 +343,11 @@ async fn test_hover_param_comment() {
     let result = service.inner().hover(params).await.unwrap();
     assert!(result.is_some());
 
-    if let Some(hover) = result {
-        if let HoverContents::Markup(markup) = hover.contents {
-            assert!(markup.value.contains("parameter: int val"));
-            assert!(markup.value.contains("value to set"));
-        }
+    if let Some(hover) = result
+        && let HoverContents::Markup(markup) = hover.contents
+    {
+        assert!(markup.value.contains("parameter: int val"));
+        assert!(markup.value.contains("value to set"));
     }
 
     let _ = fs::remove_dir_all(&temp_dir);
@@ -400,12 +400,230 @@ async fn test_hover_param_no_preceding_comment() {
     let result = service.inner().hover(params).await.unwrap();
     assert!(result.is_some());
 
-    if let Some(hover) = result {
-        if let HoverContents::Markup(markup) = hover.contents {
-            assert!(markup.value.contains("parameter: int p"));
-            // Method documentation should NOT be included for parameters
-            assert!(!markup.value.contains("Method documentation"));
-        }
+    if let Some(hover) = result
+        && let HoverContents::Markup(markup) = hover.contents
+    {
+        assert!(markup.value.contains("parameter: int p"));
+        // Method documentation should NOT be included for parameters
+        assert!(!markup.value.contains("Method documentation"));
+    }
+
+    let _ = fs::remove_dir_all(&temp_dir);
+}
+
+#[tokio::test]
+async fn test_hover_multiline_parm_comment() {
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+    });
+
+    let temp_dir = std::env::current_dir()
+        .unwrap()
+        .join("target")
+        .join("test_hover_multiline_parm_comment");
+    if temp_dir.exists() {
+        fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    fs::create_dir_all(&temp_dir).unwrap();
+
+    let file_path = temp_dir.join("Test.gs");
+    let code = r#"
+class Test {
+  /**
+   * Parm: browser - The Browser control which is used to visualise this 
+   *       GameplayMenu.
+   * Parm: menuMode - One of the MENUMODE_* defines, indicating which mode we
+   *       are switching to.
+   */
+  public void SetMenu(object browser, int menuMode) {
+  }
+};
+"#;
+    fs::write(&file_path, code).unwrap();
+    let uri = Uri::from_file_path(&file_path).unwrap();
+
+    service
+        .inner()
+        .did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: uri.clone(),
+                language_id: "game-script".to_string(),
+                version: 1,
+                text: code.to_string(),
+            },
+        })
+        .await;
+
+    let params = HoverParams {
+        text_document_position_params: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            position: Position {
+                line: 8,
+                character: 15, // On 'SetMenu'
+            },
+        },
+        work_done_progress_params: Default::default(),
+    };
+
+    let result = service.inner().hover(params).await.unwrap();
+    assert!(result.is_some());
+
+    if let Some(hover) = result
+        && let HoverContents::Markup(markup) = hover.contents
+    {
+        assert!(markup.value.contains(
+            "Parm: browser - The Browser control which is used to visualise this GameplayMenu."
+        ));
+        assert!(markup.value.contains("Parm: menuMode - One of the MENUMODE_* defines, indicating which mode we are switching to."));
+    }
+
+    let _ = fs::remove_dir_all(&temp_dir);
+}
+
+#[tokio::test]
+async fn test_hover_multiline_desc_comment() {
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+    });
+
+    let temp_dir = std::env::current_dir()
+        .unwrap()
+        .join("target")
+        .join("test_hover_multiline_desc_comment");
+    if temp_dir.exists() {
+        fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    fs::create_dir_all(&temp_dir).unwrap();
+
+    let file_path = temp_dir.join("Test.gs");
+    let code = r#"
+class Test {
+  /**
+   * Desc: Called whenever the user requests a "go back" action. If the user has
+   *       navigated to some form of "sub menu", this should return them to the
+   *       main level of this gameplay menu. If at the main level, this should
+   *       close the gameplay menu and return to the game main menu.
+   */
+  public void GoBack() {
+  }
+};
+"#;
+    fs::write(&file_path, code).unwrap();
+    let uri = Uri::from_file_path(&file_path).unwrap();
+
+    service
+        .inner()
+        .did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: uri.clone(),
+                language_id: "game-script".to_string(),
+                version: 1,
+                text: code.to_string(),
+            },
+        })
+        .await;
+
+    let params = HoverParams {
+        text_document_position_params: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            position: Position {
+                line: 8,
+                character: 15, // On 'GoBack'
+            },
+        },
+        work_done_progress_params: Default::default(),
+    };
+
+    let result = service.inner().hover(params).await.unwrap();
+    assert!(result.is_some());
+
+    if let Some(hover) = result
+        && let HoverContents::Markup(markup) = hover.contents
+    {
+        assert!(markup.value.contains("Desc: Called whenever the user requests a \"go back\" action. If the user has navigated to some form of \"sub menu\", this should return them to the main level of this gameplay menu. If at the main level, this should close the gameplay menu and return to the game main menu."));
+    }
+
+    let _ = fs::remove_dir_all(&temp_dir);
+}
+
+#[tokio::test]
+async fn test_hover_multiline_other_tags() {
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+    });
+
+    let temp_dir = std::env::current_dir()
+        .unwrap()
+        .join("target")
+        .join("test_hover_multiline_other_tags");
+    if temp_dir.exists() {
+        fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    fs::create_dir_all(&temp_dir).unwrap();
+
+    let file_path = temp_dir.join("Test.gs");
+    let code = r#"
+class Test {
+  /**
+   * Retn: True if the operation was successful, false
+   *       otherwise.
+   * File: some_file.gs - The source file containing this
+   *       class definition.
+   * See Also: OtherClass.SomeMethod() for more
+   *           information.
+   */
+  public bool DoSomething() {
+    return true;
+  }
+};
+"#;
+    fs::write(&file_path, code).unwrap();
+    let uri = Uri::from_file_path(&file_path).unwrap();
+
+    service
+        .inner()
+        .did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: uri.clone(),
+                language_id: "game-script".to_string(),
+                version: 1,
+                text: code.to_string(),
+            },
+        })
+        .await;
+
+    let params = HoverParams {
+        text_document_position_params: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            position: Position {
+                line: 10,
+                character: 15, // On 'DoSomething'
+            },
+        },
+        work_done_progress_params: Default::default(),
+    };
+
+    let result = service.inner().hover(params).await.unwrap();
+    assert!(result.is_some());
+
+    if let Some(hover) = result
+        && let HoverContents::Markup(markup) = hover.contents
+    {
+        assert!(
+            markup
+                .value
+                .contains("Retn: True if the operation was successful, false otherwise.")
+        );
+        assert!(
+            markup
+                .value
+                .contains("File: some_file.gs - The source file containing this class definition.")
+        );
+        assert!(
+            markup
+                .value
+                .contains("See Also: OtherClass.SomeMethod() for more information.")
+        );
     }
 
     let _ = fs::remove_dir_all(&temp_dir);

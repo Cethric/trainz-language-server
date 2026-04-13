@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use tower_lsp_server::{Bounded, NotCancellable, OngoingProgress};
-use tracing::{error, trace};
+use tracing::{debug, error, info, trace};
 use trainz_ast::cache::ProgramCache;
 use trainz_ast::gs::Include;
 use trainz_ast::gs::process::process_trainz_ast;
@@ -24,6 +24,7 @@ pub trait ProcessGS {
 }
 
 impl ProcessGS for GameScriptLanguageServer {
+    #[tracing::instrument(skip(self, content, workspace_folders, progress))]
     async fn process_gs_file(
         &self,
         path: &Path,
@@ -79,6 +80,7 @@ fn find_include_path(
 
 impl GameScriptLanguageServer {
     #[async_recursion]
+    #[tracing::instrument(skip(self, workspace_folders, progress))]
     async fn process_gs_include(
         &self,
         include: Include,
@@ -87,6 +89,7 @@ impl GameScriptLanguageServer {
     ) {
         if let Some(path) = include.path {
             let path_str = path.to_string_lossy().to_string();
+            self.increment_count(&path_str);
             if self.parsed_files.contains_key(&path_str) {
                 trace!("Include already processed {:?}", path);
                 return;
@@ -118,11 +121,11 @@ impl GameScriptLanguageServer {
                             })
                         };
 
+                    let program_arc = Arc::new(program);
                     self.parsed_files.insert(
-                        path_str,
+                        path_str.clone(),
                         ParsedFile {
-                            count: 0,
-                            parsed: ParsedFileType::GameScript(Arc::new(program)),
+                            parsed: ParsedFileType::GameScript(program_arc.clone()),
                             comments,
                             semantic_tokens: Arc::new(OnceLock::new()),
                             document_symbols: Arc::new(OnceLock::new()),
@@ -130,11 +133,18 @@ impl GameScriptLanguageServer {
                             folding_ranges: Arc::new(OnceLock::new()),
                         },
                     );
+
+                    // Process includes recursively for cached file
+                    for include in &program_arc.includes {
+                        self.process_gs_include(include.clone(), workspace_folders, progress)
+                            .await;
+                    }
+
                     return;
                 }
             }
 
-            trace!("Processing include file {:?}", path);
+            debug!("Processing include file {:?}", path);
 
             let document = fs::read(path.clone());
             if let Ok(document) = document {
@@ -147,6 +157,7 @@ impl GameScriptLanguageServer {
     }
 
     #[async_recursion]
+    #[tracing::instrument(skip(self, content, workspace_folders, progress))]
     async fn process_gs_file_inner(
         &self,
         path: &Path,
@@ -156,6 +167,7 @@ impl GameScriptLanguageServer {
         progress: &OngoingProgress<Bounded, NotCancellable>,
     ) {
         let mut includes: Vec<Include> = vec![];
+        let mut old_include_paths = std::collections::HashSet::new();
 
         if let Some(path_str) = path.to_str() {
             let base_path = path.parent().unwrap();
@@ -166,14 +178,22 @@ impl GameScriptLanguageServer {
             }
             trace!("Processing file {:?}", path);
 
+            // Get old includes to decrement counts if they changed
+            if let Some(file) = self.parsed_files.get(path_str)
+                && let ParsedFileType::GameScript(program) = &file.parsed
+            {
+                for include in &program.includes {
+                    if let Some(p) = &include.path {
+                        old_include_paths.insert(p.to_string_lossy().to_string());
+                    }
+                }
+            }
+
             let pairs = parse(content);
             if let Ok(pairs) = pairs {
                 trace!("File parsed {:?}", path);
 
                 let mut parsed = process_trainz_ast(pairs, content);
-
-                // Save to cache
-                let _ = self.ast_cache.save(path, &parsed);
 
                 // Resolve include paths
                 for include in &mut parsed.includes {
@@ -185,11 +205,21 @@ impl GameScriptLanguageServer {
                     );
                 }
 
-                let mut counter = 1;
-                let mut early_exit = false;
-                if let Some(orig) = self.parsed_files.get(path_str) {
-                    counter = orig.value().count;
-                    early_exit = true;
+                // Save to cache after include resolution
+                let _ = self.ast_cache.save(path, &parsed);
+
+                // Decrement count for removed includes
+                let mut new_include_paths = std::collections::HashSet::new();
+                for include in &parsed.includes {
+                    if let Some(p) = &include.path {
+                        new_include_paths.insert(p.to_string_lossy().to_string());
+                    }
+                }
+
+                for old_path in &old_include_paths {
+                    if !new_include_paths.contains(old_path) {
+                        self.decrement_count(old_path);
+                    }
                 }
 
                 let parsed_arc = Arc::new(parsed);
@@ -216,7 +246,6 @@ impl GameScriptLanguageServer {
                 self.parsed_files.insert(
                     path_str.to_string(),
                     ParsedFile {
-                        count: counter,
                         parsed: ParsedFileType::GameScript(parsed_arc.clone()),
                         comments: comments_arc,
                         semantic_tokens: Arc::new(OnceLock::new()),
@@ -225,11 +254,6 @@ impl GameScriptLanguageServer {
                         folding_ranges: Arc::new(OnceLock::new()),
                     },
                 );
-
-                if early_exit {
-                    trace!("Early exit");
-                    return;
-                }
 
                 includes.extend(parsed_arc.includes.clone());
             } else if let Err(e) = pairs {
@@ -253,6 +277,17 @@ impl GameScriptLanguageServer {
                     10 + percentage,
                 )
                 .await;
+
+            if let Some(include_path) = &include.path {
+                info!("File {:?} includes {:?}", path, include_path);
+
+                // Only process includes that are new for this file to avoid double-counting
+                // and unnecessary recursion
+                if old_include_paths.contains(&include_path.to_string_lossy().to_string()) {
+                    continue;
+                }
+            }
+
             self.process_gs_include(include, workspace_folders, progress)
                 .await;
         }

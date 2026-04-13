@@ -221,6 +221,7 @@ export function activate(context: ExtensionContext) {
         synchronize: {
             fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
         },
+        diagnosticCollectionName: 'trainz-language-server',
         outputChannel,
         traceOutputChannel,
         stdioEncoding: 'utf8',
@@ -269,8 +270,7 @@ export function activate(context: ExtensionContext) {
         if (!clients.has(folder.uri.toString())) {
             const folderClientOptions: LanguageClientOptions = {
                 ...clientOptions,
-                workspaceFolder: folder,
-                diagnosticCollectionName: 'trainz-language-server'
+                workspaceFolder: folder
             };
 
             const client = createLanguageClient(context, serverOptions, folderClientOptions, diagnosticCollection, folder);
@@ -299,6 +299,10 @@ export function activate(context: ExtensionContext) {
             tokenTypeMappings.delete(folder.uri.toString());
             tokenModifierMappings.delete(folder.uri.toString());
 
+            // Clear diagnostics cache for removed clients
+            // Since we use URI-only keys now, we don't need to clear specific client caches
+            // The cache will be updated naturally as new diagnostics come in
+
             // Clean up diagnostics for documents in removed folders
             for (const document of workspace.textDocuments) {
                 const documentFolder = workspace.getWorkspaceFolder(document.uri);
@@ -326,6 +330,10 @@ export async function deactivate(): Promise<void> {
     for (const client of clients.values()) {
         promises.push(client.stop());
     }
+
+    // Clear diagnostics cache
+    diagnosticsCache.clear();
+
     return Promise.all(promises).then(() => undefined);
 }
 
@@ -394,6 +402,9 @@ function handleProgress(params: any) {
     }
 }
 
+// Cache for diagnostics to avoid unnecessary updates
+const diagnosticsCache = new Map<string, string>();
+
 function handleDiagnostics(
     client: LanguageClient,
     diagnosticCollection: vscode.DiagnosticCollection,
@@ -401,6 +412,20 @@ function handleDiagnostics(
 ) {
     try {
         const {uri, diagnostics} = params;
+
+        // Create a hash of the diagnostics to check for changes
+        const diagnosticsHash = JSON.stringify(diagnostics);
+        const cacheKey = `${uri}`;
+
+        // Only update if diagnostics have actually changed
+        if (diagnosticsCache.get(cacheKey) === diagnosticsHash) {
+            if (process.env.NODE_ENV === 'development') {
+                console.log(`Diagnostics unchanged for ${uri}, skipping update`);
+            }
+            return;
+        }
+
+        diagnosticsCache.set(cacheKey, diagnosticsHash);
 
         // Log for debugging (only in development)
         if (process.env.NODE_ENV === 'development') {

@@ -18,6 +18,7 @@ pub trait ProcessSoup {
 }
 
 impl ProcessSoup for GameScriptLanguageServer {
+    #[tracing::instrument(skip(self, content, progress))]
     async fn process_soup_file(
         &self,
         path: &Path,
@@ -43,6 +44,7 @@ impl ProcessSoup for GameScriptLanguageServer {
 }
 
 impl GameScriptLanguageServer {
+    #[tracing::instrument(skip(self, content, progress))]
     async fn process_soup_file_inner(
         &self,
         path: &Path,
@@ -62,11 +64,6 @@ impl GameScriptLanguageServer {
                 trace!("File parsed {:?}", path);
 
                 let parsed = process_soup_ast(pairs, content);
-
-                let mut counter = 1;
-                if let Some(orig) = self.parsed_files.get(path_str) {
-                    counter = orig.value().count;
-                }
 
                 let parsed_arc = Arc::new(parsed);
 
@@ -92,7 +89,6 @@ impl GameScriptLanguageServer {
                 self.parsed_files.insert(
                     path_str.to_string(),
                     ParsedFile {
-                        count: counter,
                         parsed: ParsedFileType::Soup(parsed_arc),
                         comments: comments_arc,
                         semantic_tokens: Arc::new(OnceLock::new()),

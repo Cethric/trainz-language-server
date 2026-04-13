@@ -1,4 +1,5 @@
 use crate::state::GameScriptLanguageServer;
+use futures::future::join_all;
 use rayon::prelude::*;
 use tokio::time::{Duration, timeout};
 use tower_lsp_server::ls_types::*;
@@ -1377,4 +1378,198 @@ async fn test_did_change_workspace_folders() {
         .await;
 
     assert_eq!(service.inner().workspace_folders().len(), 0);
+}
+
+#[tokio::test]
+async fn test_high_concurrency_file_processing() {
+    let (service, _) =
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+
+    let num_files = 20;
+    let mut handles = vec![];
+
+    let test_dir = std::env::current_dir()
+        .unwrap()
+        .join("test_programs/concurrency");
+    std::fs::create_dir_all(&test_dir).unwrap();
+
+    for i in 0..num_files {
+        let path = test_dir.join(format!("concurrency_{}.gs", i));
+        let uri = Uri::from_file_path(&path).unwrap();
+
+        std::fs::write(&path, format!("class Foo{} {{}};", i)).unwrap();
+
+        let content = format!("class Foo{} {{}};", i);
+        let params = DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri,
+                language_id: "game-script".to_string(),
+                version: 1,
+                text: content,
+            },
+        };
+
+        handles.push(service.inner().did_open(params));
+    }
+
+    // Wait for all futures to complete
+    let result = timeout(Duration::from_secs(30), join_all(handles)).await;
+    assert!(result.is_ok(), "Concurrent file processing timed out!");
+
+    // Cleanup
+    let _ = std::fs::remove_dir_all(&test_dir);
+}
+
+#[tokio::test]
+async fn test_concurrency_recursive_includes() {
+    let (service, _) =
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+
+    let root_dir = std::env::current_dir()
+        .unwrap()
+        .join("test_programs/recursive_concurrency");
+    std::fs::create_dir_all(&root_dir).unwrap();
+
+    // Create a chain of includes
+    let depth = 10;
+    for i in 0..depth {
+        let path = root_dir.join(format!("file_{}.gs", i));
+        let content = if i < depth - 1 {
+            format!("include \"file_{}.gs\"\nclass Class{} {{}};", i + 1, i)
+        } else {
+            format!("class Class{} {{}};", i)
+        };
+        std::fs::write(&path, content).unwrap();
+    }
+
+    let main_path = root_dir.join("file_0.gs");
+    let main_uri = Uri::from_file_path(&main_path).unwrap();
+
+    let mut handles = vec![];
+
+    // The chain - open via did_open
+    let params_chain = DidOpenTextDocumentParams {
+        text_document: TextDocumentItem {
+            uri: main_uri,
+            language_id: "game-script".to_string(),
+            version: 1,
+            text: std::fs::read_to_string(&main_path).unwrap(),
+        },
+    };
+    handles.push(service.inner().did_open(params_chain));
+
+    // Other files concurrently
+    for i in 0..20 {
+        let other_path = root_dir.join(format!("other_{}.gs", i));
+        let content = format!("class Other{} {{}};", i);
+        std::fs::write(&other_path, &content).unwrap();
+        let other_uri = Uri::from_file_path(&other_path).unwrap();
+        let params = DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: other_uri,
+                language_id: "game-script".to_string(),
+                version: 1,
+                text: content,
+            },
+        };
+        handles.push(service.inner().did_open(params));
+    }
+
+    let result = timeout(Duration::from_secs(30), join_all(handles)).await;
+    assert!(result.is_ok(), "Recursive concurrency test timed out!");
+
+    // Cleanup
+    let _ = std::fs::remove_dir_all(&root_dir);
+}
+
+#[tokio::test]
+async fn test_recursive_includes_three_levels() {
+    let (service, _) =
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+
+    let root_dir = std::env::current_dir()
+        .unwrap()
+        .join("test_programs/recursive_test_check");
+    if root_dir.exists() {
+        std::fs::remove_dir_all(&root_dir).unwrap();
+    }
+    std::fs::create_dir_all(&root_dir).unwrap();
+
+    let a_path = root_dir.join("A.gs");
+    let b_path = root_dir.join("B.gs");
+    let c_path = root_dir.join("C.gs");
+
+    std::fs::write(&a_path, "include \"B.gs\"\nclass A {};").unwrap();
+    std::fs::write(&b_path, "include \"C.gs\"\nclass B {};").unwrap();
+    std::fs::write(&c_path, "class C {};").unwrap();
+
+    let a_uri = Uri::from_file_path(&a_path).unwrap();
+
+    // 1. Open A.gs
+    let content = std::fs::read_to_string(&a_path).unwrap();
+    service
+        .inner()
+        .did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: a_uri.clone(),
+                language_id: "game-script".to_string(),
+                version: 1,
+                text: content.clone(),
+            },
+        })
+        .await;
+
+    // Check if all files are in parsed_files
+    {
+        let parsed_files = &service.inner().parsed_files;
+        assert!(
+            parsed_files.contains_key(&a_path.to_string_lossy().to_string()),
+            "A.gs should be parsed"
+        );
+        assert!(
+            parsed_files.contains_key(&b_path.to_string_lossy().to_string()),
+            "B.gs should be parsed (level 1)"
+        );
+        assert!(
+            parsed_files.contains_key(&c_path.to_string_lossy().to_string()),
+            "C.gs should be parsed (level 2)"
+        );
+    }
+
+    // 2. Create a NEW service (simulating a server restart)
+    let (service2, _) =
+        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+
+    // Open A.gs again
+    service2
+        .inner()
+        .did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: a_uri.clone(),
+                language_id: "game-script".to_string(),
+                version: 1,
+                text: content,
+            },
+        })
+        .await;
+
+    // Check if all files are in parsed_files
+    {
+        let parsed_files = &service2.inner().parsed_files;
+        assert!(
+            parsed_files.contains_key(&a_path.to_string_lossy().to_string()),
+            "A.gs should be parsed in 2nd run"
+        );
+        assert!(
+            parsed_files.contains_key(&b_path.to_string_lossy().to_string()),
+            "B.gs should be parsed in 2nd run (level 1 from cache)"
+        );
+        assert!(
+            parsed_files.contains_key(&c_path.to_string_lossy().to_string()),
+            "C.gs should be parsed in 2nd run (level 2 from B's includes)"
+        );
+    }
+
+    // Cleanup
+    std::fs::remove_dir_all(&root_dir).unwrap();
 }

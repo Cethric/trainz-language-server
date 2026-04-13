@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 use tower_lsp_server::jsonrpc::Error;
 use tower_lsp_server::ls_types::{
     CodeAction, CodeActionKind, CodeActionOptions, CodeActionOrCommand, CodeActionParams,
@@ -67,6 +68,17 @@ impl<'a> trainz_ast::gs::type_eval::ClassResolver for RecursiveIncludeResolver<'
     }
 }
 
+impl<'a> trainz_ast::gs::dependency_graph::ProgramResolver for RecursiveIncludeResolver<'a> {
+    fn resolve_program(&self, path: &str) -> Option<Arc<trainz_ast::gs::Program>> {
+        if let Some(file) = self.parsed_files.get(path)
+            && let ParsedFileType::GameScript(program) = &file.value().parsed
+        {
+            return Some(program.clone());
+        }
+        None
+    }
+}
+
 impl<'a> RecursiveIncludeResolver<'a> {
     fn find_recursive(
         &self,
@@ -81,15 +93,22 @@ impl<'a> RecursiveIncludeResolver<'a> {
         for include in &program.includes {
             if let Some(path) = &include.path {
                 let path_str = path.to_string_lossy().to_string();
-                if visited.insert(path_str.clone()) {
-                    if let Some(file) = self.parsed_files.get(&path_str) {
-                        if let ParsedFileType::GameScript(included_program) = &file.value().parsed {
-                            if let Some(cls) = self.find_recursive(included_program, name, visited)
-                            {
-                                return Some(cls);
-                            }
-                        }
+                if !visited.insert(path_str.clone()) {
+                    continue;
+                }
+
+                let included_program = self.parsed_files.get(&path_str).and_then(|file| {
+                    if let ParsedFileType::GameScript(included_program) = &file.value().parsed {
+                        Some(included_program.clone())
+                    } else {
+                        None
                     }
+                });
+
+                if let Some(included_program) = included_program
+                    && let Some(cls) = self.find_recursive(&included_program, name, visited)
+                {
+                    return Some(cls);
                 }
             }
         }
@@ -98,7 +117,7 @@ impl<'a> RecursiveIncludeResolver<'a> {
 }
 
 impl LanguageServer for GameScriptLanguageServer {
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self, params))]
     async fn initialize(
         &self,
         params: InitializeParams,
@@ -281,12 +300,12 @@ impl LanguageServer for GameScriptLanguageServer {
                         DocumentFilter {
                             language: Some(GAME_SCRIPT_LANGUAGE_ID.to_string()),
                             scheme: Some(String::from("file")),
-                            pattern: Some(String::from("config.txt")),
+                            pattern: Some(String::from("*.gs")),
                         },
                         DocumentFilter {
                             language: Some(SOUP_LANGUAGE_ID.to_string()),
                             scheme: Some(String::from("file")),
-                            pattern: Some(String::from("*.gs")),
+                            pattern: Some(String::from("config.txt")),
                         },
                     ]),
                     id: Some(String::from("trainz-language-server")),
@@ -328,7 +347,7 @@ impl LanguageServer for GameScriptLanguageServer {
         })
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn initialized(&self, _: InitializedParams) {
         trace!("gs lsp initialised");
 
@@ -337,14 +356,14 @@ impl LanguageServer for GameScriptLanguageServer {
             .await;
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn shutdown(&self) -> tower_lsp_server::jsonrpc::Result<()> {
         trace!("Shutting down");
         self.parsed_files.clear();
         Ok(())
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self, params))]
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let document_path = params.text_document.uri.to_file_path();
         if let Some(document_path) = document_path {
@@ -352,14 +371,14 @@ impl LanguageServer for GameScriptLanguageServer {
                 return;
             }
 
+            let _permit = self.processing_semaphore.acquire().await.ok();
+
             // Bust cache
             self.ast_cache.bust(&document_path);
 
             let path = document_path.to_string_lossy().to_string();
 
-            if let Some(mut exists) = self.parsed_files.get_mut(&path) {
-                exists.count += 1;
-            }
+            self.increment_count(&path);
 
             let workspace_folders = self.workspace_folders();
 
@@ -389,7 +408,7 @@ impl LanguageServer for GameScriptLanguageServer {
         }
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         let document_path = params.text_document.uri.to_file_path();
         if let Some(document_path) = document_path {
@@ -400,22 +419,18 @@ impl LanguageServer for GameScriptLanguageServer {
 
             trace!("did_close {:?} {:?}", path, document_path);
 
-            if let Some(mut exists) = self.parsed_files.get_mut(&path)
-                && exists.count > 0
-            {
-                exists.count -= 1;
-            }
+            self.decrement_count(&path);
         }
-
-        self.parsed_files.retain(|_, val| val.count > 0);
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self, params))]
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         if let Some(document_path) = params.text_document.uri.to_file_path() {
             if !document_path.exists() {
                 return;
             }
+
+            let _permit = self.processing_semaphore.acquire().await.ok();
 
             // Bust cache
             self.ast_cache.bust(&document_path);
@@ -458,31 +473,29 @@ impl LanguageServer for GameScriptLanguageServer {
         }
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn did_create_files(&self, params: CreateFilesParams) {
         debug!("did_create_files {:?}", params);
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn did_rename_files(&self, params: RenameFilesParams) {
         debug!("did_rename_files {:?}", params);
 
         for event in params.files {
             trace!("did_rename_files {:?}", event);
 
-            if let Some(mut exists) = self.parsed_files.get_mut(&event.old_uri) {
-                let new_file = (*exists.value()).clone();
-                exists.count = 0;
+            if let Some(exists) = self.parsed_files.remove(&event.old_uri) {
+                self.parsed_files.insert(event.new_uri.clone(), exists.1);
+            }
 
-                debug!("did_rename_files {:?}", new_file.count);
-                self.parsed_files.insert(event.new_uri, new_file);
+            if let Some(count) = self.counts.remove(&event.old_uri) {
+                self.counts.insert(event.new_uri, count.1);
             }
         }
-
-        self.parsed_files.retain(|_, val| val.count > 0);
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn did_delete_files(&self, params: DeleteFilesParams) {
         debug!("did_delete_files {:?}", params);
 
@@ -491,21 +504,19 @@ impl LanguageServer for GameScriptLanguageServer {
 
             trace!("did_delete_files {:?}", document_path);
 
-            if let Some(mut exists) = self.parsed_files.get_mut(&document_path) {
-                exists.count = 0;
-            }
+            self.decrement_count(&document_path);
         }
-
-        self.parsed_files.retain(|_, val| val.count > 0);
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
         for event in params.changes {
             if let Some(document_path) = event.uri.to_file_path() {
                 if !document_path.exists() {
                     return;
                 }
+
+                let _permit = self.processing_semaphore.acquire().await.ok();
 
                 // Bust cache
                 self.ast_cache.bust(&document_path);
@@ -552,7 +563,7 @@ impl LanguageServer for GameScriptLanguageServer {
         }
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn did_change_workspace_folders(&self, params: DidChangeWorkspaceFoldersParams) {
         trace!("did_change_workspace_folders {:?}", params.event);
         for folder in params.event.removed {
@@ -567,12 +578,12 @@ impl LanguageServer for GameScriptLanguageServer {
         }
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
         debug!("did_change_configuration {:?}", params.settings);
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn diagnostic(
         &self,
         params: DocumentDiagnosticParams,
@@ -645,7 +656,7 @@ impl LanguageServer for GameScriptLanguageServer {
                         current_program: program,
                         parsed_files: &self.parsed_files,
                     };
-                    gs::trainz_diagnostics(program, &resolver)
+                    gs::trainz_diagnostics(&path, program, &resolver, &resolver)
                 }
                 ParsedFileType::Soup(soup) => {
                     if let Some(validators) = self.validators.get() {
@@ -682,7 +693,7 @@ impl LanguageServer for GameScriptLanguageServer {
         ))
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn workspace_diagnostic(
         &self,
         _params: WorkspaceDiagnosticParams,
@@ -692,7 +703,7 @@ impl LanguageServer for GameScriptLanguageServer {
         ))
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn semantic_tokens_full(
         &self,
         params: SemanticTokensParams,
@@ -789,7 +800,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn document_symbol(
         &self,
         params: DocumentSymbolParams,
@@ -880,7 +891,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn document_link(
         &self,
         params: DocumentLinkParams,
@@ -955,7 +966,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn document_link_resolve(
         &self,
         _params: DocumentLink,
@@ -963,7 +974,7 @@ impl LanguageServer for GameScriptLanguageServer {
         todo!()
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn completion(
         &self,
         params: CompletionParams,
@@ -1041,7 +1052,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn references(
         &self,
         params: ReferenceParams,
@@ -1120,7 +1131,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn signature_help(
         &self,
         params: SignatureHelpParams,
@@ -1146,7 +1157,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(None)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn goto_definition(
         &self,
         params: GotoDefinitionParams,
@@ -1246,7 +1257,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn hover(&self, params: HoverParams) -> tower_lsp_server::jsonrpc::Result<Option<Hover>> {
         trace!("Hover {:?}", params);
 
@@ -1308,6 +1319,7 @@ impl LanguageServer for GameScriptLanguageServer {
                     hover_result = trainz_hover(
                         program,
                         &resolver,
+                        &resolver,
                         params.text_document_position_params.position,
                     );
                 }
@@ -1353,16 +1365,17 @@ impl LanguageServer for GameScriptLanguageServer {
             {
                 let path_str = target_path.to_string_lossy().to_string();
                 if let Some(document) = self.parsed_files.get(&path_str) {
-                    if hover_result.is_none() {
-                        if let ParsedFileType::GameScript(program) = &document.parsed {
-                            let resolver = RecursiveIncludeResolver {
-                                current_program: program,
-                                parsed_files: &self.parsed_files,
-                            };
-                            hover_result = trainz_hover(program, &resolver, target_range.start);
-                            if let Some(hr) = &mut hover_result {
-                                hr.range = origin_range;
-                            }
+                    if hover_result.is_none()
+                        && let ParsedFileType::GameScript(program) = &document.parsed
+                    {
+                        let resolver = RecursiveIncludeResolver {
+                            current_program: program,
+                            parsed_files: &self.parsed_files,
+                        };
+                        hover_result =
+                            trainz_hover(program, &resolver, &resolver, target_range.start);
+                        if let Some(hr) = &mut hover_result {
+                            hr.range = origin_range;
                         }
                     }
 
@@ -1404,16 +1417,14 @@ impl LanguageServer for GameScriptLanguageServer {
                     }
 
                     let mut comments_to_process = Vec::new();
-                    if !is_param {
-                        if let Some(comment) = preceding_comment {
-                            // If it's a field and we have a following comment, ignore the preceding one.
-                            if !(is_field && following_comment.is_some()) {
-                                let range = comment.range();
-                                if definition_line == 0
-                                    || definition_line.saturating_sub(range.end.line) <= 2
-                                {
-                                    comments_to_process.push(comment);
-                                }
+                    if !is_param && let Some(comment) = preceding_comment {
+                        // If it's a field and we have a following comment, ignore the preceding one.
+                        if !(is_field && following_comment.is_some()) {
+                            let range = comment.range();
+                            if definition_line == 0
+                                || definition_line.saturating_sub(range.end.line) <= 2
+                            {
+                                comments_to_process.push(comment);
                             }
                         }
                     }
@@ -1435,31 +1446,92 @@ impl LanguageServer for GameScriptLanguageServer {
                                     .join("\n"),
                             };
 
-                            let text = raw_text
-                                .lines()
-                                .filter_map(|line| {
-                                    let mut t = line.trim();
-                                    if t.starts_with("/*") {
-                                        t = t[2..].trim_start();
-                                    }
-                                    if t.ends_with("*/") {
-                                        t = t[..t.len() - 2].trim_end();
-                                    }
-                                    if t.starts_with("//!") {
-                                        t = t[3..].trim_start();
-                                    } else if t.starts_with("//") {
-                                        t = t[2..].trim_start();
-                                    } else if t.starts_with('*') {
-                                        t = t[1..].trim_start();
-                                    }
+                            let tags = [
+                                "Parm:",
+                                "Desc:",
+                                "Name:",
+                                "Returns:",
+                                "Retn:",
+                                "File:",
+                                "See Also:",
+                            ];
+                            let mut lines: Vec<String> = Vec::new();
+                            let mut in_triple_slash_block = false;
 
-                                    let t = t.trim();
-                                    if !t.is_empty() && t.chars().all(|c| c == '=') {
-                                        return None;
+                            for line in raw_text.lines() {
+                                let mut t = line.trim();
+                                let mut is_triple_slash = false;
+
+                                if t.starts_with("/*") {
+                                    t = t[2..].trim_start();
+                                }
+                                if t.ends_with("*/") {
+                                    t = t[..t.len() - 2].trim_end();
+                                }
+                                if t.starts_with("//!") {
+                                    t = t[3..].trim_start();
+                                    is_triple_slash = true;
+                                } else if t.starts_with("//") {
+                                    t = t[2..].trim_start();
+                                } else if t.starts_with('*') {
+                                    t = t[1..].trim_start();
+                                }
+
+                                let t = t.trim();
+                                if t.is_empty() {
+                                    lines.push(String::new());
+                                    in_triple_slash_block = false;
+                                    continue;
+                                }
+                                if t.chars().all(|c| c == '=') {
+                                    in_triple_slash_block = false;
+                                    continue;
+                                }
+
+                                if is_triple_slash {
+                                    let has_tag = tags.iter().any(|&tag| t.starts_with(tag));
+                                    if !has_tag {
+                                        if !in_triple_slash_block {
+                                            lines.push(format!("Desc: {}", t));
+                                        } else {
+                                            lines.push(t.to_string());
+                                        }
+                                    } else {
+                                        lines.push(t.to_string());
                                     }
-                                    Some(t)
-                                })
-                                .collect::<Vec<&str>>()
+                                    in_triple_slash_block = true;
+                                } else {
+                                    lines.push(t.to_string());
+                                    in_triple_slash_block = false;
+                                }
+                            }
+
+                            let mut processed_lines: Vec<String> = Vec::new();
+                            for line in lines {
+                                if line.is_empty() {
+                                    processed_lines.push(line);
+                                    continue;
+                                }
+
+                                let is_tag = tags.iter().any(|&tag| line.starts_with(tag));
+
+                                if !is_tag
+                                    && let Some(last) = processed_lines.last_mut()
+                                    && !last.is_empty()
+                                    && tags.iter().any(|&tag| last.starts_with(tag))
+                                {
+                                    last.push(' ');
+                                    last.push_str(&line);
+                                    continue;
+                                }
+
+                                processed_lines.push(line);
+                            }
+
+                            let text = processed_lines
+                                .into_iter()
+                                .filter(|s| !s.is_empty())
+                                .collect::<Vec<_>>()
                                 .join("\n\n");
                             if !text.is_empty() {
                                 combined_text.push(text);
@@ -1469,11 +1541,11 @@ impl LanguageServer for GameScriptLanguageServer {
                         if !combined_text.is_empty() {
                             let text = combined_text.join("\n\n");
                             let mut value = String::new();
-                            if let Some(hr) = &hover_result {
-                                if let ls_types::HoverContents::Markup(markup) = &hr.contents {
-                                    value.push_str(&markup.value);
-                                    value.push_str("\n\n---\n\n");
-                                }
+                            if let Some(hr) = &hover_result
+                                && let ls_types::HoverContents::Markup(markup) = &hr.contents
+                            {
+                                value.push_str(&markup.value);
+                                value.push_str("\n\n---\n\n");
                             }
                             value.push_str(&text);
 
@@ -1500,7 +1572,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(hover_result)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn code_action(
         &self,
         params: CodeActionParams,
@@ -1541,7 +1613,7 @@ impl LanguageServer for GameScriptLanguageServer {
         }
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn folding_range(
         &self,
         params: FoldingRangeParams,
@@ -1617,7 +1689,7 @@ impl LanguageServer for GameScriptLanguageServer {
         Ok(result)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn symbol(
         &self,
         params: WorkspaceSymbolParams,
@@ -1660,7 +1732,7 @@ impl LanguageServer for GameScriptLanguageServer {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(symbols, symbol))]
 fn collect_matching_symbols(
     symbols: &mut Vec<WorkspaceSymbol>,
     symbol: &ls_types::DocumentSymbol,

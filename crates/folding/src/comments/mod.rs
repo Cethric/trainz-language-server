@@ -1,3 +1,4 @@
+#[cfg(test)]
 pub mod tests;
 
 use crate::util::add_folding_range;
