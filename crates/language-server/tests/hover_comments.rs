@@ -628,3 +628,98 @@ class Test {
 
     let _ = fs::remove_dir_all(&temp_dir);
 }
+
+#[tokio::test]
+async fn test_hover_documentation_at_top() {
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+    });
+
+    let temp_dir = std::env::current_dir()
+        .unwrap()
+        .join("target")
+        .join("test_hover_documentation_at_top");
+    if temp_dir.exists() {
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+    fs::create_dir_all(&temp_dir).unwrap();
+
+    let file_path = temp_dir.join("Test.gs");
+    let code = r#"
+class Test {
+  /**
+   * This is the documentation.
+   */
+  public void MyMethod() {
+  }
+
+  public void CallMethod() {
+    MyMethod();
+  }
+};
+"#;
+    fs::write(&file_path, code).unwrap();
+    let uri = Uri::from_file_path(&file_path).unwrap();
+
+    // Open file
+    service
+        .inner()
+        .did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: uri.clone(),
+                language_id: "game-script".to_string(),
+                version: 1,
+                text: code.to_string(),
+            },
+        })
+        .await;
+
+    // Hover over 'MyMethod' in 'CallMethod'
+    let params = HoverParams {
+        text_document_position_params: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            position: Position {
+                line: 9,
+                character: 6,
+            },
+        },
+        work_done_progress_params: Default::default(),
+    };
+
+    let result = service.inner().hover(params).await.unwrap();
+    assert!(result.is_some(), "Hover should return a result");
+
+    if let Some(hover) = result {
+        if let HoverContents::Markup(markup) = hover.contents {
+            // Expected order:
+            // This is the documentation.
+            // ---
+            // public void MyMethod()
+
+            assert!(
+                markup.value.contains("This is the documentation"),
+                "Hover should contain documentation"
+            );
+            assert!(
+                markup.value.contains("public void MyMethod()"),
+                "Hover should contain signature"
+            );
+
+            // Check if documentation is BEFORE the signature
+            let doc_pos = markup.value.find("This is the documentation").unwrap();
+            let sig_pos = markup.value.find("public void MyMethod()").unwrap();
+
+            assert!(
+                doc_pos < sig_pos,
+                "Documentation should be at the top. doc_pos: {}, sig_pos: {}\nContent: {}",
+                doc_pos,
+                sig_pos,
+                markup.value
+            );
+        } else {
+            panic!("Expected markup contents");
+        }
+    }
+
+    let _ = fs::remove_dir_all(&temp_dir);
+}

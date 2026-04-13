@@ -1540,14 +1540,13 @@ impl LanguageServer for GameScriptLanguageServer {
 
                         if !combined_text.is_empty() {
                             let text = combined_text.join("\n\n");
-                            let mut value = String::new();
+                            let mut value = text;
                             if let Some(hr) = &hover_result
                                 && let ls_types::HoverContents::Markup(markup) = &hr.contents
                             {
-                                value.push_str(&markup.value);
                                 value.push_str("\n\n---\n\n");
+                                value.push_str(&markup.value);
                             }
-                            value.push_str(&text);
 
                             hover_result = Some(Hover {
                                 contents: ls_types::HoverContents::Markup(
