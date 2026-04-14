@@ -970,7 +970,7 @@ mod tests {
         let uri = Uri::from_str("file:///test.gs").unwrap();
         let position = Position {
             line: 7,
-            character: 28,
+            character: 32,
         };
         let parsed_files = DashMap::new();
 
