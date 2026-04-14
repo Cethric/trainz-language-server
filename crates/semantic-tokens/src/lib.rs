@@ -1,7 +1,7 @@
+pub mod acs_text;
 pub mod comments;
 pub mod gs;
 pub mod legend;
-pub mod soup;
 
 use rayon::prelude::*;
 use shadow_rs::shadow;
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn test_process_raw_tokens_merging() {
-        // Source 1 (e.g. gs or soup)
+        // Source 1 (e.g. gs or acs_text)
         let source_1_tokens = vec![
             (
                 Range {

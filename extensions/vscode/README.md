@@ -1,10 +1,10 @@
 # Trainz VSCode Extension
 
-VSCode extension for the Trainz Game Script (GS) and Soup languages, providing language server protocol (LSP) support.
+VSCode extension for the Trainz Game Script (GS) and AcsText languages, providing language server protocol (LSP) support.
 
 ## Features
 
-- Syntax highlighting for GS (`.gs`) and Soup (`.txt`) files
+- Syntax highlighting for GS (`.gs`) and AcsText (`.txt`) files
 - Semantic token support
 - Language Server Protocol integration
 

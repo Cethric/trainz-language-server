@@ -162,7 +162,7 @@
 {
     "TYPE": "correction",
     "CATEGORY": "Category class validation",
-    "EXPECTATION": "A Soup value like category-class \"WAT\" must raise a diagnostic if \"WAT\" is not a key in category-class.txt.",
+    "EXPECTATION": "A AcsText value like category-class \"WAT\" must raise a diagnostic if \"WAT\" is not a key in category-class.txt.",
     "NEW INSTRUCTION": "WHEN validating IsValidCategoryClass and value not in mapping THEN emit an error diagnostic at the value range"
 }
 
@@ -170,16 +170,16 @@
 {
     "TYPE": "correction",
     "CATEGORY": "Category class validation",
-    "EXPECTATION": "A Soup value like category-class \"WAT\" must raise a diagnostic if \"WAT\" is not a key in category-class.txt.",
+    "EXPECTATION": "A AcsText value like category-class \"WAT\" must raise a diagnostic if \"WAT\" is not a key in category-class.txt.",
     "NEW INSTRUCTION": "WHEN validating IsValidCategoryClass and value not in mapping THEN emit an error diagnostic at the value range"
 }
 
 [2026-04-07 15:25] - Updated by Junie
 {
     "TYPE": "correction",
-    "CATEGORY": "Soup validation keys",
-    "EXPECTATION": "TagArray, subpossibilities, and array-element are validation rule identifiers, not mandatory Soup keys.",
-    "NEW INSTRUCTION": "WHEN validating Soup object keys THEN do not require TagArray, subpossibilities, or array-element"
+    "CATEGORY": "AcsText validation keys",
+    "EXPECTATION": "TagArray, subpossibilities, and array-element are validation rule identifiers, not mandatory AcsText keys.",
+    "NEW INSTRUCTION": "WHEN validating AcsText object keys THEN do not require TagArray, subpossibilities, or array-element"
 }
 
 [2026-04-07 15:49] - Updated by Junie
@@ -195,7 +195,7 @@
     "TYPE": "correction",
     "CATEGORY": "TagArray casing",
     "EXPECTATION": "Both 'TagArray' and 'tagarray' should be recognized as the same metadata identifier.",
-    "NEW INSTRUCTION": "WHEN matching 'TagArray' in Soup metadata THEN match case-insensitively"
+    "NEW INSTRUCTION": "WHEN matching 'TagArray' in AcsText metadata THEN match case-insensitively"
 }
 
 [2026-04-07 22:25] - Updated by Junie
@@ -217,24 +217,24 @@
 [2026-04-07 22:43] - Updated by Junie
 {
     "TYPE": "correction",
-    "CATEGORY": "Soup completions empty",
-    "EXPECTATION": "Completion in Soup files should return context-appropriate suggestions instead of an empty list.",
-    "NEW INSTRUCTION": "WHEN handling textDocument/completion for Soup THEN initialize validators and AST before computing items"
+    "CATEGORY": "AcsText completions empty",
+    "EXPECTATION": "Completion in AcsText files should return context-appropriate suggestions instead of an empty list.",
+    "NEW INSTRUCTION": "WHEN handling textDocument/completion for AcsText THEN initialize validators and AST before computing items"
 }
 
 [2026-04-08 12:56] - Updated by Junie
 {
     "TYPE": "correction",
-    "CATEGORY": "Soup kind hover/completion",
-    "EXPECTATION": "At the kind \"lib\" value in a Soup file, the user expects value completions and a hover to appear.",
-    "NEW INSTRUCTION": "WHEN cursor is inside a quoted Soup value for a known key THEN provide value completions and hover from its validator"
+    "CATEGORY": "AcsText kind hover/completion",
+    "EXPECTATION": "At the kind \"lib\" value in a AcsText file, the user expects value completions and a hover to appear.",
+    "NEW INSTRUCTION": "WHEN cursor is inside a quoted AcsText value for a known key THEN provide value completions and hover from its validator"
 }
 
 [2026-04-08 12:58] - Updated by Junie
 {
     "TYPE": "correction",
-    "CATEGORY": "Soup kind hover/completion",
-    "EXPECTATION": "At the kind \"lib\" value in a Soup file, completions and a hover should appear.",
+    "CATEGORY": "AcsText kind hover/completion",
+    "EXPECTATION": "At the kind \"lib\" value in a AcsText file, completions and a hover should appear.",
     "NEW INSTRUCTION": "WHEN cursor is inside the quoted value of key kind THEN provide value completions and a hover from its validator"
 }
 
@@ -265,7 +265,7 @@
 [2026-04-08 14:29] - Updated by Junie
 {
     "TYPE": "correction",
-    "CATEGORY": "Soup kind completion context",
+    "CATEGORY": "AcsText kind completion context",
     "EXPECTATION": "Inside the quoted value of key kind, value completions should appear (e.g., library), not an empty list.",
     "NEW INSTRUCTION": "WHEN cursor is inside the value range for key kind THEN compute value completions from its validator and skip top-level key suggestions"
 }
@@ -274,15 +274,15 @@
 {
     "TYPE": "correction",
     "CATEGORY": "Contextual key suggestions",
-    "EXPECTATION": "Only keys that are valid for the current Soup container and position should be suggested.",
-    "NEW INSTRUCTION": "WHEN computing key completions in a Soup container THEN suggest only keys allowed by its active validator"
+    "EXPECTATION": "Only keys that are valid for the current AcsText container and position should be suggested.",
+    "NEW INSTRUCTION": "WHEN computing key completions in a AcsText container THEN suggest only keys allowed by its active validator"
 }
 
 [2026-04-08 16:39] - Updated by Junie
 {
     "TYPE": "correction",
     "CATEGORY": "Category-region validation",
-    "EXPECTATION": "A Soup value like category-region \"AC\" must raise a diagnostic if \"AC\" is not a key in category-region.txt.",
+    "EXPECTATION": "A AcsText value like category-region \"AC\" must raise a diagnostic if \"AC\" is not a key in category-region.txt.",
     "NEW INSTRUCTION": "WHEN validating category-region and value not in mapping THEN emit an error diagnostic at the value range"
 }
 

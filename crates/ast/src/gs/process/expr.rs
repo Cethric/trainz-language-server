@@ -170,7 +170,7 @@ fn process_expr_pratt(pair: Pair<Rule>) -> Expr {
                         ">>" => BitwiseOp::Shr,
                         "&" => BitwiseOp::And,
                         "|" => BitwiseOp::Or,
-                        "^" => BitwiseOp::Not,
+                        "^" => BitwiseOp::Xor,
                         _ => unreachable!(),
                     };
                     Expr::Bitwise {
@@ -260,7 +260,8 @@ fn process_unary_expr(pair: Pair<Rule>) -> Expr {
             let op_range = pair_to_range(&op_rule);
             let op_str = op_rule.as_str();
             let op = match op_rule_type {
-                Rule::operator_unary_not | Rule::operator_unary_inverse => UnaryPrefixOp::Not,
+                Rule::operator_unary_not => UnaryPrefixOp::Not,
+                Rule::operator_unary_inverse => UnaryPrefixOp::Inverse,
                 Rule::operator_unary_not_not => UnaryPrefixOp::NotNot,
                 Rule::operator_unary_increment => UnaryPrefixOp::Inc,
                 Rule::operator_unary_decrement => UnaryPrefixOp::Dec,

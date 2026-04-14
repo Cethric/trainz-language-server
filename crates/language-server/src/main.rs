@@ -23,8 +23,12 @@ struct Args {
     #[command(flatten)]
     verbosity: clap_verbosity_flag::Verbosity,
 
-    /// Path to the directory containing soup validators
-    #[arg(short = 'p', long, env = "TRAINZ_LANGUAGE_SERVER_SOUP_VALIDATION_PATH")]
+    /// Path to the directory containing acs_text validators
+    #[arg(
+        short = 'p',
+        long,
+        env = "TRAINZ_LANGUAGE_SERVER_ACS_TEXT_VALIDATION_PATH"
+    )]
     validation_path: Option<PathBuf>,
 
     /// Paths to search for Trainz scripts (separated by ;)
@@ -59,7 +63,7 @@ async fn main() {
     setup_logger(Some(args.verbosity.into()), Some(writer));
 
     let validation_path = args.validation_path.or_else(|| {
-        env::var("TRAINZ_LANGUAGE_SERVER_SOUP_VALIDATION_PATH")
+        env::var("TRAINZ_LANGUAGE_SERVER_ACS_TEXT_VALIDATION_PATH")
             .ok()
             .map(PathBuf::from)
     });

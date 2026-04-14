@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind, SymbolTag};
 use trainz_ast::gs::{ClassDef, MethodDef};
 use trainz_common::range::clamp_range;
@@ -14,25 +15,37 @@ pub(crate) fn process_class_symbol(
 ) -> DocumentSymbol {
     let mut children = vec![];
 
-    for field in class.fields.values() {
-        children.extend(super::expr::process_type_symbols(&field.ty));
-        children.push(DocumentSymbol {
-            name: field.name.name.clone(),
-            detail: Some(format!("{}", field.ty)),
-            kind: SymbolKind::PROPERTY,
-            tags: None,
-            deprecated: None,
-            range: field.range,
-            selection_range: clamp_range(&field.range, field.name.range),
-            children: None,
-        });
-    }
+    let field_symbols: Vec<DocumentSymbol> = class
+        .fields
+        .par_iter()
+        .flat_map(|(_, field)| {
+            let mut local_symbols = vec![];
+            local_symbols.extend(super::expr::process_type_symbols(&field.ty));
+            local_symbols.push(DocumentSymbol {
+                name: field.name.name.clone(),
+                detail: Some(format!("{}", field.ty)),
+                kind: SymbolKind::PROPERTY,
+                tags: None,
+                deprecated: None,
+                range: field.range,
+                selection_range: clamp_range(&field.range, field.name.range),
+                children: None,
+            });
+            local_symbols
+        })
+        .collect();
+    children.extend(field_symbols);
 
-    for methods in class.methods.values() {
-        for method in methods {
-            children.push(process_method_symbol(method, class, program, resolver));
-        }
-    }
+    let method_symbols: Vec<DocumentSymbol> = class
+        .methods
+        .par_iter()
+        .flat_map(|(_, methods)| {
+            methods
+                .par_iter()
+                .map(|method| process_method_symbol(method, class, program, resolver))
+        })
+        .collect();
+    children.extend(method_symbols);
 
     children.sort_by_key(|s| (s.range.start, s.selection_range.start));
 
@@ -73,19 +86,26 @@ fn process_method_symbol(
     if let trainz_ast::gs::TypeOrVoid::Type(ty) = &method.return_type {
         children.extend(super::expr::process_type_symbols(ty));
     }
-    for param in &method.params {
-        children.extend(super::expr::process_type_symbols(&param.ty));
-        children.push(DocumentSymbol {
-            name: param.name.name.clone(),
-            detail: Some(format!("{}", param.ty)),
-            kind: SymbolKind::VARIABLE,
-            tags: None,
-            deprecated: None,
-            range: param.range,
-            selection_range: clamp_range(&param.range, param.name.range),
-            children: None,
-        });
-    }
+    let param_symbols: Vec<DocumentSymbol> = method
+        .params
+        .par_iter()
+        .flat_map(|param| {
+            let mut local_symbols = vec![];
+            local_symbols.extend(super::expr::process_type_symbols(&param.ty));
+            local_symbols.push(DocumentSymbol {
+                name: param.name.name.clone(),
+                detail: Some(format!("{}", param.ty)),
+                kind: SymbolKind::VARIABLE,
+                tags: None,
+                deprecated: None,
+                range: param.range,
+                selection_range: clamp_range(&param.range, param.name.range),
+                children: None,
+            });
+            local_symbols
+        })
+        .collect();
+    children.extend(param_symbols);
     if let Some(body) = &method.body {
         children.extend(process_block(body, program, resolver));
     }

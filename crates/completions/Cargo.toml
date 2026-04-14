@@ -20,7 +20,7 @@ log = { workspace = true }
 rayon = { workspace = true }
 
 trainz-ast = { workspace = true }
-trainz-soup-validators = { workspace = true }
+trainz-acs-text-validators = { workspace = true }
 trainz-parser = { workspace = true }
 trainz-common = { workspace = true }
 

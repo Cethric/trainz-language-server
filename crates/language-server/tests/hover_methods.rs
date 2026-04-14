@@ -19,7 +19,7 @@ async fn test_hover_method_call_signature() {
     fs::create_dir_all(&temp_dir).unwrap();
 
     let file_path = temp_dir.join("Test.gs");
-    let code = "class Test {\n  public void CountTags(int pid, string s) { } // counts tags in soup\n  void Run() {\n    CountTags(1, \"test\");\n  }\n};";
+    let code = "class Test {\n  public void CountTags(int pid, string s) { } // counts tags in acs_text\n  void Run() {\n    CountTags(1, \"test\");\n  }\n};";
     fs::write(&file_path, code).unwrap();
     let uri = Uri::from_file_path(&file_path).unwrap();
 
@@ -56,12 +56,12 @@ async fn test_hover_method_call_signature() {
             assert!(
                 markup
                     .value
-                    .contains("public void CountTags(int pid, string s)"),
+                    .contains("public void Test::CountTags(int pid, string s)"),
                 "Hover should contain method signature. Got: {}",
                 markup.value
             );
             assert!(
-                markup.value.contains("counts tags in soup"),
+                markup.value.contains("counts tags in acs_text"),
                 "Hover should contain method comment. Got: {}",
                 markup.value
             );
@@ -162,7 +162,7 @@ async fn test_hover_cross_file_method_call() {
     if let Some(hover) = result {
         if let HoverContents::Markup(markup) = hover.contents {
             assert!(
-                markup.value.contains("public void DoSomething()"),
+                markup.value.contains("public void Helper::DoSomething()"),
                 "Hover should contain cross-file method signature. Got: {}",
                 markup.value
             );

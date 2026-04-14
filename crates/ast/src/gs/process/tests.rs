@@ -366,7 +366,7 @@ game class Signal isclass Trackside
   {
     return overlap;
   }
-  public Soup DetermineUpdatedState(void)
+  public AcsText DetermineUpdatedState(void)
   {
     GSTrackSearch myGST = me.BeginTrackSearch(true);
     if (cast<Vehicle>(nextObject)) {

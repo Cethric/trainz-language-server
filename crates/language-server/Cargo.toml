@@ -21,6 +21,7 @@ tracing = { workspace = true }
 rayon = { workspace = true }
 
 dashmap = { workspace = true }
+walkdir = { workspace = true }
 async-recursion = { version = "1.1", features = [] }
 
 clap = { workspace = true }
@@ -31,7 +32,7 @@ trainz-parser = { workspace = true }
 trainz-folding = { workspace = true }
 trainz-common = { workspace = true }
 trainz-diagnostics = { workspace = true }
-trainz-soup-validators = { workspace = true }
+trainz-acs-text-validators = { workspace = true }
 trainz-semantic-tokens = { workspace = true }
 trainz-symboliser = { workspace = true }
 trainz-completions = { workspace = true }
@@ -48,7 +49,7 @@ name = "process_gs_file"
 harness = false
 
 [[bench]]
-name = "process_soup_file"
+name = "process_acs_text_file"
 harness = false
 
 [build-dependencies]

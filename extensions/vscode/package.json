@@ -26,13 +26,13 @@
   "keywords": [
     "Trainz",
     "GS",
-    "Soup",
+    "AcsText",
     "Language Server",
     "LSP"
   ],
   "activationEvents": [
     "onLanguage:game-script",
-    "onLanguage:soup"
+    "onLanguage:acs_text"
   ],
   "main": "./dist/extension.js",
   "preview": true,
@@ -55,10 +55,10 @@
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "soup",
+        "id": "acs_text",
         "aliases": [
-          "SOUP",
-          "soup"
+          "ACS_TEXT",
+          "acs_text"
         ],
         "extensions": [
           ".txt"
@@ -142,43 +142,43 @@
         }
       },
       {
-        "language": "soup",
+        "language": "acs_text",
         "scopes": {
           "keyword": [
-            "keyword.control.soup"
+            "keyword.control.acs_text"
           ],
           "class": [
-            "entity.name.type.class.soup"
+            "entity.name.type.class.acs_text"
           ],
           "string": [
-            "string.quoted.double.soup"
+            "string.quoted.double.acs_text"
           ],
           "type": [
-            "entity.name.type.soup"
+            "entity.name.type.acs_text"
           ],
           "method": [
-            "entity.name.function.soup"
+            "entity.name.function.acs_text"
           ],
           "operator": [
-            "keyword.operator.soup"
+            "keyword.operator.acs_text"
           ],
           "number": [
-            "constant.numeric.soup"
+            "constant.numeric.acs_text"
           ],
           "property": [
-            "variable.other.property.soup"
+            "variable.other.property.acs_text"
           ],
           "parameter": [
-            "variable.parameter.soup"
+            "variable.parameter.acs_text"
           ],
           "modifier": [
-            "storage.modifier.soup"
+            "storage.modifier.acs_text"
           ],
           "variable": [
-            "variable.other.soup"
+            "variable.other.acs_text"
           ],
           "comment": [
-            "comment.line.double-slash.soup"
+            "comment.line.double-slash.acs_text"
           ]
         }
       }

@@ -21,7 +21,7 @@ in Rust.
 The project is organized as a Cargo workspace with the following crates:
 - `crates/ast`: Abstract Syntax Tree definitions
 - `crates/common`: Common types and utilities
-- `crates/parser`: GS and Soup grammar parsing using `pest`
+- `crates/parser`: GS and AcsText grammar parsing using `pest`
 - `crates/lsp`: LSP server implementation
 - `crates/diagnostics`: Diagnostics and error reporting
 - `crates/formatter`: Code formatting logic

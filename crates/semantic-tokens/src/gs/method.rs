@@ -68,6 +68,10 @@ pub fn collect_method_tokens(
         ));
     }
 
+    if let Some(range) = method.void_param_range {
+        raw_tokens.push((range, SemanticTokenType::TYPE, vec![]));
+    }
+
     if let Some(block) = &method.body {
         for stmt in &block.statements {
             collect_stmt_tokens(stmt, raw_tokens, known_classes);

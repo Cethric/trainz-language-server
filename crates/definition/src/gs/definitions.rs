@@ -955,13 +955,13 @@ mod tests {
     fn test_gs_goto_definition_field_method_call() {
         let _ = env_logger::builder().is_test(true).try_init();
         let source = r#"
-            class Soup {
+            class AcsText {
                 void CountTags() { }
             };
             class Test {
-                Soup soup;
+                AcsText acs_text;
                 void Run() {
-                    soup.CountTags();
+                    acs_text.CountTags();
                 }
             };
         "#;
@@ -1096,28 +1096,28 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
         let source = r#"
             class Base {
-                Soup GetConfigSoup() { return null; }
+                AcsText GetConfigAcsText() { return null; }
             };
             class Asset isclass Base {
             };
-            class Soup {
-                Soup GetNamedSoup(string name) { return null; }
+            class AcsText {
+                AcsText GetNamedAcsText(string name) { return null; }
             };
             class Test {
                 Asset GetAsset() { return null; }
                 void Run() {
-                    GetAsset().GetConfigSoup().GetNamedSoup("mesh-table");
+                    GetAsset().GetConfigAcsText().GetNamedAcsText("mesh-table");
                 }
             };
         "#;
         let pairs = parse(source).unwrap();
         let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
         let uri = Uri::from_str("file:///test.gs").unwrap();
-        // "GetAsset().GetConfigSoup().GetNamedSoup("mesh-table");"
+        // "GetAsset().GetConfigAcsText().GetNamedAcsText("mesh-table");"
         let position = Position {
             line: 12,
             character: 53,
-        }; // middle of GetNamedSoup
+        }; // middle of GetNamedAcsText
         let parsed_files = DashMap::new();
         parsed_files.insert(uri.to_string(), program.clone());
 
@@ -1139,34 +1139,34 @@ mod tests {
     }
 
     #[test]
-    fn test_gs_goto_definition_get_named_soup_inheritance() {
+    fn test_gs_goto_definition_get_named_acs_text_inheritance() {
         let _ = env_logger::builder().is_test(true).try_init();
         let source = r#"
-            class BaseSoup {
-                Soup GetNamedSoup(string name) { return null; }
+            class BaseAcsText {
+                AcsText GetNamedAcsText(string name) { return null; }
             };
-            class Soup isclass BaseSoup {
+            class AcsText isclass BaseAcsText {
             };
             class Base {
-                Soup GetConfigSoup() { return null; }
+                AcsText GetConfigAcsText() { return null; }
             };
             class Asset isclass Base {
             };
             class Test {
                 Asset GetAsset() { return null; }
                 void Run() {
-                    GetAsset().GetConfigSoup().GetNamedSoup("mesh-table");
+                    GetAsset().GetConfigAcsText().GetNamedAcsText("mesh-table");
                 }
             };
         "#;
         let pairs = parse(source).unwrap();
         let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
         let uri = Uri::from_str("file:///test.gs").unwrap();
-        // "GetAsset().GetConfigSoup().GetNamedSoup("mesh-table");"
+        // "GetAsset().GetConfigAcsText().GetNamedAcsText("mesh-table");"
         let position = Position {
             line: 14,
             character: 53,
-        }; // middle of GetNamedSoup
+        }; // middle of GetNamedAcsText
         let parsed_files = DashMap::new();
         parsed_files.insert(uri.to_string(), program.clone());
 
@@ -1191,13 +1191,13 @@ mod tests {
     fn test_gs_goto_definition_local_var_method_call() {
         let _ = env_logger::builder().is_test(true).try_init();
         let source = r#"
-class Soup {
+class AcsText {
     public void GetIndexedTagName(int i) {}
 };
 
 class SignalNSW {
     public void UnSetLamps() {
-        Soup meshtable = new Soup();
+        AcsText meshtable = new AcsText();
         meshtable.GetIndexedTagName(0);
     }
 };
@@ -1237,12 +1237,12 @@ class SignalNSW {
     fn test_gs_goto_definition_meshtable_resolution() {
         let _ = env_logger::builder().is_test(true).try_init();
         let source = r#"
-class Soup {
+class AcsText {
     public void GetIndexedTagName(int i) {}
 };
 
 class SignalNSW {
-    Soup meshtable;
+    AcsText meshtable;
     public void UnSetLamps() {
         int i = 0;
         meshtable.GetIndexedTagName(i);
@@ -1336,12 +1336,12 @@ class Test {
     fn test_gs_goto_definition_inherited_field_method_call() {
         let _ = env_logger::builder().is_test(true).try_init();
         let source = r#"
-class Soup {
+class AcsText {
     public void GetIndexedTagName(int i) {}
 };
 
 class BaseClass {
-    Soup meshtable;
+    AcsText meshtable;
 };
 
 class SignalNSW isclass BaseClass {

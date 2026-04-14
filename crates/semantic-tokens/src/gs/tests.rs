@@ -565,3 +565,42 @@ fn test_logical_keywords() {
         .find(|t| t.token_type == type_keyword && t.length == 2);
     assert!(or_token.is_some(), "Should find 'or' keyword token");
 }
+
+#[test]
+fn test_void_parameter_token() {
+    let src = "class Test { void FiremanWave(void) { } };";
+    let tokens = get_tokens_for_src(src);
+    let type_type = get_token_type(tower_lsp_server::ls_types::SemanticTokenType::TYPE);
+
+    // Find 'void' as return type (length 4) and 'void' as parameter (length 4)
+    let void_tokens: Vec<_> = tokens
+        .iter()
+        .filter(|t| t.token_type == type_type && t.length == 4)
+        .collect();
+
+    assert!(
+        void_tokens.len() >= 2,
+        "Should find at least two 'void' TYPE tokens (return and parameter). Found: {:?}",
+        void_tokens
+    );
+}
+
+#[test]
+fn test_no_void_parameter_token() {
+    let src = "class Test { void FiremanWave() { } };";
+    let tokens = get_tokens_for_src(src);
+    let type_type = get_token_type(tower_lsp_server::ls_types::SemanticTokenType::TYPE);
+
+    // Find 'void' as return type (length 4)
+    let void_tokens: Vec<_> = tokens
+        .iter()
+        .filter(|t| t.token_type == type_type && t.length == 4)
+        .collect();
+
+    assert_eq!(
+        void_tokens.len(),
+        1,
+        "Should find only one 'void' TYPE token (return type). Found: {:?}",
+        void_tokens
+    );
+}

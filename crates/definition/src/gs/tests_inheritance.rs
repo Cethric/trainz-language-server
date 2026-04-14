@@ -10,17 +10,17 @@ fn test_gs_goto_definition_chained_method_inheritance() {
     let _ = env_logger::builder().is_test(true).try_init();
     let source = r#"
         class Base {
-            Soup GetConfigSoup() { return null; }
+            AcsText GetConfigAcsText() { return null; }
         };
         class Asset isclass Base {
         };
-        class Soup {
-            Soup GetNamedSoup(string name) { return null; }
+        class AcsText {
+            AcsText GetNamedAcsText(string name) { return null; }
         };
         class Test {
             Asset GetAsset() { return null; }
             void Run() {
-                GetAsset().GetConfigSoup().GetNamedSoup("mesh-table");
+                GetAsset().GetConfigAcsText().GetNamedAcsText("mesh-table");
             }
         };
     "#;
@@ -28,12 +28,12 @@ fn test_gs_goto_definition_chained_method_inheritance() {
     let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
     let uri = Uri::from_str("file:///test.gs").unwrap();
     // 012345678901234567890123456789012345678901234567890123456789
-    //                 GetAsset().GetConfigSoup().GetNamedSoup("mesh-table");
-    // Position of GetNamedSoup: line 13, let's find it programmatically or just count
+    //                 GetAsset().GetConfigAcsText().GetNamedAcsText("mesh-table");
+    // Position of GetNamedAcsText: line 13, let's find it programmatically or just count
 
     let parsed_files = DashMap::new();
     parsed_files.insert(uri.to_string(), program.clone());
 
-    // We want to test jumping to GetNamedSoup, which is at line 12 (0-indexed).
+    // We want to test jumping to GetNamedAcsText, which is at line 12 (0-indexed).
     // Let's just use grep to find the position.
 }

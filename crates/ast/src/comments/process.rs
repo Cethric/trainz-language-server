@@ -118,8 +118,8 @@ mod tests {
     use super::*;
     use pest::Parser;
     use rayon::prelude::*;
+    use trainz_parser::comments::grammar::acs_text::{AcsTextCommentsParser, Rule as AcsTextRule};
     use trainz_parser::comments::grammar::gs::{GsCommentsParser, Rule as GsRule};
-    use trainz_parser::comments::grammar::soup::{Rule as SoupRule, SoupCommentsParser};
 
     #[test]
     fn test_group_comments() {
@@ -168,14 +168,14 @@ public define int DIRECTION_LEFT      = 0;    //!< Left junction direction state
     }
 
     #[test]
-    fn test_soup_comments() {
+    fn test_acs_text_comments() {
         let src = r#"
-; This is a soup comment
+; This is a acs_text comment
 ; and another one
 key value
 ; trailing
 "#;
-        let pairs = SoupCommentsParser::parse(SoupRule::comment_program, src).unwrap();
+        let pairs = AcsTextCommentsParser::parse(AcsTextRule::comment_program, src).unwrap();
         let program = process_comments(pairs.into_iter().next().unwrap(), src);
 
         let groups: Vec<_> = program

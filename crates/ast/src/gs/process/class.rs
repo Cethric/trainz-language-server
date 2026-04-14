@@ -113,7 +113,8 @@ fn process_class_inner(
             }
             Rule::class_member => {
                 let fields = process_field_definition(pair);
-                for field in fields {
+                for mut field in fields {
+                    field.parent_class = Some(class_def.name.name.clone());
                     scopes[class_def.scope_id]
                         .variables
                         .push((field.ty.clone(), field.name.clone()));
@@ -121,7 +122,8 @@ fn process_class_inner(
                 }
             }
             Rule::class_method => {
-                let method = process_method_definition(scopes, class_def.scope_id, pair);
+                let mut method = process_method_definition(scopes, class_def.scope_id, pair);
+                method.parent_class = Some(class_def.name.name.clone());
                 class_def
                     .methods
                     .entry(method.name.name.clone())
@@ -177,6 +179,7 @@ fn process_field_definition(pair: Pair<Rule>) -> Vec<FieldDef> {
     for (i, name) in names.into_iter().enumerate() {
         let initializer = initializers.get(i).cloned();
         fields.push(FieldDef {
+            parent_class: None,
             modifiers: modifiers.clone(),
             ty: ty.clone(),
             name,
@@ -199,7 +202,7 @@ fn process_method_definition(
     let modifiers = process_method_modifiers(inner.next().unwrap());
     let return_type = process_type_or_void(inner.next().unwrap());
     let name = process_identifier(inner.next().unwrap());
-    let params = process_params(inner.next().unwrap());
+    let (params, void_param_range) = process_params(inner.next().unwrap());
 
     let scope_id = push_scope(
         scopes,
@@ -242,10 +245,12 @@ fn process_method_definition(
     };
 
     MethodDef {
+        parent_class: None,
         modifiers,
         return_type,
         name,
         params,
+        void_param_range,
         body,
         scope_id,
         range,
@@ -280,8 +285,9 @@ fn process_method_modifiers(pair: Pair<Rule>) -> Vec<(MethodModifier, Range)> {
 }
 
 #[tracing::instrument]
-fn process_params(pair: Pair<Rule>) -> Vec<Param> {
+fn process_params(pair: Pair<Rule>) -> (Vec<Param>, Option<Range>) {
     let mut params = vec![];
+    let mut void_param_range = None;
     let inner = pair.into_inner();
     let mut flattened_inner = vec![];
     for p in inner {
@@ -321,11 +327,14 @@ fn process_params(pair: Pair<Rule>) -> Vec<Param> {
                     }
                 }
             }
+            Rule::type_void => {
+                void_param_range = Some(r);
+            }
             Rule::line_comment | Rule::block_comment => {}
             _ => {}
         }
     }
-    params
+    (params, void_param_range)
 }
 
 #[cfg(test)]

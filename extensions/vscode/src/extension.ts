@@ -202,7 +202,7 @@ export function activate(context: ExtensionContext) {
             env: {
                 ...process.env,
                 TRAINZ_LANGUAGE_SERVER_SCRIPT_SEARCH_PATHS: search?.join(";"),
-                TRAINZ_LANGUAGE_SERVER_SOUP_VALIDATION_PATH: validation,
+                TRAINZ_LANGUAGE_SERVER_ACS_TEXT_VALIDATION_PATH: validation,
                 RUST_LOG: "debug"
             }
         }
@@ -216,7 +216,7 @@ export function activate(context: ExtensionContext) {
     const clientOptions: LanguageClientOptions = {
         documentSelector: [
             {scheme: 'file', pattern: '**/*.gs', language: 'game-script'},
-            {scheme: 'file', pattern: '**/*.txt', language: 'soup'}
+            {scheme: 'file', pattern: '**/*.txt', language: 'acs_text'}
         ],
         synchronize: {
             fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
@@ -246,7 +246,7 @@ export function activate(context: ExtensionContext) {
 
     function didOpenTextDocument(document: vscode.TextDocument): void {
         // We are only interested in language mode text
-        if ((document.languageId !== 'game-script' && document.languageId !== 'soup') ||
+        if ((document.languageId !== 'game-script' && document.languageId !== 'acs_text') ||
             (document.uri.scheme !== 'file' && document.uri.scheme !== 'untitled')) {
             return;
         }
@@ -660,7 +660,7 @@ function registerLanguageFeatures(context: ExtensionContext) {
         languages.registerCompletionItemProvider(
             [
                 {scheme: 'file', language: 'game-script'},
-                {scheme: 'file', language: 'soup'}
+                {scheme: 'file', language: 'acs_text'}
             ],
             {
                 provideCompletionItems: async (document, position, token) => {
@@ -744,7 +744,7 @@ function registerLanguageFeatures(context: ExtensionContext) {
         languages.registerHoverProvider(
             [
                 {scheme: 'file', language: 'game-script'},
-                {scheme: 'file', language: 'soup'}
+                {scheme: 'file', language: 'acs_text'}
             ],
             {
                 provideHover: async (document, position, token) => {
@@ -800,7 +800,7 @@ function registerLanguageFeatures(context: ExtensionContext) {
         languages.registerDocumentSymbolProvider(
             [
                 {scheme: 'file', language: 'game-script'},
-                {scheme: 'file', language: 'soup'}
+                {scheme: 'file', language: 'acs_text'}
             ],
             {
                 provideDocumentSymbols: async (document, token) => {
@@ -841,7 +841,7 @@ function registerLanguageFeatures(context: ExtensionContext) {
         languages.registerFoldingRangeProvider(
             [
                 {scheme: 'file', language: 'game-script'},
-                {scheme: 'file', language: 'soup'}
+                {scheme: 'file', language: 'acs_text'}
             ],
             {
                 provideFoldingRanges: async (document, context, token) => {
@@ -893,7 +893,7 @@ function registerLanguageFeatures(context: ExtensionContext) {
         languages.registerDocumentSemanticTokensProvider(
             [
                 {scheme: 'file', language: 'game-script'},
-                {scheme: 'file', language: 'soup'}
+                {scheme: 'file', language: 'acs_text'}
             ],
             {
                 provideDocumentSemanticTokens: async (document, token) => {

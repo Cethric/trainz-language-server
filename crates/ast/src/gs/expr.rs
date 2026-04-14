@@ -129,7 +129,7 @@ pub enum BitwiseOp {
     Shr,
     And,
     Or,
-    Not,
+    Xor,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,6 +145,7 @@ pub enum MathOp {
 pub enum UnaryPrefixOp {
     Not,
     NotNot,
+    Inverse,
     Inc,
     Dec,
     Plus,

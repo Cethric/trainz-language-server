@@ -13,7 +13,7 @@ members = [
     "crates/folding",
     "crates/hover",
     "crates/definition",
-    "crates/soup-validators"
+    "crates/acs-text-validators"
 ]
 resolver = "3"
 
@@ -26,7 +26,7 @@ authors = ["Cethric"]
 categories = ["command-line-utilities", "development-tools"]
 homepage = "https://github.com/Cethric/trainz-language-server"
 license = "Apache-2.0"
-description = "Language Server Protocol implementation for the GS (Game Script) and Soup languages used in Trainz"
+description = "Language Server Protocol implementation for the GS (Game Script) and acs_text languages used in Trainz"
 
 [workspace.dependencies]
 # External dependencies
@@ -44,16 +44,17 @@ env_logger = { version = "0.11", features = [] }
 tracing = { version = "0.1", features = ["log"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 async-trait = { version = "0.1", features = [] }
-tempfile = { version = "3.10", features = [] }
+tempfile = { version = "3.27", features = [] }
 rayon = { version = "1.11", features = [] }
 chrono = { version = "0.4", features = ["serde"] }
 pest = { version = "2.8", features = ["pretty-print"] }
 tower-lsp-server = { version = "0.23", features = [] }
 clap = { version = "4.6", features = ["derive", "env"] }
 clio = { version = "0.3", features = ["clap-parse"] }
-clap-verbosity-flag = { version = "3.0.4", features = ["serde"] }
-criterion = { version = "0.8.2", features = ["async_tokio", "rayon"] }
+clap-verbosity-flag = { version = "3.0", features = ["serde"] }
+criterion = { version = "0.8", features = ["async_tokio", "rayon"] }
 dashmap = { version = "7.0.0-rc2", features = ["rayon", "serde", "typesize"] }
+walkdir = { version = "2.5", features = [] }
 
 # Internal workspace dependencies
 trainz-ast = { path = "crates/ast", version = "0.1.0" }
@@ -68,4 +69,4 @@ trainz-completions = { path = "crates/completions", version = "0.1.0" }
 trainz-folding = { path = "crates/folding", version = "0.1.0" }
 trainz-hover = { path = "crates/hover", version = "0.1.0" }
 trainz-definition = { path = "crates/definition", version = "0.1.0" }
-trainz-soup-validators = { path = "crates/soup-validators", version = "0.1.0" }
+trainz-acs-text-validators = { path = "crates/acs-text-validators", version = "0.1.0" }

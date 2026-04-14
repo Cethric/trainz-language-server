@@ -16,48 +16,52 @@ pub fn find_postfix_at_position(program: &Program, pos: Position) -> Option<(&Ex
 }
 
 fn find_postfix_in_class(class: &ClassDef, pos: Position) -> Option<(&Expr, usize)> {
-    for field in class.fields.values() {
+    let fields = class.fields.par_iter().find_map_first(|(_, field)| {
         if let Some(init) = &field.initializer
             && let Some(res) = find_postfix_in_expr(init, pos)
         {
-            return Some(res);
+            Some(res)
+        } else {
+            None
         }
+    });
+    if fields.is_some() {
+        return fields;
     }
-    for methods in class.methods.values() {
-        for method in methods {
+
+    class.methods.par_iter().find_map_first(|(_, methods)| {
+        methods.par_iter().find_map_first(|method| {
             if let Some(body) = &method.body
                 && let Some(res) = find_postfix_in_block(body, pos)
             {
-                return Some(res);
+                Some(res)
+            } else {
+                None
             }
-        }
-    }
-    None
+        })
+    })
 }
 
 fn find_postfix_in_block(block: &Block, pos: Position) -> Option<(&Expr, usize)> {
-    for stmt in &block.statements {
+    block.statements.par_iter().find_map_first(|stmt| {
         if position_in_range(pos, stmt.range())
             && let Some(res) = find_postfix_in_stmt(stmt, pos)
         {
-            return Some(res);
+            Some(res)
+        } else {
+            None
         }
-    }
-    None
+    })
 }
 
 fn find_postfix_in_stmt(stmt: &Stmt, pos: Position) -> Option<(&Expr, usize)> {
     match stmt {
         Stmt::Return(expr, _, _) => expr.as_ref().and_then(|e| find_postfix_in_expr(e, pos)),
         Stmt::Expr(expr) => find_postfix_in_expr(expr, pos),
-        Stmt::Decl(decl) => {
-            for val in &decl.values {
-                if let Some(res) = find_postfix_in_expr(val, pos) {
-                    return Some(res);
-                }
-            }
-            None
-        }
+        Stmt::Decl(decl) => decl
+            .values
+            .par_iter()
+            .find_map_first(|val| find_postfix_in_expr(val, pos)),
         Stmt::If(if_stmt) => find_postfix_in_expr(&if_stmt.cond, pos)
             .or_else(|| find_postfix_in_block(&if_stmt.then_block, pos))
             .or_else(|| {
@@ -88,17 +92,18 @@ fn find_postfix_in_stmt(stmt: &Stmt, pos: Position) -> Option<(&Expr, usize)> {
         Stmt::Wait(wait_stmt) => find_postfix_in_block(&wait_stmt.body, pos),
         Stmt::On(on_stmt) => find_postfix_in_block(&on_stmt.body, pos),
         Stmt::Switch(switch_stmt) => find_postfix_in_expr(&switch_stmt.expr, pos).or_else(|| {
-            for case in &switch_stmt.cases {
-                if let Some(res) = find_postfix_in_expr(&case.value, pos)
+            let case = switch_stmt.cases.par_iter().find_map_first(|case| {
+                find_postfix_in_expr(&case.value, pos)
                     .or_else(|| find_postfix_in_block(&case.body, pos))
-                {
-                    return Some(res);
-                }
+            });
+            if let Some(case) = case {
+                Some(case)
+            } else {
+                switch_stmt
+                    .default
+                    .as_ref()
+                    .and_then(|d| find_postfix_in_block(d, pos))
             }
-            switch_stmt
-                .default
-                .as_ref()
-                .and_then(|d| find_postfix_in_block(d, pos))
         }),
         Stmt::Block(block) => {
             if position_in_range(pos, block.range) {
@@ -141,7 +146,8 @@ fn find_postfix_in_expr(expr: &Expr, pos: Position) -> Option<(&Expr, usize)> {
             if let Some(res) = find_postfix_in_expr(inner, pos) {
                 return Some(res);
             }
-            for (idx, op) in ops.iter().enumerate() {
+
+            ops.par_iter().enumerate().find_map_first(|(idx, op)| {
                 match op {
                     PostfixOp::Deref(id) => {
                         if position_in_range(pos, id.range) {
@@ -150,36 +156,27 @@ fn find_postfix_in_expr(expr: &Expr, pos: Position) -> Option<(&Expr, usize)> {
                     }
                     PostfixOp::Call(args, range) => {
                         if position_in_range(pos, *range) {
-                            for arg in args {
-                                if let Some(res) = find_postfix_in_expr(arg, pos) {
-                                    return Some(res);
-                                }
-                            }
+                            return args
+                                .par_iter()
+                                .find_map_first(|arg| find_postfix_in_expr(arg, pos));
                         }
                     }
                     PostfixOp::Index(args, range) => {
                         if position_in_range(pos, *range) {
-                            for arg in args {
-                                if let Some(res) = find_postfix_in_expr(arg, pos) {
-                                    return Some(res);
-                                }
-                            }
+                            return args
+                                .par_iter()
+                                .find_map_first(|arg| find_postfix_in_expr(arg, pos));
                         }
                     }
                     _ => {}
                 }
-            }
-            None
+                None
+            })
         }
         Expr::Cast { expr: inner, .. } => find_postfix_in_expr(inner, pos),
-        Expr::NewObject { args, .. } => {
-            for arg in args {
-                if let Some(res) = find_postfix_in_expr(arg, pos) {
-                    return Some(res);
-                }
-            }
-            None
-        }
+        Expr::NewObject { args, .. } => args
+            .par_iter()
+            .find_map_first(|arg| find_postfix_in_expr(arg, pos)),
         Expr::NewArray { size, .. } => find_postfix_in_expr(size, pos),
         Expr::Grouped(inner, _) => find_postfix_in_expr(inner, pos),
         _ => None,
@@ -189,46 +186,69 @@ fn find_postfix_in_expr(expr: &Expr, pos: Position) -> Option<(&Expr, usize)> {
 pub fn find_method_at_position(program: &Program, pos: Position) -> Option<&MethodDef> {
     program.classes.values().find_map(|cls| {
         if position_in_range(pos, cls.range) {
-            for methods in cls.methods.values() {
-                for method in methods {
+            cls.methods.par_iter().find_map_first(|(_, methods)| {
+                methods.par_iter().find_map_first(|method| {
                     if position_in_range(pos, method.range) {
-                        return Some(method);
+                        Some(method)
+                    } else {
+                        None
                     }
-                }
-            }
+                })
+            })
+        } else {
+            None
         }
-        None
     })
 }
 
 pub fn find_class_at_position(program: &Program, pos: Position) -> Option<&ClassDef> {
-    program
-        .classes
-        .values()
-        .find(|cls| position_in_range(pos, cls.range))
+    program.classes.par_iter().find_map_first(|(_, cls)| {
+        if position_in_range(pos, cls.range) {
+            Some(cls)
+        } else {
+            None
+        }
+    })
 }
 
 pub fn find_field_by_id_range(program: &Program, range: crate::Range) -> Option<&FieldDef> {
-    program
-        .classes
-        .values()
-        .find_map(|cls| cls.fields.values().find(|field| field.name.range == range))
+    program.classes.par_iter().find_map_first(|(_, cls)| {
+        cls.fields.par_iter().find_map_first(|(_, field)| {
+            if field.name.range == range {
+                Some(field)
+            } else {
+                None
+            }
+        })
+    })
 }
 
 pub fn find_method_by_id_range(program: &Program, range: crate::Range) -> Option<&MethodDef> {
-    program.classes.values().find_map(|cls| {
-        cls.methods
-            .values()
-            .find_map(|methods| methods.iter().find(|method| method.name.range == range))
+    program.classes.par_iter().find_map_first(|(_, cls)| {
+        cls.methods.par_iter().find_map_first(|(_, methods)| {
+            methods.par_iter().find_map_first(|method| {
+                if method.name.range == range {
+                    Some(method)
+                } else {
+                    None
+                }
+            })
+        })
     })
 }
 
 pub fn find_param_by_id_range(program: &Program, range: crate::Range) -> Option<&crate::gs::Param> {
-    program.classes.values().find_map(|cls| {
-        cls.methods.values().find_map(|methods| {
-            methods
-                .iter()
-                .find_map(|method| method.params.iter().find(|param| param.name.range == range))
+    program.classes.par_iter().find_map_first(|(_, cls)| {
+        cls.methods.par_iter().find_map_first(|(_, methods)| {
+            methods.par_iter().find_map_first(|method| {
+                method.params.par_iter().find_map_first(|param| {
+                    if param.name.range == range {
+                        Some(param)
+                    } else {
+                        None
+                    }
+                })
+            })
         })
     })
 }
@@ -247,32 +267,31 @@ pub fn find_id_at_position(program: &Program, pos: Position) -> Option<&Identifi
 pub fn find_include_at_position(program: &Program, pos: Position) -> Option<&Include> {
     program
         .includes
-        .iter()
-        .find(|include| position_in_range(pos, include.range))
+        .par_iter()
+        .find_first(|include| position_in_range(pos, include.range))
 }
 
 fn find_in_class(class: &ClassDef, pos: Position) -> Option<&Identifier> {
     if position_in_range(pos, class.name.range) {
         return Some(&class.name);
     }
-    for sup in &class.superclasses {
-        if position_in_range(pos, sup.range) {
-            return Some(sup);
-        }
-    }
-    for field in class.fields.values() {
-        if let Some(id) = find_in_field(field, pos) {
-            return Some(id);
-        }
-    }
-    for methods in class.methods.values() {
-        for method in methods {
-            if let Some(id) = find_in_method(method, pos) {
-                return Some(id);
-            }
-        }
-    }
-    None
+    class
+        .superclasses
+        .par_iter()
+        .find_first(|sup| position_in_range(pos, sup.range))
+        .or_else(|| {
+            class
+                .fields
+                .par_iter()
+                .find_map_first(|(_, field)| find_in_field(field, pos))
+        })
+        .or_else(|| {
+            class.methods.par_iter().find_map_first(|(_, methods)| {
+                methods
+                    .par_iter()
+                    .find_map_first(|method| find_in_method(method, pos))
+            })
+        })
 }
 
 fn find_in_field(field: &FieldDef, pos: Position) -> Option<&Identifier> {

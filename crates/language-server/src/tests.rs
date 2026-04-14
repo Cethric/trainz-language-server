@@ -319,7 +319,7 @@ async fn test_semantic_tokens_update() {
 }
 
 #[tokio::test]
-async fn test_semantic_tokens_soup() {
+async fn test_semantic_tokens_acs_text() {
     let (service, _) =
         LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
     let uri = Uri::from_file_path(
@@ -342,7 +342,7 @@ async fn test_semantic_tokens_soup() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "soup".to_string(),
+                language_id: "acs_text".to_string(),
                 version: 1,
                 text: content.to_string(),
             },
@@ -383,7 +383,7 @@ async fn test_semantic_tokens_soup() {
         });
         assert!(username_key.is_some(), "Should find 'username' key token");
     } else {
-        panic!("Expected semantic tokens result for soup file");
+        panic!("Expected semantic tokens result for acs_text file");
     }
 }
 
@@ -529,7 +529,7 @@ async fn test_semantic_tokens_include() {
 }
 
 #[tokio::test]
-async fn test_soup_diagnostics() {
+async fn test_acs_text_diagnostics() {
     let temp_dir = std::env::current_dir()
         .unwrap()
         .join("temp_validation_test");
@@ -577,7 +577,7 @@ my_container {
 
     // content with a key matching the validator filename and a value
     let content = "my_container\n{\n  key \"invalid_era\"\n  region \"00\"\n}\n";
-    let uri = Uri::from_file_path(test_file_dir.join("test_file.soup")).unwrap();
+    let uri = Uri::from_file_path(test_file_dir.join("test_file.acs_text")).unwrap();
     let path = uri.to_file_path().unwrap();
     std::fs::write(&path, content).unwrap();
 
@@ -586,7 +586,7 @@ my_container {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "soup".to_string(),
+                language_id: "acs_text".to_string(),
                 version: 1,
                 text: content.to_string(),
             },
@@ -803,7 +803,7 @@ thumbnails-element
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "soup".to_string(),
+                language_id: "acs_text".to_string(),
                 version: 1,
                 text: content.to_string(),
             },
@@ -1000,7 +1000,7 @@ thumbnails-element
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "soup".to_string(),
+                language_id: "acs_text".to_string(),
                 version: 1,
                 text: content.to_string(),
             },
@@ -1131,7 +1131,7 @@ category-era "era1;invalid"
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "soup".to_string(),
+                language_id: "acs_text".to_string(),
                 version: 1,
                 text: content.to_string(),
             },

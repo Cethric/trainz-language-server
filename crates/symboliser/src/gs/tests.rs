@@ -348,8 +348,8 @@ fn test_inherited_and_unary_not() {
                 if (use_metric) return "test" + pid;
                 string out_description = "start";
                 out_description = out_description;
-                Soup soup;
-                soup.SetNamedTag("speed-normal", speed_limit_normal);
+                AcsText acs_text;
+                acs_text.SetNamedTag("speed-normal", speed_limit_normal);
                 float f = -1.0;
             }
         };
@@ -412,8 +412,8 @@ fn test_inherited_and_unary_not() {
     // One from declaration, two from assignment = 3
     assert_eq!(out_desc_symbols.len(), 3);
 
-    // 6. Check soup.SetNamedTag
-    assert!(body_symbols.par_iter().any(|s| s.name == "soup"));
+    // 6. Check acs_text.SetNamedTag
+    assert!(body_symbols.par_iter().any(|s| s.name == "acs_text"));
     assert!(body_symbols.par_iter().any(|s| s.name == "SetNamedTag"));
     // string literals are formatted as Literal(String("..."))
     assert!(

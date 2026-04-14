@@ -1,6 +1,6 @@
 # trainz-language-server
 
-`trainz-language-server` is a Language Server Protocol (LSP) implementation for the **GS (Game Script)** and **Soup**
+`trainz-language-server` is a Language Server Protocol (LSP) implementation for the **GS (Game Script)** and **AcsText**
 languages used in Trainz, written in Rust.
 
 | development                                                                                                                                                                                                                                                   | release                                                                                                                                                                                                                                                    |
@@ -12,17 +12,17 @@ languages used in Trainz, written in Rust.
 
 ## Features
 
-This language server provides rich editing support for Game Script (`.gs`) and Soup (`.txt`) files, including:
+This language server provides rich editing support for Game Script (`.gs`) and AcsText (`.txt`) files, including:
 
-- **Syntax Highlighting**: Enhanced semantic tokens for GS and Soup.
+- **Syntax Highlighting**: Enhanced semantic tokens for GS and AcsText.
 - **Diagnostics**: Real-time error reporting and diagnostics.
 - **Code Completion**: Context-aware completions for GS.
 - **Hover Information**: Detailed information on symbols and variables.
 - **Go to Definition**: Navigate through GS source code easily.
 - **Formatting**: Automated code formatting for GS.
-- **Folding Ranges**: Support for code folding in GS and Soup.
+- **Folding Ranges**: Support for code folding in GS and AcsText.
 - **Symbol Indexing**: Quick symbol lookup and navigation.
-- **Soup Validation**: Validation for Soup files using the `soup-validators` crate.
+- **AcsText Validation**: Validation for AcsText files using the `acs_text-validators` crate.
 
 ## Tech Stack
 
@@ -62,8 +62,8 @@ To run the LSP server:
 
 - `-v, --verbose`: Increase logging verbosity (use multiple `-v` for higher verbosity).
 - `-q, --quiet`: Decrease logging verbosity.
-- `-p, --validation-path <PATH>`: Path to the directory containing soup validators. Can also be set via the
-  `TRAINZ_LANGUAGE_SERVER_SOUP_VALIDATION_PATH` environment variable.
+- `-p, --validation-path <PATH>`: Path to the directory containing acs_text validators. Can also be set via the
+  `TRAINZ_LANGUAGE_SERVER_ACS_TEXT_VALIDATION_PATH` environment variable.
 - `-s, --search-paths <PATHS>`: Semicolon-separated list of paths to search for Trainz scripts. Can also be set via the
   `TRAINZ_LANGUAGE_SERVER_SCRIPT_SEARCH_PATHS` environment variable.
 - `-h, --help`: Print help.
@@ -83,7 +83,7 @@ The workspace is organized into several crates:
 
 - `crates/ast`: Abstract Syntax Tree definitions.
 - `crates/common`: Common types and utilities.
-- `crates/parser`: GS and Soup grammar parsing using `pest`.
+- `crates/parser`: GS and AcsText grammar parsing using `pest`.
 - `crates/trainz-language-server`: LSP server implementation.
 - `crates/diagnostics`: Diagnostics and error reporting.
 - `crates/formatter`: Code formatting logic.
@@ -95,7 +95,7 @@ The workspace is organized into several crates:
 - `crates/hover`: Hover information support.
 - `crates/definition`: Goto definition support.
 - `crates/signature-help`: Signature help support.
-- `crates/soup-validators`: Validation for Soup files.
+- `crates/acs_text-validators`: Validation for AcsText files.
 - `crates/util`: General utilities.
 
 ## Scripts

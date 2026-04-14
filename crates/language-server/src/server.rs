@@ -1,13 +1,13 @@
+use crate::process::acs_text::ProcessAcsText;
 use crate::process::gs::ProcessGS;
-use crate::process::soup::ProcessSoup;
-use crate::state::{GameScriptLanguageServer, ParsedFileType};
+use crate::state::{
+    GameScriptLanguageServer, ParsedFile, ParsedFileType, RecursiveIncludeResolver,
+};
 use dashmap::DashMap;
 use ls_types::CodeActionProviderCapability;
 use rayon::prelude::*;
-use std::collections::HashSet;
 use std::fs;
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tower_lsp_server::jsonrpc::Error;
 use tower_lsp_server::ls_types::{
@@ -38,83 +38,23 @@ use tower_lsp_server::ls_types::{
 };
 use tower_lsp_server::{LanguageServer, ls_types};
 use tracing::{debug, error, trace};
-use trainz_completions::soup::soup_completions;
+use trainz_acs_text_validators::load_validators;
+use trainz_completions::acs_text::acs_text_completions;
+use trainz_definition::acs_text::definitions::{ScriptResolver, acs_text_goto_definition};
 use trainz_definition::gs::definitions::gs_goto_definition;
 use trainz_definition::gs::references::gs_find_references;
-use trainz_definition::soup::definitions::soup_goto_definition;
+use trainz_diagnostics::acs_text::acs_text_diagnostics;
 use trainz_diagnostics::gs;
-use trainz_diagnostics::soup::soup_diagnostics;
+use trainz_folding::acs_text::acs_text_folding_range;
 use trainz_folding::gs::trainz_folding_range;
-use trainz_folding::soup::soup_folding_range;
+use trainz_hover::acs_text::acs_text_hover;
 use trainz_hover::gs::trainz_hover;
-use trainz_hover::soup::soup_hover;
+use trainz_semantic_tokens::acs_text::acs_text_semantic_tokens;
 use trainz_semantic_tokens::gs::semantic_tokens;
-use trainz_semantic_tokens::soup::soup_semantic_tokens;
-use trainz_soup_validators::load_validators;
-use trainz_symboliser::soup::soup_symboliser;
+use trainz_symboliser::acs_text::acs_text_symboliser;
 
 const GAME_SCRIPT_LANGUAGE_ID: &str = "game-script";
-const SOUP_LANGUAGE_ID: &str = "soup";
-
-struct RecursiveIncludeResolver<'a> {
-    current_program: &'a trainz_ast::gs::Program,
-    parsed_files: &'a DashMap<String, crate::state::ParsedFile>,
-}
-
-impl<'a> trainz_ast::gs::type_eval::ClassResolver for RecursiveIncludeResolver<'a> {
-    fn find_class(&self, name: &str) -> Option<trainz_ast::gs::ClassDef> {
-        let mut visited = HashSet::new();
-        self.find_recursive(self.current_program, name, &mut visited)
-    }
-}
-
-impl<'a> trainz_ast::gs::dependency_graph::ProgramResolver for RecursiveIncludeResolver<'a> {
-    fn resolve_program(&self, path: &str) -> Option<Arc<trainz_ast::gs::Program>> {
-        if let Some(file) = self.parsed_files.get(path)
-            && let ParsedFileType::GameScript(program) = &file.value().parsed
-        {
-            return Some(program.clone());
-        }
-        None
-    }
-}
-
-impl<'a> RecursiveIncludeResolver<'a> {
-    fn find_recursive(
-        &self,
-        program: &trainz_ast::gs::Program,
-        name: &str,
-        visited: &mut HashSet<String>,
-    ) -> Option<trainz_ast::gs::ClassDef> {
-        if let Some(cls) = program.classes.get(name) {
-            return Some(cls.clone());
-        }
-
-        for include in &program.includes {
-            if let Some(path) = &include.path {
-                let path_str = path.to_string_lossy().to_string();
-                if !visited.insert(path_str.clone()) {
-                    continue;
-                }
-
-                let included_program = self.parsed_files.get(&path_str).and_then(|file| {
-                    if let ParsedFileType::GameScript(included_program) = &file.value().parsed {
-                        Some(included_program.clone())
-                    } else {
-                        None
-                    }
-                });
-
-                if let Some(included_program) = included_program
-                    && let Some(cls) = self.find_recursive(&included_program, name, visited)
-                {
-                    return Some(cls);
-                }
-            }
-        }
-        None
-    }
-}
+const ACS_TEXT_LANGUAGE_ID: &str = "acs_text";
 
 impl LanguageServer for GameScriptLanguageServer {
     #[tracing::instrument(skip(self, params))]
@@ -303,7 +243,7 @@ impl LanguageServer for GameScriptLanguageServer {
                             pattern: Some(String::from("*.gs")),
                         },
                         DocumentFilter {
-                            language: Some(SOUP_LANGUAGE_ID.to_string()),
+                            language: Some(ACS_TEXT_LANGUAGE_ID.to_string()),
                             scheme: Some(String::from("file")),
                             pattern: Some(String::from("config.txt")),
                         },
@@ -351,6 +291,8 @@ impl LanguageServer for GameScriptLanguageServer {
     async fn initialized(&self, _: InitializedParams) {
         trace!("gs lsp initialised");
 
+        self.discover_projects().await;
+
         self.client
             .log_message(MessageType::INFO, "gs lsp initialised")
             .await;
@@ -376,6 +318,8 @@ impl LanguageServer for GameScriptLanguageServer {
             // Bust cache
             self.ast_cache.bust(&document_path);
 
+            self.add_file_to_project(&document_path);
+
             let path = document_path.to_string_lossy().to_string();
 
             self.increment_count(&path);
@@ -399,9 +343,14 @@ impl LanguageServer for GameScriptLanguageServer {
                     &progress,
                 )
                 .await;
-            } else if params.text_document.language_id == SOUP_LANGUAGE_ID {
-                self.process_soup_file(&document_path, &params.text_document.text, true, &progress)
-                    .await;
+            } else if params.text_document.language_id == ACS_TEXT_LANGUAGE_ID {
+                self.process_acs_text_file(
+                    &document_path,
+                    &params.text_document.text,
+                    true,
+                    &progress,
+                )
+                .await;
             }
             trace!("did_open: {:?}", document_path);
             progress.finish().await;
@@ -435,6 +384,8 @@ impl LanguageServer for GameScriptLanguageServer {
             // Bust cache
             self.ast_cache.bust(&document_path);
 
+            self.add_file_to_project(&document_path);
+
             let path = document_path.to_string_lossy().to_string();
             let text = params.content_changes.first().unwrap().text.as_str();
 
@@ -453,8 +404,8 @@ impl LanguageServer for GameScriptLanguageServer {
                     file.map(|f| f.parsed.clone())
                 };
                 if let Some(file_type) = file_type {
-                    if let ParsedFileType::Soup(_soup) = file_type {
-                        self.process_soup_file(&document_path, text, true, &progress)
+                    if let ParsedFileType::AcsText(_acs_text) = file_type {
+                        self.process_acs_text_file(&document_path, text, true, &progress)
                             .await;
                     } else if let ParsedFileType::GameScript(_program) = file_type {
                         self.process_gs_file(
@@ -500,11 +451,18 @@ impl LanguageServer for GameScriptLanguageServer {
         debug!("did_delete_files {:?}", params);
 
         for event in params.files {
-            let document_path = event.uri;
+            if let Ok(uri) = event.uri.parse::<Uri>() {
+                if let Some(path) = uri.to_file_path() {
+                    self.remove_file_from_project(&path);
+                    self.decrement_count(&path.to_string_lossy());
+                } else {
+                    self.decrement_count(&event.uri);
+                }
+            } else {
+                self.decrement_count(&event.uri);
+            }
 
-            trace!("did_delete_files {:?}", document_path);
-
-            self.decrement_count(&document_path);
+            trace!("did_delete_files {:?}", event.uri);
         }
     }
 
@@ -513,13 +471,16 @@ impl LanguageServer for GameScriptLanguageServer {
         for event in params.changes {
             if let Some(document_path) = event.uri.to_file_path() {
                 if !document_path.exists() {
-                    return;
+                    self.remove_file_from_project(&document_path);
+                    continue;
                 }
 
                 let _permit = self.processing_semaphore.acquire().await.ok();
 
                 // Bust cache
                 self.ast_cache.bust(&document_path);
+
+                self.add_file_to_project(&document_path);
 
                 let path = document_path.to_string_lossy().to_string();
 
@@ -541,9 +502,14 @@ impl LanguageServer for GameScriptLanguageServer {
                             file.map(|f| f.parsed.clone())
                         };
                         if let Some(file_type) = file_type {
-                            if let ParsedFileType::Soup(_soup) = file_type {
-                                self.process_soup_file(&document_path, &source, true, &progress)
-                                    .await;
+                            if let ParsedFileType::AcsText(_acs_text) = file_type {
+                                self.process_acs_text_file(
+                                    &document_path,
+                                    &source,
+                                    true,
+                                    &progress,
+                                )
+                                .await;
                             } else if let ParsedFileType::GameScript(_program) = file_type {
                                 self.process_gs_file(
                                     &document_path,
@@ -569,6 +535,8 @@ impl LanguageServer for GameScriptLanguageServer {
         for folder in params.event.removed {
             if let Some(path) = folder.uri.to_file_path() {
                 self.workspace_folders.remove(&*path);
+                // Also remove projects in this folder
+                self.projects.retain(|root, _| !root.starts_with(&path));
             }
         }
         for folder in params.event.added {
@@ -576,6 +544,8 @@ impl LanguageServer for GameScriptLanguageServer {
                 self.workspace_folders.insert(path.to_path_buf());
             }
         }
+
+        self.discover_projects().await;
     }
 
     #[tracing::instrument(skip(self))]
@@ -658,13 +628,13 @@ impl LanguageServer for GameScriptLanguageServer {
                     };
                     gs::trainz_diagnostics(&path, program, &resolver, &resolver)
                 }
-                ParsedFileType::Soup(soup) => {
+                ParsedFileType::AcsText(acs_text) => {
                     if let Some(validators) = self.validators.get() {
-                        soup_diagnostics(soup, validators, Some(&document_path))
+                        acs_text_diagnostics(acs_text, validators, Some(&document_path))
                     } else if let Some(validation_path) = &self.validation_path {
                         // Fallback if not yet initialized or failed to load
                         let validators = load_validators(validation_path);
-                        soup_diagnostics(soup, &validators, Some(&document_path))
+                        acs_text_diagnostics(acs_text, &validators, Some(&document_path))
                     } else {
                         vec![]
                     }
@@ -768,9 +738,9 @@ impl LanguageServer for GameScriptLanguageServer {
                     ParsedFileType::GameScript(program) => {
                         (semantic_tokens(program), Some(program.src.as_str()))
                     }
-                    ParsedFileType::Soup(soup) => (
-                        soup_semantic_tokens(soup, validators.as_ref()),
-                        Some(soup.src.as_str()),
+                    ParsedFileType::AcsText(acs_text) => (
+                        acs_text_semantic_tokens(acs_text, validators.as_ref()),
+                        Some(acs_text.src.as_str()),
                     ),
                 };
                 let mut comment_tokens =
@@ -857,19 +827,16 @@ impl LanguageServer for GameScriptLanguageServer {
         if document_symbols_lock.get().is_none() {
             let validators = self.validators.get().cloned();
             let parsed_files_clone = self.parsed_files.clone();
-            let symbols = tokio::task::spawn_blocking(move || {
-                let resolver = RecursiveIncludeResolver {
-                    current_program: match &parsed_file_type {
-                        ParsedFileType::GameScript(p) => p,
-                        _ => unreachable!("Should only be called for GameScript"),
-                    },
-                    parsed_files: &parsed_files_clone,
-                };
-                match &parsed_file_type {
-                    ParsedFileType::GameScript(program) => {
-                        trainz_symboliser::gs::trainz_symboliser(program, &resolver)
-                    }
-                    ParsedFileType::Soup(soup) => soup_symboliser(soup, validators.as_ref()),
+            let symbols = tokio::task::spawn_blocking(move || match &parsed_file_type {
+                ParsedFileType::GameScript(program) => {
+                    let resolver = RecursiveIncludeResolver {
+                        current_program: program,
+                        parsed_files: &parsed_files_clone,
+                    };
+                    trainz_symboliser::gs::trainz_symboliser(program, &resolver)
+                }
+                ParsedFileType::AcsText(acs_text) => {
+                    acs_text_symboliser(acs_text, validators.as_ref())
                 }
             })
             .await
@@ -1020,7 +987,7 @@ impl LanguageServer for GameScriptLanguageServer {
 
         let mut result = None;
         if let Some(file_info) = self.parsed_files.get(&path) {
-            if let ParsedFileType::Soup(_soup) = &file_info.parsed {
+            if let ParsedFileType::AcsText(_acs_text) = &file_info.parsed {
                 let validators = if let Some(v) = self.validators.get() {
                     Some(v.clone())
                 } else if let Some(vp) = &self.validation_path {
@@ -1032,8 +999,8 @@ impl LanguageServer for GameScriptLanguageServer {
                 };
 
                 if let Some(validators) = validators {
-                    result = Some(CompletionResponse::Array(soup_completions(
-                        _soup,
+                    result = Some(CompletionResponse::Array(acs_text_completions(
+                        _acs_text,
                         params,
                         &validators,
                     )));
@@ -1120,7 +1087,7 @@ impl LanguageServer for GameScriptLanguageServer {
                         result = Some(locations);
                     }
                 }
-                ParsedFileType::Soup(_) => {}
+                ParsedFileType::AcsText(_) => {}
             }
         }
 
@@ -1230,11 +1197,46 @@ impl LanguageServer for GameScriptLanguageServer {
                         result = Some(locations);
                     }
                 }
-                ParsedFileType::Soup(soup) => {
+                ParsedFileType::AcsText(acs_text) => {
                     let validators = self.validators.get().cloned().unwrap_or_default();
                     let base_path = document_path.parent();
-                    if let Some(locations) = soup_goto_definition(
-                        soup,
+
+                    struct AcsTextScriptResolver<'a> {
+                        parsed_files: &'a DashMap<String, ParsedFile>,
+                    }
+
+                    impl<'a> ScriptResolver for AcsTextScriptResolver<'a> {
+                        fn resolve_script(
+                            &self,
+                            base_path: &Path,
+                            script_name: &str,
+                        ) -> Option<(Uri, Arc<trainz_ast::gs::Program>)> {
+                            let parent = base_path.parent().unwrap_or(base_path);
+                            let mut script_path = parent.join(script_name);
+                            if !script_path.exists() && !script_name.to_lowercase().ends_with(".gs")
+                            {
+                                script_path.set_extension("gs");
+                            }
+
+                            let path_str = script_path.to_string_lossy().to_string();
+                            if let Some(file) = self.parsed_files.get(&path_str) {
+                                if let ParsedFileType::GameScript(program) = &file.value().parsed {
+                                    return Some((
+                                        Uri::from_file_path(script_path).unwrap(),
+                                        program.clone(),
+                                    ));
+                                }
+                            }
+                            None
+                        }
+                    }
+
+                    let resolver = AcsTextScriptResolver {
+                        parsed_files: &self.parsed_files,
+                    };
+
+                    if let Some(locations) = acs_text_goto_definition(
+                        acs_text,
                         position,
                         params
                             .text_document_position_params
@@ -1243,6 +1245,7 @@ impl LanguageServer for GameScriptLanguageServer {
                             .clone(),
                         &validators,
                         base_path,
+                        Some(&resolver),
                     ) {
                         result = Some(GotoDefinitionResponse::Array(locations));
                     }
@@ -1286,17 +1289,17 @@ impl LanguageServer for GameScriptLanguageServer {
             && let Some(document) = self.parsed_files.get(&path.to_string_lossy().to_string())
         {
             match &document.parsed {
-                ParsedFileType::Soup(soup) => {
+                ParsedFileType::AcsText(acs_text) => {
                     if let Some(progress) = &progress {
                         progress
-                            .report_with_message("Searching Soup file", 25)
+                            .report_with_message("Searching AcsText file", 25)
                             .await;
                     }
                     if let Some(validators) = self.validators.get() {
-                        hover_result = soup_hover(soup, params.clone(), validators);
+                        hover_result = acs_text_hover(acs_text, params.clone(), validators);
                     } else if let Some(validation_path) = &self.validation_path {
                         let validators = load_validators(validation_path);
-                        hover_result = soup_hover(soup, params.clone(), &validators);
+                        hover_result = acs_text_hover(acs_text, params.clone(), &validators);
                     }
 
                     if hover_result.is_some() {
@@ -1578,6 +1581,52 @@ impl LanguageServer for GameScriptLanguageServer {
     ) -> tower_lsp_server::jsonrpc::Result<Option<CodeActionResponse>> {
         let mut actions = vec![];
 
+        let path = params
+            .text_document
+            .uri
+            .to_file_path()
+            .map(|p| p.to_string_lossy().to_string());
+
+        if let Some(path) = path
+            && let Some(file) = self.parsed_files.get(&path)
+        {
+            if let ParsedFileType::AcsText(acs_text) = &file.parsed {
+                if let Some(kuid) = acs_text.find_kuid_at(params.range.start) {
+                    // Increment
+                    let mut inc_kuid = kuid.clone();
+                    inc_kuid.increment();
+                    let inc_title = format!(
+                        "Increment KUID version to {}",
+                        inc_kuid.version.unwrap_or(2)
+                    );
+                    actions.push(self.create_kuid_version_action(
+                        inc_title,
+                        acs_text,
+                        &kuid,
+                        inc_kuid,
+                        &params.text_document.uri,
+                    ));
+
+                    // Decrement
+                    if kuid.can_decrement() {
+                        let mut dec_kuid = kuid.clone();
+                        dec_kuid.decrement();
+                        let dec_title = format!(
+                            "Decrement KUID version to {}",
+                            dec_kuid.version.unwrap_or(0)
+                        );
+                        actions.push(self.create_kuid_version_action(
+                            dec_title,
+                            acs_text,
+                            &kuid,
+                            dec_kuid,
+                            &params.text_document.uri,
+                        ));
+                    }
+                }
+            }
+        }
+
         for diagnostic in &params.context.diagnostics {
             if let Some(ls_types::NumberOrString::String(code)) = &diagnostic.code
                 && code == "invalid-kind-lib"
@@ -1673,7 +1722,7 @@ impl LanguageServer for GameScriptLanguageServer {
         let ranges = folding_ranges_lock.get_or_init(|| {
             let mut ranges = match &parsed_file_type {
                 ParsedFileType::GameScript(program) => trainz_folding_range(program),
-                ParsedFileType::Soup(soup) => soup_folding_range(soup),
+                ParsedFileType::AcsText(acs_text) => acs_text_folding_range(acs_text),
             };
             ranges.extend(trainz_folding::comments::comments_folding_range(&comments));
             ranges
@@ -1707,21 +1756,26 @@ impl LanguageServer for GameScriptLanguageServer {
             None
         };
 
-        let mut symbols = Vec::new();
         let query = params.query.to_lowercase();
 
         // Collect symbols from all parsed files
-        for entry in self.parsed_files.iter() {
-            let path = entry.key();
-            let document = entry.value();
+        let symbols: Vec<WorkspaceSymbol> = self
+            .parsed_files
+            .par_iter()
+            .flat_map(|entry| {
+                let path = entry.key();
+                let document = entry.value();
+                let mut local_symbols = Vec::new();
 
-            if let Some(document_symbols) = document.document_symbols.get() {
-                for symbol in document_symbols {
-                    // Recursively collect symbols that match the query
-                    collect_matching_symbols(&mut symbols, symbol, &query, path);
+                if let Some(document_symbols) = document.document_symbols.get() {
+                    for symbol in document_symbols {
+                        // Recursively collect symbols that match the query
+                        collect_matching_symbols(&mut local_symbols, symbol, &query, path);
+                    }
                 }
-            }
-        }
+                local_symbols
+            })
+            .collect();
 
         if let Some(progress) = progress {
             progress.finish().await;
@@ -1740,8 +1794,7 @@ fn collect_matching_symbols(
 ) {
     // Check if this symbol matches the query
     if query.is_empty() || symbol.name.to_lowercase().contains(query) {
-        let uri =
-            Uri::from_file_path(file_path).unwrap_or_else(|| Uri::from_str(file_path).unwrap());
+        let uri = Uri::from_file_path(file_path).unwrap_or_else(|| file_path.parse().unwrap());
 
         symbols.push(WorkspaceSymbol {
             name: symbol.name.clone(),

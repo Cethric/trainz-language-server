@@ -67,14 +67,20 @@ pub fn trainz_hover(
                 .iter()
                 .any(|m| matches!(m.0, FieldModifier::Define));
 
+            let class_prefix = if let Some(parent) = &field.parent_class {
+                format!("{}::", parent)
+            } else {
+                "".to_string()
+            };
+
             if is_define {
                 if let Some(init) = &field.initializer
                     && let Some(init_str) = get_text_from_range(&program.src, init.range())
                 {
-                    value = format!("{} {} = {}", ty, name.name, init_str);
+                    value = format!("{} {}{} = {}", ty, class_prefix, name.name, init_str);
                 }
             } else {
-                value = format!("field: {} {}", ty, name.name);
+                value = format!("field: {} {}{}", ty, class_prefix, name.name);
             }
         } else if find_param_by_id_range(program, name.range).is_some() {
             value = format!("parameter: {} {}", ty, name.name);
@@ -125,15 +131,20 @@ pub fn trainz_hover(
 
     if let Some(class) = current_class {
         if let Some(field) = class.find_field(program, resolver, &id.name) {
+            let class_prefix = if let Some(parent) = &field.parent_class {
+                format!("{}::", parent)
+            } else {
+                "".to_string()
+            };
             return Some(Hover {
                 contents: HoverContents::Markup(MarkupContent {
                     kind: MarkupKind::Markdown,
-                    value: format!("field: {} {}", field.ty, field.name.name),
+                    value: format!("field: {} {}{}", field.ty, class_prefix, field.name.name),
                 }),
                 range: Some(id.range),
             });
         }
-        if let Some(methods) = class.find_method(program, resolver, &id.name) {
+        if let Some(methods) = class.find_method(resolver, &id.name) {
             let mut value = String::new();
             for (i, method) in methods.iter().enumerate() {
                 if i > 0 {
@@ -185,14 +196,22 @@ pub fn trainz_hover(
             Ok(EvaluatedType::Type(Type::Named(class_id))) => {
                 if let Some(class) = resolver.find_class(&class_id.name) {
                     if let Some(field) = class.find_field(program, resolver, &id.name) {
+                        let class_prefix = if let Some(parent) = &field.parent_class {
+                            format!("{}::", parent)
+                        } else {
+                            "".to_string()
+                        };
                         return Some(Hover {
                             contents: HoverContents::Markup(MarkupContent {
                                 kind: MarkupKind::Markdown,
-                                value: format!("field: {} {}", field.ty, field.name.name),
+                                value: format!(
+                                    "field: {} {}{}",
+                                    field.ty, class_prefix, field.name.name
+                                ),
                             }),
                             range: Some(id.range),
                         });
-                    } else if let Some(methods) = class.find_method(program, resolver, &id.name) {
+                    } else if let Some(methods) = class.find_method(resolver, &id.name) {
                         let mut value = String::new();
                         for (i, method) in methods.iter().enumerate() {
                             if i > 0 {
@@ -220,13 +239,8 @@ pub fn trainz_hover(
                 }
             }
             Ok(ref eval_res @ EvaluatedType::Array(..))
-            | Ok(ref eval_res @ EvaluatedType::Type(Type::Array(..))) => {
-                let inner_type_str = match eval_res {
-                    EvaluatedType::Array(inner, _, _) => format!("{}", inner),
-                    EvaluatedType::Type(Type::Array(inner, _)) => format!("{}", inner),
-                    _ => unreachable!(),
-                };
-
+            | Ok(ref eval_res @ EvaluatedType::Type(Type::Array(..)))
+            | Ok(ref eval_res @ EvaluatedType::Type(Type::String(..))) => {
                 if id.name == "size" {
                     return Some(Hover {
                         contents: HoverContents::Markup(MarkupContent {
@@ -235,11 +249,21 @@ pub fn trainz_hover(
                         }),
                         range: Some(id.range),
                     });
-                } else if id.name == "copy" {
+                }
+
+                let inner_type_str = match eval_res {
+                    EvaluatedType::Array(inner, _, _) => Some(format!("{}", inner)),
+                    EvaluatedType::Type(Type::Array(inner, _)) => Some(format!("{}", inner)),
+                    _ => None,
+                };
+
+                if id.name == "copy"
+                    && let Some(inner) = inner_type_str
+                {
                     return Some(Hover {
                         contents: HoverContents::Markup(MarkupContent {
                             kind: MarkupKind::Markdown,
-                            value: format!("{}[] copy()", inner_type_str),
+                            value: format!("{}[] copy()", inner),
                         }),
                         range: Some(id.range),
                     });
@@ -268,12 +292,26 @@ fn format_method_hover(method: &trainz_ast::gs::MethodDef) -> String {
     for (modifier, _) in &method.modifiers {
         value.push_str(&format!("{} ", modifier));
     }
-    value.push_str(&format!("{} {}(", method.return_type, method.name.name));
-    for (i, param) in method.params.iter().enumerate() {
-        if i > 0 {
-            value.push_str(", ");
+
+    let class_prefix = if let Some(parent) = &method.parent_class {
+        format!("{}::", parent)
+    } else {
+        "".to_string()
+    };
+
+    value.push_str(&format!(
+        "{} {}{}(",
+        method.return_type, class_prefix, method.name.name
+    ));
+    if method.void_param_range.is_some() {
+        value.push_str("void");
+    } else {
+        for (i, param) in method.params.iter().enumerate() {
+            if i > 0 {
+                value.push_str(", ");
+            }
+            value.push_str(&format!("{} {}", param.ty, param.name.name));
         }
-        value.push_str(&format!("{} {}", param.ty, param.name.name));
     }
     value.push(')');
     value
@@ -408,6 +446,29 @@ mod tests {
     }
 
     #[test]
+    fn test_trainz_hover_string_methods() {
+        let code = "class Test {
+    void Main() {
+        string s = \"test\";
+        s.size();
+    }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'size' in 's.size()'
+        let pos_size = Position {
+            line: 3,
+            character: 12,
+        };
+        let hover_size = trainz_hover(&program, &program, &program, pos_size)
+            .expect("Should find hover for string.size()");
+        if let HoverContents::Markup(markup) = hover_size.contents {
+            assert_eq!(markup.value, "int size()");
+        }
+    }
+
+    #[test]
     fn test_trainz_hover_array_indexing() {
         let code = "class Test {
     void Main() {
@@ -511,7 +572,7 @@ class Test {
         let hover_field = trainz_hover(&program, &program, &program, pos_field)
             .expect("Should find hover for m_queryResult");
         if let HoverContents::Markup(markup) = hover_field.contents {
-            assert_eq!(markup.value, "field: int m_queryResult");
+            assert_eq!(markup.value, "field: int Test::m_queryResult");
         }
 
         // Hover over 'ERROR_INVALID_STATE' in 'GetError'
@@ -522,7 +583,7 @@ class Test {
         let hover_define = trainz_hover(&program, &program, &program, pos_define)
             .expect("Should find hover for ERROR_INVALID_STATE");
         if let HoverContents::Markup(markup) = hover_define.contents {
-            assert_eq!(markup.value, "int ERROR_INVALID_STATE = 2");
+            assert_eq!(markup.value, "int Test::ERROR_INVALID_STATE = 2");
         }
     }
 
@@ -545,7 +606,10 @@ class Test {
         let hover_call = trainz_hover(&program, &program, &program, pos_call)
             .expect("Should find hover for method call");
         if let HoverContents::Markup(markup) = hover_call.contents {
-            assert_eq!(markup.value, "public void CountTags(int pid, string s)");
+            assert_eq!(
+                markup.value,
+                "public void Test::CountTags(int pid, string s)"
+            );
         }
 
         let pos_def = Position {
@@ -555,7 +619,10 @@ class Test {
         let hover_def = trainz_hover(&program, &program, &program, pos_def)
             .expect("Should find hover for method definition");
         if let HoverContents::Markup(markup) = hover_def.contents {
-            assert_eq!(markup.value, "public void CountTags(int pid, string s)");
+            assert_eq!(
+                markup.value,
+                "public void Test::CountTags(int pid, string s)"
+            );
         }
     }
 
@@ -583,7 +650,7 @@ class Test {
         if let HoverContents::Markup(markup) = hover_call.contents {
             assert_eq!(
                 markup.value,
-                "static GameObject GetCurrentThreadGameObject()"
+                "static GameObject Router::GetCurrentThreadGameObject()"
             );
         }
     }
@@ -611,7 +678,7 @@ class Derived isclass Base {
         let hover_method = trainz_hover(&program, &program, &program, pos_method)
             .expect("Should find hover for inherited method");
         if let HoverContents::Markup(markup) = hover_method.contents {
-            assert_eq!(markup.value, "public void BaseMethod(int a)");
+            assert_eq!(markup.value, "public void Base::BaseMethod(int a)");
         }
 
         // Hover over 'baseField' in 'Derived::Main'
@@ -622,7 +689,7 @@ class Derived isclass Base {
         let hover_field = trainz_hover(&program, &program, &program, pos_field)
             .expect("Should find hover for inherited field");
         if let HoverContents::Markup(markup) = hover_field.contents {
-            assert_eq!(markup.value, "field: int baseField");
+            assert_eq!(markup.value, "field: int Base::baseField");
         }
     }
 
@@ -649,7 +716,7 @@ class Test {
         let hover_log2 = trainz_hover(&program, &program, &program, pos_log2)
             .expect("Should find hover for second Log()");
         if let HoverContents::Markup(markup) = hover_log2.contents {
-            assert_eq!(markup.value, "public Logger Log(string msg)");
+            assert_eq!(markup.value, "public Logger Logger::Log(string msg)");
         }
 
         // Hover over 'Count' at the end of the chain
@@ -660,7 +727,7 @@ class Test {
         let hover_count = trainz_hover(&program, &program, &program, pos_count)
             .expect("Should find hover for Count field");
         if let HoverContents::Markup(markup) = hover_count.contents {
-            assert_eq!(markup.value, "field: int Count");
+            assert_eq!(markup.value, "field: int Logger::Count");
         }
     }
 
@@ -872,6 +939,26 @@ class Test {
             .expect("Should find hover for me keyword");
         if let HoverContents::Markup(markup) = hover.contents {
             assert_eq!(markup.value, "class Test");
+        }
+    }
+
+    #[test]
+    fn test_trainz_hover_void_parameter() {
+        let code = "class Test {
+    void FiremanWave(void) { }
+};";
+        let pairs = parse(code).unwrap();
+        let program = process_trainz_ast(pairs, code);
+
+        // Hover over 'FiremanWave'
+        let pos = Position {
+            line: 1,
+            character: 14,
+        };
+        let hover = trainz_hover(&program, &program, &program, pos)
+            .expect("Should find hover for FiremanWave");
+        if let HoverContents::Markup(markup) = hover.contents {
+            assert_eq!(markup.value, "void Test::FiremanWave(void)");
         }
     }
 

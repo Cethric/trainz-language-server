@@ -25,7 +25,7 @@ pub struct ClassDef {
 impl ClassDef {
     pub fn find_field<'a>(
         &'a self,
-        _program: &'a Program,
+        program: &'a Program,
         resolver: &'a dyn crate::gs::type_eval::ClassResolver,
         name: &str,
     ) -> Option<FieldDef> {
@@ -34,7 +34,7 @@ impl ClassDef {
         }
         for super_id in &self.superclasses {
             if let Some(super_class) = resolver.find_class(&super_id.name)
-                && let Some(field) = super_class.find_field(_program, resolver, name)
+                && let Some(field) = super_class.find_field(program, resolver, name)
             {
                 return Some(field);
             }
@@ -44,7 +44,6 @@ impl ClassDef {
 
     pub fn find_method<'a>(
         &'a self,
-        _program: &'a Program,
         resolver: &'a dyn crate::gs::type_eval::ClassResolver,
         name: &str,
     ) -> Option<Vec<MethodDef>> {
@@ -54,7 +53,7 @@ impl ClassDef {
         }
         for super_id in &self.superclasses {
             if let Some(super_class) = resolver.find_class(&super_id.name)
-                && let Some(methods) = super_class.find_method(_program, resolver, name)
+                && let Some(methods) = super_class.find_method(resolver, name)
             {
                 all_methods.extend(methods);
             }
@@ -69,10 +68,10 @@ impl ClassDef {
     pub fn is_subclass_of(
         &self,
         other_name: &str,
-        _program: &Program,
+        program: &Program,
         resolver: &dyn crate::gs::type_eval::ClassResolver,
     ) -> bool {
-        if self.name.name == other_name {
+        if self.name.name == other_name || other_name == "object" {
             return true;
         }
         for super_id in &self.superclasses {
@@ -80,7 +79,7 @@ impl ClassDef {
                 return true;
             }
             if let Some(super_class) = resolver.find_class(&super_id.name)
-                && super_class.is_subclass_of(other_name, _program, resolver)
+                && super_class.is_subclass_of(other_name, program, resolver)
             {
                 return true;
             }
@@ -124,6 +123,7 @@ impl Display for ClassModifier {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FieldDef {
+    pub parent_class: Option<String>,
     pub modifiers: Vec<(FieldModifier, crate::Range)>,
     pub ty: Type,
     pub name: Identifier,
@@ -164,10 +164,12 @@ impl Display for FieldModifier {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MethodDef {
+    pub parent_class: Option<String>,
     pub modifiers: Vec<(MethodModifier, crate::Range)>,
     pub return_type: TypeOrVoid,
     pub name: Identifier,
     pub params: Vec<Param>,
+    pub void_param_range: Option<crate::Range>,
     pub body: Option<Block>,
     pub scope_id: usize,
     pub range: crate::Range,

@@ -18,7 +18,7 @@
           "*.txt"
         ]
       },
-      "languageId": "soup"
+      "languageId": "acs_text"
     }
   ]
 }

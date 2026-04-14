@@ -22,10 +22,10 @@ suite('Extension Test Suite', () => {
         assert.strictEqual(doc.languageId, 'game-script');
     });
 
-    test('Should identify Soup files', async () => {
+    test('Should identify AcsText files', async () => {
         const uri = vscode.Uri.file(path.join(vscode.workspace.rootPath || '', 'test.txt'));
         const doc = await vscode.workspace.openTextDocument(uri.with({scheme: 'untitled'}));
-        assert.strictEqual(doc.languageId, 'soup');
+        assert.strictEqual(doc.languageId, 'acs_text');
     });
 
     test('Should provide folding ranges for GS', async function () {
@@ -90,7 +90,7 @@ suite('Extension Test Suite', () => {
         assert.strictEqual(tokens.data.length % 5, 0, 'Tokens data length should be multiple of 5');
     });
 
-    test('Should provide semantic tokens for Soup', async function () {
+    test('Should provide semantic tokens for AcsText', async function () {
         this.timeout(60000);
 
         const content = `kind "train"\nkuid <kuid:1234:5678>\nusername "Sample Train"\ndescription "A sample train for testing"\n\nextensions {\n    author "Junie"\n    version 1.0\n}\n\nmesh-table {\n    default {\n        mesh "body.lm"\n        auto-create 1\n    }\n}`;
@@ -108,14 +108,14 @@ suite('Extension Test Suite', () => {
             'vscode.provideDocumentSemanticTokens',
             doc.uri
         );
-        console.log(`Semantic tokens for Soup: ${tokens ? JSON.stringify(tokens).substring(0, 100) : 'undefined'}`);
+        console.log(`Semantic tokens for AcsText: ${tokens ? JSON.stringify(tokens).substring(0, 100) : 'undefined'}`);
 
         // Clean up
         if (fs.existsSync(uri.fsPath)) {
             fs.unlinkSync(uri.fsPath);
         }
 
-        assert.ok(tokens && tokens.data && tokens.data.length > 0, 'Should have semantic tokens for Soup');
+        assert.ok(tokens && tokens.data && tokens.data.length > 0, 'Should have semantic tokens for AcsText');
         assert.strictEqual(tokens.data.length % 5, 0, 'Tokens data length should be multiple of 5');
     });
 });

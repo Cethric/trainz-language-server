@@ -78,50 +78,81 @@ pub fn trainz_diagnostics(
     );
 
     // Check classes and methods
-    for class in program.classes.values() {
-        let mut class_array_sizes = HashMap::new();
-        for field in class.fields.values() {
-            if let Some(init) = &field.initializer {
-                if let Ok(type_eval::EvaluatedType::Array(_, Some(size), _)) =
-                    type_eval::evaluate_expr_type(
+    let class_diagnostics: Vec<Diagnostic> = program
+        .classes
+        .par_iter()
+        .flat_map(|(_, class)| {
+            let mut local_diagnostics = Vec::new();
+            let mut class_array_sizes = HashMap::new();
+            for field in class.fields.values() {
+                if let Some(init) = &field.initializer {
+                    if let Ok(type_eval::EvaluatedType::Array(_, Some(size), _)) =
+                        type_eval::evaluate_expr_type(
+                            init,
+                            program,
+                            resolver,
+                            init.range().start,
+                            Some(class),
+                            &HashMap::new(),
+                        )
+                    {
+                        class_array_sizes.insert(field.name.name.clone(), size);
+                    }
+                    check_expr(
                         init,
                         program,
                         resolver,
-                        init.range().start,
                         Some(class),
-                        &HashMap::new(),
-                    )
-                {
-                    class_array_sizes.insert(field.name.name.clone(), size);
-                }
-                check_expr(
-                    init,
-                    program,
-                    resolver,
-                    Some(class),
-                    &mut diagnostics,
-                    &class_array_sizes,
-                );
-            }
-        }
-        for methods in class.methods.values() {
-            for method in methods {
-                if let Some(body) = &method.body {
-                    check_block(
-                        body,
-                        program,
-                        resolver,
-                        Some(class),
-                        &mut diagnostics,
-                        class_array_sizes.clone(),
-                        Some(&method.return_type),
+                        &mut local_diagnostics,
+                        &class_array_sizes,
                     );
                 }
             }
+            for methods in class.methods.values() {
+                for method in methods {
+                    if let Some(body) = &method.body {
+                        check_block(
+                            body,
+                            program,
+                            resolver,
+                            Some(class),
+                            &mut local_diagnostics,
+                            class_array_sizes.clone(),
+                            Some(&method.return_type),
+                        );
+                    }
+                }
+            }
+            local_diagnostics
+        })
+        .collect();
+    diagnostics.extend(class_diagnostics);
+
+    diagnostics
+}
+
+fn is_method_compatible(
+    method: &MethodDef,
+    args: &[Expr],
+    arg_types: &[Option<trainz_ast::gs::Type>],
+    program: &Program,
+    resolver: &dyn type_eval::ClassResolver,
+) -> bool {
+    if method.params.len() != args.len() {
+        return false;
+    }
+
+    for (param, arg_ty) in method.params.iter().zip(arg_types.iter()) {
+        if let Some(actual_ty) = arg_ty {
+            if !type_eval::is_type_compatible(&param.ty, actual_ty, program, resolver) {
+                return false;
+            }
+        } else {
+            return false;
         }
     }
 
-    diagnostics
+    true
 }
 
 fn check_block(
@@ -175,17 +206,28 @@ fn check_stmt(
 
                 if let Ok(eval_ty) = val_ty
                     && let Some(actual_ty) = eval_ty.to_type()
-                    && !type_eval::is_type_compatible(&decl.ty, &actual_ty, program, resolver)
                 {
-                    diagnostics.push(Diagnostic {
-                        range: val.range(),
-                        severity: Some(DiagnosticSeverity::ERROR),
-                        message: format!(
-                            "Assignment type mismatch: cannot assign '{}' to '{}'",
-                            actual_ty, decl.ty
-                        ),
-                        ..Default::default()
-                    });
+                    if !type_eval::is_type_compatible(&decl.ty, &actual_ty, program, resolver) {
+                        diagnostics.push(Diagnostic {
+                            range: val.range(),
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            message: format!(
+                                "Assignment type mismatch: cannot assign '{}' to '{}'",
+                                actual_ty, decl.ty
+                            ),
+                            ..Default::default()
+                        });
+                    } else if matches!(decl.ty, trainz_ast::gs::types::Type::Int(_))
+                        && matches!(actual_ty, trainz_ast::gs::types::Type::Float(_))
+                    {
+                        diagnostics.push(Diagnostic {
+                            range: val.range(),
+                            severity: Some(DiagnosticSeverity::WARNING),
+                            message: "Implicit cast from 'float' to 'int' may lose precision"
+                                .to_string(),
+                            ..Default::default()
+                        });
+                    }
                 }
             }
         }
@@ -205,17 +247,29 @@ fn check_stmt(
                             class,
                             array_sizes,
                         ) && let Some(actual_ty) = eval_ty.to_type()
-                            && !type_eval::is_type_compatible(t, &actual_ty, program, resolver)
                         {
-                            diagnostics.push(Diagnostic {
-                                range: e.range(),
-                                severity: Some(DiagnosticSeverity::ERROR),
-                                message: format!(
-                                    "Return type mismatch: expected '{}', got '{}'",
-                                    t, actual_ty
-                                ),
-                                ..Default::default()
-                            });
+                            if !type_eval::is_type_compatible(t, &actual_ty, program, resolver) {
+                                diagnostics.push(Diagnostic {
+                                    range: e.range(),
+                                    severity: Some(DiagnosticSeverity::ERROR),
+                                    message: format!(
+                                        "Return type mismatch: expected '{}', got '{}'",
+                                        t, actual_ty
+                                    ),
+                                    ..Default::default()
+                                });
+                            } else if matches!(t, trainz_ast::gs::types::Type::Int(_))
+                                && matches!(actual_ty, trainz_ast::gs::types::Type::Float(_))
+                            {
+                                diagnostics.push(Diagnostic {
+                                    range: e.range(),
+                                    severity: Some(DiagnosticSeverity::WARNING),
+                                    message:
+                                        "Implicit cast from 'float' to 'int' may lose precision"
+                                            .to_string(),
+                                    ..Default::default()
+                                });
+                            }
                         }
                     }
                     (None, TypeOrVoid::Type(t)) => {
@@ -240,7 +294,7 @@ fn check_stmt(
             }
         }
         Stmt::If(if_stmt) => {
-            check_expr(
+            check_condition(
                 &if_stmt.cond,
                 program,
                 resolver,
@@ -270,7 +324,7 @@ fn check_stmt(
             }
         }
         Stmt::While(while_stmt) => {
-            check_expr(
+            check_condition(
                 &while_stmt.cond,
                 program,
                 resolver,
@@ -323,7 +377,7 @@ fn check_stmt(
             }
 
             // For loop might update sizes, but usually not in init/cond/step
-            check_expr(
+            check_condition(
                 &for_stmt.cond,
                 program,
                 resolver,
@@ -457,17 +511,28 @@ fn check_expr(
 
             if let (Ok(l_eval), Ok(r_eval)) = (left_ty, right_ty)
                 && let (Some(l_ty), Some(r_ty)) = (l_eval.to_type(), r_eval.to_type())
-                && !type_eval::is_type_compatible(&l_ty, &r_ty, program, resolver)
             {
-                diagnostics.push(Diagnostic {
-                    range: right.range(),
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    message: format!(
-                        "Assignment type mismatch: cannot assign '{}' to '{}'",
-                        r_ty, l_ty
-                    ),
-                    ..Default::default()
-                });
+                if !type_eval::is_type_compatible(&l_ty, &r_ty, program, resolver) {
+                    diagnostics.push(Diagnostic {
+                        range: right.range(),
+                        severity: Some(DiagnosticSeverity::ERROR),
+                        message: format!(
+                            "Assignment type mismatch: cannot assign '{}' to '{}'",
+                            r_ty, l_ty
+                        ),
+                        ..Default::default()
+                    });
+                } else if matches!(l_ty, trainz_ast::gs::types::Type::Int(_))
+                    && matches!(r_ty, trainz_ast::gs::types::Type::Float(_))
+                {
+                    diagnostics.push(Diagnostic {
+                        range: right.range(),
+                        severity: Some(DiagnosticSeverity::WARNING),
+                        message: "Implicit cast from 'float' to 'int' may lose precision"
+                            .to_string(),
+                        ..Default::default()
+                    });
+                }
             }
         }
         Expr::BinaryMath { left, right, .. } => {
@@ -490,12 +555,81 @@ fn check_expr(
             check_expr(left, program, resolver, class, diagnostics, array_sizes);
             check_expr(right, program, resolver, class, diagnostics, array_sizes);
         }
-        Expr::Bitwise { left, right, .. } => {
+        Expr::Bitwise {
+            left, right, op, ..
+        } => {
             check_expr(left, program, resolver, class, diagnostics, array_sizes);
             check_expr(right, program, resolver, class, diagnostics, array_sizes);
+
+            let left_ty =
+                type_eval::evaluate_expr_type(left, program, resolver, pos, class, array_sizes);
+            let right_ty =
+                type_eval::evaluate_expr_type(right, program, resolver, pos, class, array_sizes);
+
+            let op_name = match op {
+                trainz_ast::gs::BitwiseOp::Shl | trainz_ast::gs::BitwiseOp::Shr => "Bit shift",
+                _ => "Bitwise",
+            };
+
+            if let (Ok(l_eval), Ok(r_eval)) = (left_ty, right_ty) {
+                if let Some(l_ty) = l_eval.to_type() {
+                    if !matches!(l_ty, trainz_ast::gs::types::Type::Int(_)) {
+                        diagnostics.push(Diagnostic {
+                            range: left.range(),
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            message: format!(
+                                "{} operator requires 'int' operand, got '{}'",
+                                op_name, l_ty
+                            ),
+                            ..Default::default()
+                        });
+                    }
+                }
+                if let Some(r_ty) = r_eval.to_type() {
+                    if !matches!(r_ty, trainz_ast::gs::types::Type::Int(_)) {
+                        diagnostics.push(Diagnostic {
+                            range: right.range(),
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            message: format!(
+                                "{} operator requires 'int' operand, got '{}'",
+                                op_name, r_ty
+                            ),
+                            ..Default::default()
+                        });
+                    }
+                }
+            }
         }
-        Expr::Unary { expr, .. } => {
-            check_expr(expr, program, resolver, class, diagnostics, array_sizes);
+        Expr::Unary {
+            expr: sub_expr, op, ..
+        } => {
+            check_expr(sub_expr, program, resolver, class, diagnostics, array_sizes);
+
+            if matches!(op, trainz_ast::gs::UnaryPrefixOp::Inverse) {
+                let ty = type_eval::evaluate_expr_type(
+                    sub_expr,
+                    program,
+                    resolver,
+                    pos,
+                    class,
+                    array_sizes,
+                );
+                if let Ok(eval) = ty
+                    && let Some(t) = eval.to_type()
+                {
+                    if !matches!(t, trainz_ast::gs::types::Type::Int(_)) {
+                        diagnostics.push(Diagnostic {
+                            range: sub_expr.range(),
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            message: format!(
+                                "Bitwise NOT operator requires 'int' operand, got '{}'",
+                                t
+                            ),
+                            ..Default::default()
+                        });
+                    }
+                }
+            }
         }
         Expr::Postfix {
             expr: sub_expr,
@@ -530,66 +664,174 @@ fn check_expr(
                                 );
                             }
 
-                            let mut perfect_match = false;
-                            for method in methods {
-                                if method.params.len() == args.len() {
-                                    let mut mismatch = false;
-                                    for (param, arg_ty) in
-                                        method.params.iter().zip(arg_types.iter())
-                                    {
-                                        if let Some(actual_ty) = arg_ty {
-                                            if !type_eval::is_type_compatible(
-                                                &param.ty, actual_ty, program, resolver,
-                                            ) {
-                                                mismatch = true;
-                                                break;
-                                            }
-                                        } else {
-                                            mismatch = true;
+                            let is_inherited = if let Expr::Identifier(id) = &**sub_expr {
+                                id.name == "inherited"
+                            } else {
+                                false
+                            };
+
+                            if is_inherited {
+                                let mut methods_by_class: HashMap<Option<String>, Vec<&MethodDef>> =
+                                    HashMap::new();
+                                for method in methods {
+                                    methods_by_class
+                                        .entry(method.parent_class.clone())
+                                        .or_default()
+                                        .push(method);
+                                }
+
+                                for (class_name, class_methods) in methods_by_class {
+                                    let mut match_found = false;
+                                    let mut perfect_match_method = None;
+                                    for method in &class_methods {
+                                        if is_method_compatible(
+                                            method, args, &arg_types, program, resolver,
+                                        ) {
+                                            match_found = true;
+                                            perfect_match_method = Some(method);
                                             break;
                                         }
                                     }
-                                    if !mismatch {
-                                        perfect_match = true;
+
+                                    if !match_found {
+                                        if let Some(best) = find_best_overload(
+                                            &class_methods
+                                                .iter()
+                                                .map(|m| (*m).clone())
+                                                .collect::<Vec<_>>(),
+                                            args,
+                                            &arg_types,
+                                            program,
+                                            resolver,
+                                        ) {
+                                            let suggestion = format!(
+                                                "{}({})",
+                                                best.name.name,
+                                                best.params
+                                                    .iter()
+                                                    .map(|p| p.ty.to_string())
+                                                    .collect::<Vec<_>>()
+                                                    .join(", ")
+                                            );
+
+                                            diagnostics.push(Diagnostic {
+                                                range: *op_range,
+                                                severity: Some(DiagnosticSeverity::WARNING),
+                                                message: format!(
+                                                    "Arguments not compatible with 'inherited' method in class '{}'. Closest match: {}",
+                                                    class_name.unwrap_or_else(|| "unknown".to_string()),
+                                                    suggestion
+                                                ),
+                                                ..Default::default()
+                                            });
+                                        } else {
+                                            diagnostics.push(Diagnostic {
+                                                range: *op_range,
+                                                severity: Some(DiagnosticSeverity::WARNING),
+                                                message: format!(
+                                                    "Arguments not compatible with 'inherited' method in class '{}'",
+                                                    class_name.unwrap_or_else(|| "unknown".to_string())
+                                                ),
+                                                ..Default::default()
+                                            });
+                                        }
+                                    } else if let Some(method) = perfect_match_method {
+                                        // Check for risky casts in arguments
+                                        for ((param, arg), arg_ty) in method
+                                            .params
+                                            .iter()
+                                            .zip(args.iter())
+                                            .zip(arg_types.iter())
+                                        {
+                                            if let Some(actual_ty) = arg_ty {
+                                                if matches!(
+                                                    param.ty,
+                                                    trainz_ast::gs::types::Type::Int(_)
+                                                ) && matches!(
+                                                    actual_ty,
+                                                    trainz_ast::gs::types::Type::Float(_)
+                                                ) {
+                                                    diagnostics.push(Diagnostic {
+                                                        range: arg.range(),
+                                                        severity: Some(DiagnosticSeverity::WARNING),
+                                                        message: "Implicit cast from 'float' to 'int' may lose precision"
+                                                            .to_string(),
+                                                        ..Default::default()
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                let mut perfect_match_method = None;
+                                for method in methods {
+                                    if is_method_compatible(
+                                        method, args, &arg_types, program, resolver,
+                                    ) {
+                                        perfect_match_method = Some(method);
                                         break;
                                     }
                                 }
-                            }
 
-                            if !perfect_match {
-                                if let Some(best) =
-                                    find_best_overload(methods, args, &arg_types, program, resolver)
-                                {
-                                    let suggestion = format!(
-                                        "{}({})",
-                                        best.name.name,
-                                        best.params
-                                            .iter()
-                                            .map(|p| p.ty.to_string())
-                                            .collect::<Vec<_>>()
-                                            .join(", ")
-                                    );
+                                if let Some(method) = perfect_match_method {
+                                    // Check for risky casts in arguments
+                                    for ((param, arg), arg_ty) in
+                                        method.params.iter().zip(args.iter()).zip(arg_types.iter())
+                                    {
+                                        if let Some(actual_ty) = arg_ty {
+                                            if matches!(
+                                                param.ty,
+                                                trainz_ast::gs::types::Type::Int(_)
+                                            ) && matches!(
+                                                actual_ty,
+                                                trainz_ast::gs::types::Type::Float(_)
+                                            ) {
+                                                diagnostics.push(Diagnostic {
+                                                    range: arg.range(),
+                                                    severity: Some(DiagnosticSeverity::WARNING),
+                                                    message: "Implicit cast from 'float' to 'int' may lose precision"
+                                                        .to_string(),
+                                                    ..Default::default()
+                                                });
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    if let Some(best) = find_best_overload(
+                                        methods, args, &arg_types, program, resolver,
+                                    ) {
+                                        let suggestion = format!(
+                                            "{}({})",
+                                            best.name.name,
+                                            best.params
+                                                .iter()
+                                                .map(|p| p.ty.to_string())
+                                                .collect::<Vec<_>>()
+                                                .join(", ")
+                                        );
 
-                                    diagnostics.push(Diagnostic {
-                                        range: *op_range,
-                                        severity: Some(DiagnosticSeverity::WARNING),
-                                        message: format!(
+                                        diagnostics.push(Diagnostic {
+                                            range: *op_range,
+                                            severity: Some(DiagnosticSeverity::WARNING),
+                                            message: format!(
                                             "No matching overload of method takes {} arguments with these types. Closest match: {}",
                                             args.len(),
                                             suggestion
                                         ),
-                                        ..Default::default()
-                                    });
-                                } else {
-                                    diagnostics.push(Diagnostic {
-                                        range: *op_range,
-                                        severity: Some(DiagnosticSeverity::ERROR),
-                                        message: format!(
-                                            "No overload of method takes {} arguments",
-                                            args.len()
-                                        ),
-                                        ..Default::default()
-                                    });
+                                            ..Default::default()
+                                        });
+                                    } else {
+                                        diagnostics.push(Diagnostic {
+                                            range: *op_range,
+                                            severity: Some(DiagnosticSeverity::ERROR),
+                                            message: format!(
+                                                "No overload of method takes {} arguments",
+                                                args.len()
+                                            ),
+                                            ..Default::default()
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -635,6 +877,40 @@ fn check_expr(
             check_expr(expr, program, resolver, class, diagnostics, array_sizes);
         }
         _ => {}
+    }
+}
+
+fn check_condition(
+    expr: &Expr,
+    program: &Program,
+    resolver: &dyn type_eval::ClassResolver,
+    class: Option<&ClassDef>,
+    diagnostics: &mut Vec<Diagnostic>,
+    array_sizes: &HashMap<String, usize>,
+) {
+    check_expr(expr, program, resolver, class, diagnostics, array_sizes);
+
+    if let Ok(eval_ty) = type_eval::evaluate_expr_type(
+        expr,
+        program,
+        resolver,
+        expr.range().start,
+        class,
+        array_sizes,
+    ) && let Some(actual_ty) = eval_ty.to_type()
+    {
+        let expected_ty = trainz_ast::gs::types::Type::Bool(expr.range());
+        if !type_eval::is_type_compatible(&expected_ty, &actual_ty, program, resolver) {
+            diagnostics.push(Diagnostic {
+                range: expr.range(),
+                severity: Some(DiagnosticSeverity::ERROR),
+                message: format!(
+                    "Condition type mismatch: expected 'bool', got '{}'",
+                    actual_ty
+                ),
+                ..Default::default()
+            });
+        }
     }
 }
 

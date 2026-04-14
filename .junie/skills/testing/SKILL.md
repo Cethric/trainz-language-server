@@ -15,7 +15,7 @@ Use this skill when developing, running, or verifying tests within the `trainz-l
 ## Guidelines
 - **Unit Testing**: Place unit tests in the same file as the code they test within a `#[cfg(test)]` module.
 - **Integration Testing**: Use the `tests/` directory at the project root for integration tests involving multiple crates.
-- **Parser Testing**: Use `crates/parser` to test GS and Soup grammar parsing using `pest`.
+- **Parser Testing**: Use `crates/parser` to test GS and AcsText grammar parsing using `pest`.
 - **LSP Testing**: Verify LSP server behavior in `crates/lsp` using appropriate mock clients or existing test harnesses.
 - **Workspace Verification**: Ensure `cargo check` and `cargo clippy` pass for all crates.
 

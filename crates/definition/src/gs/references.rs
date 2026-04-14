@@ -101,65 +101,67 @@ fn find_include_references(
 
 #[tracing::instrument]
 fn find_references_in_program(program: &Program, target: &str, uri: &Uri) -> Vec<Location> {
-    let mut locations = vec![];
-
-    for cls in program.classes.values() {
-        if cls.name.name == target {
-            locations.push(Location {
-                uri: uri.clone(),
-                range: cls.name.range,
-            });
-        }
-        for sup in &cls.superclasses {
-            if sup.name == target {
+    program
+        .classes
+        .par_iter()
+        .flat_map(|(_, cls)| {
+            let mut locations = vec![];
+            if cls.name.name == target {
                 locations.push(Location {
                     uri: uri.clone(),
-                    range: sup.range,
+                    range: cls.name.range,
                 });
             }
-        }
-        for field in cls.fields.values() {
-            locations.extend(find_references_in_type(&field.ty, target, uri));
-            if field.name.name == target {
-                locations.push(Location {
-                    uri: uri.clone(),
-                    range: field.name.range,
-                });
-            }
-            if let Some(init) = &field.initializer {
-                locations.extend(find_references_in_expr(init, target, uri));
-            }
-        }
-        for ms in cls.methods.values() {
-            for method in ms {
-                locations.extend(find_references_in_type_or_void(
-                    &method.return_type,
-                    target,
-                    uri,
-                ));
-                if method.name.name == target {
+            for sup in &cls.superclasses {
+                if sup.name == target {
                     locations.push(Location {
                         uri: uri.clone(),
-                        range: method.name.range,
+                        range: sup.range,
                     });
                 }
-                for param in &method.params {
-                    locations.extend(find_references_in_type(&param.ty, target, uri));
-                    if param.name.name == target {
-                        locations.push(Location {
-                            uri: uri.clone(),
-                            range: param.name.range,
-                        });
-                    }
+            }
+            for field in cls.fields.values() {
+                locations.extend(find_references_in_type(&field.ty, target, uri));
+                if field.name.name == target {
+                    locations.push(Location {
+                        uri: uri.clone(),
+                        range: field.name.range,
+                    });
                 }
-                if let Some(body) = &method.body {
-                    locations.extend(find_references_in_block(body, target, uri));
+                if let Some(init) = &field.initializer {
+                    locations.extend(find_references_in_expr(init, target, uri));
                 }
             }
-        }
-    }
-
-    locations
+            for ms in cls.methods.values() {
+                for method in ms {
+                    locations.extend(find_references_in_type_or_void(
+                        &method.return_type,
+                        target,
+                        uri,
+                    ));
+                    if method.name.name == target {
+                        locations.push(Location {
+                            uri: uri.clone(),
+                            range: method.name.range,
+                        });
+                    }
+                    for param in &method.params {
+                        locations.extend(find_references_in_type(&param.ty, target, uri));
+                        if param.name.name == target {
+                            locations.push(Location {
+                                uri: uri.clone(),
+                                range: param.name.range,
+                            });
+                        }
+                    }
+                    if let Some(body) = &method.body {
+                        locations.extend(find_references_in_block(body, target, uri));
+                    }
+                }
+            }
+            locations
+        })
+        .collect()
 }
 
 #[tracing::instrument]

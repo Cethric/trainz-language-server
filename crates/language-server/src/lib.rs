@@ -1,3 +1,4 @@
+pub mod project;
 pub mod server;
 #[cfg(test)]
 mod tests;

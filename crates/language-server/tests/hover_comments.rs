@@ -54,7 +54,7 @@ async fn test_hover_same_line_comment() {
     if let Some(hover) = result {
         if let HoverContents::Markup(markup) = hover.contents {
             assert!(
-                markup.value.contains("int ERROR_INVALID_STATE = 2"),
+                markup.value.contains("int Test::ERROR_INVALID_STATE = 2"),
                 "Hover should contain declaration. Got: {}",
                 markup.value
             );
@@ -234,7 +234,7 @@ async fn test_hover_method_comment() {
     if let Some(hover) = result
         && let HoverContents::Markup(markup) = hover.contents
     {
-        assert!(markup.value.contains("void Run()"));
+        assert!(markup.value.contains("void Test::Run()"));
         assert!(markup.value.contains("starts execution"));
     }
 
@@ -290,7 +290,7 @@ async fn test_hover_block_comment_same_line() {
     if let Some(hover) = result
         && let HoverContents::Markup(markup) = hover.contents
     {
-        assert!(markup.value.contains("int m_val"));
+        assert!(markup.value.contains("int Test::m_val"));
         assert!(markup.value.contains("internal value"));
     }
 
@@ -701,13 +701,13 @@ class Test {
                 "Hover should contain documentation"
             );
             assert!(
-                markup.value.contains("public void MyMethod()"),
+                markup.value.contains("public void Test::MyMethod()"),
                 "Hover should contain signature"
             );
 
             // Check if documentation is BEFORE the signature
             let doc_pos = markup.value.find("This is the documentation").unwrap();
-            let sig_pos = markup.value.find("public void MyMethod()").unwrap();
+            let sig_pos = markup.value.find("public void Test::MyMethod()").unwrap();
 
             assert!(
                 doc_pos < sig_pos,

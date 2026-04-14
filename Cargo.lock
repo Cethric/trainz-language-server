@@ -2020,6 +2020,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "trainz-acs-text-validators"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "rayon",
+ "shadow-rs",
+ "tracing",
+ "trainz-ast",
+ "trainz-parser",
+]
+
+[[package]]
 name = "trainz-ast"
 version = "0.1.0"
 dependencies = [
@@ -2059,10 +2071,10 @@ dependencies = [
  "shadow-rs",
  "tower-lsp-server",
  "tracing",
+ "trainz-acs-text-validators",
  "trainz-ast",
  "trainz-common",
  "trainz-parser",
- "trainz-soup-validators",
 ]
 
 [[package]]
@@ -2077,9 +2089,9 @@ dependencies = [
  "tempfile",
  "tower-lsp-server",
  "tracing",
+ "trainz-acs-text-validators",
  "trainz-ast",
  "trainz-parser",
- "trainz-soup-validators",
 ]
 
 [[package]]
@@ -2091,9 +2103,9 @@ dependencies = [
  "shadow-rs",
  "tower-lsp-server",
  "tracing",
+ "trainz-acs-text-validators",
  "trainz-ast",
  "trainz-parser",
- "trainz-soup-validators",
 ]
 
 [[package]]
@@ -2143,10 +2155,10 @@ dependencies = [
  "tempfile",
  "tower-lsp-server",
  "tracing",
+ "trainz-acs-text-validators",
  "trainz-ast",
  "trainz-common",
  "trainz-parser",
- "trainz-soup-validators",
 ]
 
 [[package]]
@@ -2165,6 +2177,7 @@ dependencies = [
  "tokio",
  "tower-lsp-server",
  "tracing",
+ "trainz-acs-text-validators",
  "trainz-ast",
  "trainz-common",
  "trainz-completions",
@@ -2174,8 +2187,8 @@ dependencies = [
  "trainz-hover",
  "trainz-parser",
  "trainz-semantic-tokens",
- "trainz-soup-validators",
  "trainz-symboliser",
+ "walkdir",
 ]
 
 [[package]]
@@ -2199,19 +2212,7 @@ dependencies = [
  "shadow-rs",
  "tower-lsp-server",
  "tracing",
- "trainz-ast",
- "trainz-parser",
- "trainz-soup-validators",
-]
-
-[[package]]
-name = "trainz-soup-validators"
-version = "0.1.0"
-dependencies = [
- "log",
- "rayon",
- "shadow-rs",
- "tracing",
+ "trainz-acs-text-validators",
  "trainz-ast",
  "trainz-parser",
 ]
@@ -2226,10 +2227,10 @@ dependencies = [
  "shadow-rs",
  "tower-lsp-server",
  "tracing",
+ "trainz-acs-text-validators",
  "trainz-ast",
  "trainz-common",
  "trainz-parser",
- "trainz-soup-validators",
 ]
 
 [[package]]

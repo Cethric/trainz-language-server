@@ -1,20 +1,92 @@
 use dashmap::{DashMap, DashSet};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::Semaphore;
 use tower_lsp_server::Client;
-use tower_lsp_server::ls_types::{Diagnostic, DocumentSymbol, FoldingRange, SemanticToken};
+use tower_lsp_server::ls_types::{
+    CodeAction, CodeActionKind, CodeActionOrCommand, Diagnostic, DocumentSymbol, FoldingRange,
+    SemanticToken, TextEdit, Uri, WorkspaceEdit,
+};
 use tracing::{info, trace};
+use trainz_acs_text_validators::Validators;
+use trainz_ast::acs_text::{AcsText, Kuid};
 use trainz_ast::cache::AstCache;
 use trainz_ast::gs::Program;
-use trainz_ast::soup::Soup;
-use trainz_soup_validators::Validators;
+
+#[derive(Debug, Clone)]
+pub struct Project {
+    pub root: PathBuf,
+    pub config_txt: PathBuf,
+    pub script_files: DashSet<PathBuf>,
+    pub assets: DashSet<PathBuf>,
+}
 
 #[derive(Debug, Clone)]
 pub enum ParsedFileType {
-    Soup(Arc<Soup>),
+    AcsText(Arc<AcsText>),
     GameScript(Arc<Program>),
+}
+
+pub struct RecursiveIncludeResolver<'a> {
+    pub current_program: &'a Program,
+    pub parsed_files: &'a DashMap<String, ParsedFile>,
+}
+
+impl<'a> trainz_ast::gs::type_eval::ClassResolver for RecursiveIncludeResolver<'a> {
+    fn find_class(&self, name: &str) -> Option<trainz_ast::gs::ClassDef> {
+        let mut visited = HashSet::new();
+        self.find_recursive(self.current_program, name, &mut visited)
+    }
+}
+
+impl<'a> trainz_ast::gs::dependency_graph::ProgramResolver for RecursiveIncludeResolver<'a> {
+    fn resolve_program(&self, path: &str) -> Option<Arc<trainz_ast::gs::Program>> {
+        if let Some(file) = self.parsed_files.get(path)
+            && let ParsedFileType::GameScript(program) = &file.value().parsed
+        {
+            return Some(program.clone());
+        }
+        None
+    }
+}
+
+impl<'a> RecursiveIncludeResolver<'a> {
+    fn find_recursive(
+        &self,
+        program: &trainz_ast::gs::Program,
+        name: &str,
+        visited: &mut HashSet<String>,
+    ) -> Option<trainz_ast::gs::ClassDef> {
+        if let Some(cls) = program.classes.get(name) {
+            return Some(cls.clone());
+        }
+
+        for include in &program.includes {
+            if let Some(path) = &include.path {
+                let path_str = path.to_string_lossy().to_string();
+                if !visited.insert(path_str.clone()) {
+                    continue;
+                }
+
+                let included_program = self.parsed_files.get(&path_str).and_then(|file| {
+                    if let ParsedFileType::GameScript(included_program) = &file.value().parsed {
+                        Some(included_program.clone())
+                    } else {
+                        None
+                    }
+                });
+
+                if let Some(included_program) = included_program
+                    && let Some(cls) = self.find_recursive(&included_program, name, visited)
+                {
+                    return Some(cls);
+                }
+            }
+        }
+        None
+    }
 }
 
 #[derive(Debug)]
@@ -51,6 +123,7 @@ pub struct GameScriptLanguageServer {
     pub currently_processing: DashSet<String>,
     pub ast_cache: AstCache,
     pub workspace_folders: DashSet<PathBuf>,
+    pub projects: DashMap<PathBuf, Arc<Project>>,
     pub version: String,
     pub processing_semaphore: Semaphore,
 }
@@ -77,6 +150,7 @@ impl GameScriptLanguageServer {
             currently_processing: DashSet::new(),
             ast_cache: AstCache::new(),
             workspace_folders: DashSet::new(),
+            projects: DashMap::new(),
             version: String::from(version),
             processing_semaphore: Semaphore::new(num_cpus::get()),
         }
@@ -118,5 +192,39 @@ impl GameScriptLanguageServer {
             .iter()
             .map(|folder| folder.clone())
             .collect::<Vec<PathBuf>>()
+    }
+
+    pub fn create_kuid_version_action(
+        &self,
+        title: String,
+        acs_text: &AcsText,
+        target: &Kuid,
+        new_kuid: Kuid,
+        uri: &Uri,
+    ) -> CodeActionOrCommand {
+        let mut changes = std::collections::HashMap::new();
+        let mut edits = vec![];
+
+        let all_kuids = acs_text.find_all_kuids();
+        for k in all_kuids {
+            if k.user_id == target.user_id && k.content_id == target.content_id {
+                edits.push(TextEdit {
+                    range: k.range,
+                    new_text: new_kuid.to_string(),
+                });
+            }
+        }
+
+        changes.insert(uri.clone(), edits);
+
+        CodeActionOrCommand::CodeAction(CodeAction {
+            title,
+            kind: Some(CodeActionKind::REFACTOR_REWRITE),
+            edit: Some(WorkspaceEdit {
+                changes: Some(changes),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
     }
 }

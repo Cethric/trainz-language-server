@@ -217,7 +217,7 @@ class Test {
     void Main() {
         int i = "not an int";
         string s = 1.0;
-        bool b = 0;
+        Test t = 1;
     }
 };
 "#;
@@ -233,7 +233,7 @@ class Test {
     }));
     assert!(diagnostics.iter().any(|d| {
         d.message
-            .contains("Assignment type mismatch: cannot assign 'int' to 'bool'")
+            .contains("Assignment type mismatch: cannot assign 'int' to 'Test'")
     }));
 }
 
@@ -313,7 +313,7 @@ class Test {
 }
 
 #[test]
-fn test_string_no_built_in_methods() {
+fn test_string_built_in_methods() {
     let src = r#"
 class Test {
     void Main() {
@@ -323,7 +323,11 @@ class Test {
 };
 "#;
     let diagnostics = get_diagnostics(src);
-    assert!(!diagnostics.is_empty(), "Expected error for string.size()");
+    assert!(
+        diagnostics.is_empty(),
+        "Expected no diagnostics for string.size(), got: {:?}",
+        diagnostics
+    );
 }
 
 #[test]
@@ -362,21 +366,18 @@ class Derived isclass Base {
     void Test() {
         Foo(1);          // OK: matches Base::Foo(int)
         Foo("hello");    // OK: matches Derived::Foo(string)
-        Foo(1.5);        // Warning: Suggest Foo(int) or Foo(string)
+        Foo(1.5);        // OK: matches Base::Foo(int) with warning
     }
 };
 "#;
     let diagnostics = get_diagnostics(src);
-    // Foo(1.5) should have a diagnostic
+    // Foo(1.5) should have a precision warning
     assert!(
         diagnostics
             .iter()
-            .any(|d| d.message.contains("No matching overload"))
-    );
-    assert!(
+            .any(|d| d.message.contains("Implicit cast from 'float' to 'int'")),
+        "Expected precision warning, got: {:?}",
         diagnostics
-            .iter()
-            .any(|d| d.message.contains("Closest match: Foo(int)"))
     );
 }
 
@@ -394,7 +395,7 @@ class Derived isclass Base {
     }
     
     void Bar() {
-        inherited(); // Error: Bar not in Base
+        inherited(); // Error: Bar not in any parent
     }
 };
 "#;
@@ -402,11 +403,59 @@ class Derived isclass Base {
     assert!(
         diagnostics
             .iter()
-            .any(|d| d.message.contains("not defined in inherited class 'Base'"))
+            .any(|d| d.message.contains("not defined in any inherited class"))
     );
     assert!(diagnostics.iter().any(|d| {
         d.message
-            .contains("No matching overload of method takes 1 arguments")
+            .contains("Arguments not compatible with 'inherited' method in class 'Base'")
+    }));
+}
+
+#[test]
+fn test_multiple_inheritance_inherited() {
+    let src = r#"
+        class A { public void Foo(int x) {} };
+        class B { public void Foo(string s) {} };
+        class Other {};
+        class C isclass A, B {
+            public void Foo(int x) {
+                inherited(x);    // ERROR for B (closest match Foo(string))
+                inherited("hi"); // ERROR for A (closest match Foo(int))
+                inherited(new Other()); // ERROR for both
+            }
+            public void Bar() {
+                inherited(); // ERROR: Bar not in A or B
+            }
+        };
+    "#;
+    let diagnostics = get_diagnostics(src);
+    // 1. inherited(x)
+    assert!(diagnostics.iter().any(|d| {
+        d.message
+            .contains("Arguments not compatible with 'inherited'")
+            && d.message.contains("class 'B'")
+    }));
+    // 2. inherited("hi")
+    assert!(diagnostics.iter().any(|d| {
+        d.message
+            .contains("Arguments not compatible with 'inherited'")
+            && d.message.contains("class 'A'")
+    }));
+    // 3. inherited(new Other())
+    assert!(diagnostics.iter().any(|d| {
+        d.message
+            .contains("Arguments not compatible with 'inherited'")
+            && d.message.contains("class 'A'")
+    }));
+    assert!(diagnostics.iter().any(|d| {
+        d.message
+            .contains("Arguments not compatible with 'inherited'")
+            && d.message.contains("class 'B'")
+    }));
+    // 4. Bar() -> inherited()
+    assert!(diagnostics.iter().any(|d| {
+        d.message
+            .contains("Method 'Bar' not defined in any inherited class")
     }));
 }
 
@@ -492,4 +541,254 @@ fn test_cyclic_include_warning() {
         "Expected cyclic include warning, got: {:?}",
         diagnostics
     );
+}
+
+#[test]
+fn test_gs_type_system_rules() {
+    let src = r#"
+class Test {
+    void Main() {
+        object o = me; // everything inherits from object
+        object o2 = 1; // int inherits from object
+        int i; // implicitly assigned to null
+        float f = 1; // int can be implicitly cast to float
+        int i2 = 1.5; // float can be implicitly cast to int (warning)
+        
+        if (i2) { // int can be implicitly cast to bool
+        }
+        
+        bool b = i2 & i; // & result is bool
+        bool b2 = i2 | i; // | result is bool
+        bool b3 = ~i; // ~ result is bool
+        bool b4 = !i; // ! result is bool
+    }
+};"#;
+    let diagnostics = get_diagnostics(src);
+
+    // Check for float to int warning
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d.message.contains("Implicit cast from 'float' to 'int'")),
+        "Expected warning for float to int cast, got: {:?}",
+        diagnostics
+    );
+
+    // Ensure no errors for other rules
+    let errors: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.severity == Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR))
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "Expected no errors, but found: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_null_assignment_to_all_types() {
+    let src = r#"
+class Test {
+    void Main() {
+        int i = null;
+        float f = null;
+        bool b = null;
+        string s = null;
+        object o = null;
+        Test t = null;
+        int[] arr = null;
+    }
+};"#;
+    let diagnostics = get_diagnostics(src);
+    let errors: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.severity == Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR))
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "Expected no errors for null assignment, but found: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_object_as_condition() {
+    let src = r#"
+class Test {
+    void Main() {
+        Test t = null;
+        if (t) { }
+        object o = null;
+        if (o) { }
+        string s = null;
+        if (s) { }
+        int[] arr = null;
+        if (arr) { }
+    }
+};"#;
+    let diagnostics = get_diagnostics(src);
+    let errors: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.severity == Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR))
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "Expected no errors for object as condition, but found: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_null_comprehensive() {
+    let src = r#"
+class Test {
+    define int MAX = null;
+    int i;
+    string s;
+    Test t;
+
+    void SetValues(int i, string s, Test t) {
+        me.i = i;
+        me.s = s;
+        me.t = t;
+    }
+
+    Test GetTest() {
+        return null;
+    }
+
+    void Main() {
+        SetValues(null, null, null);
+        Test other = GetTest();
+        if (other == null) { }
+        if (null == other) { }
+        bool b = (null == null);
+        
+        int[] arr;
+        arr = null;
+        int[] arr2 = new int[4];
+        arr2[0] = null;
+        
+        bool b2 = null.isclass(Test);
+    }
+};"#;
+    let diagnostics = get_diagnostics(src);
+    let errors: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.severity == Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR))
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "Expected no errors for comprehensive null usage, but found: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_null_invalid_usage() {
+    let src = r#"
+class Test {
+    void Main() {
+        null.UnknownMethod();
+        int i = null[0];
+    }
+};"#;
+    let diagnostics = get_diagnostics(src);
+    assert!(diagnostics.len() >= 2);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| { d.message.contains("Cannot dereference generic 'object'") })
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| { d.message.contains("Expression is not an array or string") })
+    );
+}
+
+#[test]
+fn test_bitwise_operators() {
+    let src = r#"
+class Test {
+    void Main() {
+        int a = 1;
+        int b = 2;
+        int c = a | b;
+        int d = a & b;
+        int e = a ^ b;
+        int f = a << 1;
+        int g = b >> 1;
+        int h = ~a;
+        
+        float fl = 1.0;
+        int i = a | fl;
+        int j = fl & a;
+        int k = ~fl;
+        int l = a << fl;
+        int m = fl >> b;
+    }
+};"#;
+    let diagnostics = get_diagnostics(src);
+    let errors: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.severity == Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR))
+        .collect();
+
+    assert_eq!(errors.len(), 5);
+    assert!(errors.iter().any(|d| {
+        d.message
+            .contains("Bitwise operator requires 'int' operand, got 'float'")
+    }));
+    assert!(errors.iter().any(|d| {
+        d.message
+            .contains("Bit shift operator requires 'int' operand, got 'float'")
+    }));
+    assert!(errors.iter().any(|d| {
+        d.message
+            .contains("Bitwise NOT operator requires 'int' operand, got 'float'")
+    }));
+}
+
+#[test]
+fn test_bit_shift_operators() {
+    let src = r#"
+class Test {
+    void Main() {
+        int a = 1;
+        int b = a << 2;
+        int c = a >> 1;
+        int d = 1 << a;
+        int e = 100 >> 2;
+        
+        float f = 1.0;
+        string s = "test";
+        bool bl = true;
+        object o = null;
+        
+        int err1 = a << f;
+        int err2 = f >> a;
+        int err3 = s << 1;
+        int err4 = 1 >> s;
+        int err5 = bl << 1;
+        int err6 = 1 >> bl;
+        int err7 = o << 1;
+        int err8 = 1 >> o;
+    }
+};"#;
+    let diagnostics = get_diagnostics(src);
+    let errors: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.severity == Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR))
+        .collect();
+
+    assert_eq!(errors.len(), 8);
+    for error in errors {
+        assert!(
+            error
+                .message
+                .contains("Bit shift operator requires 'int' operand")
+        );
+    }
 }

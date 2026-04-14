@@ -1,7 +1,7 @@
 {
   "name": "trainz-language-server",
   "version": "0.1.0",
-  "description": "Language Server Protocol implementation for the GS (Game Script) and Soup languages used in Trainz",
+  "description": "Language Server Protocol implementation for the GS (Game Script) and AcsText languages used in Trainz",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
