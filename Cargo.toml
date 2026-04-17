@@ -13,7 +13,8 @@ members = [
     "crates/folding",
     "crates/hover",
     "crates/definition",
-    "crates/acs-text-validators"
+    "crates/acs-text-validators",
+    "crates/tdx"
 ]
 resolver = "3"
 
@@ -55,6 +56,8 @@ clap-verbosity-flag = { version = "3.0", features = ["serde"] }
 criterion = { version = "0.8", features = ["async_tokio", "rayon"] }
 dashmap = { version = "7.0.0-rc2", features = ["rayon", "serde", "typesize"] }
 walkdir = { version = "2.5", features = [] }
+rusqlite = { version = "0.39", features = ["bundled"] }
+futures = { version = "0.3", features = [] }
 
 # Internal workspace dependencies
 trainz-ast = { path = "crates/ast", version = "0.1.0" }
@@ -70,3 +73,4 @@ trainz-folding = { path = "crates/folding", version = "0.1.0" }
 trainz-hover = { path = "crates/hover", version = "0.1.0" }
 trainz-definition = { path = "crates/definition", version = "0.1.0" }
 trainz-acs-text-validators = { path = "crates/acs-text-validators", version = "0.1.0" }
+trainz-tdx = { path = "crates/tdx", version = "0.1.0" }

@@ -1,7 +1,7 @@
 use crate::comments::{BlockComment, Comment, CommentProgram, GroupComment, LineComment};
 use crate::{Position, Range};
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair, src))]
 pub fn process_comments<R>(pair: pest::iterators::Pair<R>, src: &str) -> CommentProgram
 where
     R: pest::RuleType,

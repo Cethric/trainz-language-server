@@ -1,7 +1,7 @@
 use tower_lsp_server::ls_types::{FoldingRange, FoldingRangeKind};
 use trainz_ast::gs::Include;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(range, collapsed_text))]
 pub fn add_folding_range_a(
     range: tower_lsp_server::ls_types::Range,
     collapsed_text: Option<String>,
@@ -20,7 +20,7 @@ pub fn add_folding_range_a(
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(range, result, collapsed_text))]
 pub fn add_folding_range(
     range: tower_lsp_server::ls_types::Range,
     result: &mut Vec<FoldingRange>,
@@ -34,7 +34,7 @@ pub fn add_folding_range(
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(includes, result))]
 pub fn collect_include_folding_ranges(includes: &[Include], result: &mut Vec<FoldingRange>) {
     let mut i = 0;
     while i < includes.len() {

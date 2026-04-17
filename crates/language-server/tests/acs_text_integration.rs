@@ -2,12 +2,13 @@ use rayon::prelude::*;
 use std::fs;
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{LanguageServer, LspService};
+use trainz_common::language_id::ACS_TEXT_LANGUAGE_ID;
 use trainz_language_server::state::GameScriptLanguageServer;
 
 #[tokio::test]
 async fn test_acs_text_document_symbols() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -56,7 +57,7 @@ thumbnails
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: config_uri.clone(),
-                language_id: "acs_text".to_string(),
+                language_id: ACS_TEXT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: config_content.to_string(),
             },

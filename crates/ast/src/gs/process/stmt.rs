@@ -8,7 +8,7 @@ use pest::iterators::Pair;
 use trainz_common::range::pair_to_range;
 use trainz_parser::gs::grammar::Rule;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(scopes, parent_scope_id, pair))]
 pub fn process_statements(
     scopes: &mut Vec<Scope>,
     parent_scope_id: usize,
@@ -61,7 +61,7 @@ pub fn process_statements(
     statements
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(scopes, parent_scope_id, pair))]
 pub fn process_stmt(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> Stmt {
     let range = pair_to_range(&pair);
     match pair.as_rule() {
@@ -145,7 +145,7 @@ pub fn process_stmt(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 fn process_decl(pair: Pair<Rule>) -> Decl {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -185,7 +185,7 @@ fn process_decl(pair: Pair<Rule>) -> Decl {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(scopes, parent_scope_id, pair))]
 fn process_if(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> IfStmt {
     let mut cond = None;
     let mut kw_if_range = None;
@@ -314,7 +314,7 @@ fn process_if(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>)
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(scopes, parent_scope_id, pair))]
 fn process_while(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> WhileStmt {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -354,7 +354,7 @@ fn process_while(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rul
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(scopes, parent_scope_id, pair))]
 fn process_for(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> ForStmt {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -418,7 +418,7 @@ fn process_for(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(scopes, parent_scope_id, pair))]
 fn process_wait(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> WaitStmt {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -439,7 +439,7 @@ fn process_wait(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(scopes, parent_scope_id, pair))]
 fn process_on(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> OnStmt {
     let range = pair_to_range(&pair);
     let inner = pair.into_inner();
@@ -495,7 +495,7 @@ fn process_on(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>)
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(scopes, parent_scope_id, pair))]
 fn process_switch(scopes: &mut Vec<Scope>, parent_scope_id: usize, pair: Pair<Rule>) -> SwitchStmt {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();

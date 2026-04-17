@@ -13,9 +13,9 @@ mod util;
 pub(crate) use class::process_class_symbol;
 use trainz_ast::gs::program::Program;
 
-#[allow(deprecated)]
-#[tracing::instrument]
+#[tracing::instrument(skip(include))]
 pub(crate) fn process_include_symbol(include: &Include) -> DocumentSymbol {
+    #[allow(deprecated)]
     DocumentSymbol {
         name: include.name.clone(),
         detail: None,
@@ -28,8 +28,7 @@ pub(crate) fn process_include_symbol(include: &Include) -> DocumentSymbol {
     }
 }
 
-#[allow(deprecated)]
-#[tracing::instrument(skip(resolver))]
+#[tracing::instrument(skip(program, resolver))]
 pub fn trainz_symboliser(
     program: &Program,
     resolver: &dyn trainz_ast::gs::type_eval::ClassResolver,
@@ -48,18 +47,21 @@ pub fn trainz_symboliser(
 
     symbols.sort_by_key(|s| (s.range.start, s.selection_range.start));
 
-    vec![DocumentSymbol {
-        name: "file".to_string(),
-        detail: None,
-        kind: SymbolKind::MODULE,
-        tags: None,
-        deprecated: None,
-        range: program.range,
-        selection_range: program.range,
-        children: if symbols.is_empty() {
-            None
-        } else {
-            Some(symbols)
+    vec![
+        #[allow(deprecated)]
+        DocumentSymbol {
+            name: "file".to_string(),
+            detail: None,
+            kind: SymbolKind::MODULE,
+            tags: None,
+            deprecated: None,
+            range: program.range,
+            selection_range: program.range,
+            children: if symbols.is_empty() {
+                None
+            } else {
+                Some(symbols)
+            },
         },
-    }]
+    ]
 }

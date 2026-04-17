@@ -1,12 +1,13 @@
 use std::fs;
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{LanguageServer, LspService};
+use trainz_common::language_id::GAME_SCRIPT_LANGUAGE_ID;
 use trainz_language_server::state::GameScriptLanguageServer;
 
 #[tokio::test]
 async fn test_hover_method_call_signature() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -29,7 +30,7 @@ async fn test_hover_method_call_signature() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: code.to_string(),
             },
@@ -76,7 +77,7 @@ async fn test_hover_method_call_signature() {
 #[tokio::test]
 async fn test_hover_cross_file_method_call() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -120,7 +121,7 @@ async fn test_hover_cross_file_method_call() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: helper_uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: helper_code.to_string(),
             },
@@ -132,7 +133,7 @@ async fn test_hover_cross_file_method_call() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: main_uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: main_code.to_string(),
             },

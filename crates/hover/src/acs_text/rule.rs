@@ -3,8 +3,13 @@ use tower_lsp_server::ls_types::{Hover, MarkupContent, MarkupKind};
 use trainz_acs_text_validators::ContainerRule;
 use trainz_common::wiki::get_wiki_kind_name;
 
-#[tracing::instrument]
-pub fn create_hover_from_rule(rule: &ContainerRule, range: &trainz_ast::Range) -> Option<Hover> {
+#[tracing::instrument(skip(rule, range, _trainz_build_version))]
+pub fn create_hover_from_rule(
+    rule: &ContainerRule,
+    range: &trainz_ast::Range,
+    _trainz_build_version: Option<f64>,
+    path: &[String],
+) -> Option<Hover> {
     let mut doc = format!("### Key: `{}`\n", rule.key);
     if let Some(t) = &rule.type_name {
         doc.push_str(&format!("**Type**: `{}`\n\n", t));
@@ -42,7 +47,20 @@ pub fn create_hover_from_rule(rule: &ContainerRule, range: &trainz_ast::Range) -
         validation_rules.push(format!("**Default**: `{}`", d));
     }
     if let Some(c) = &rule.compulsory {
-        validation_rules.push(format!("**Compulsory**: `{}`", c));
+        if *c == 1.0 {
+            validation_rules.push("**Compulsory**: `Yes`".to_string());
+        } else if *c > 1.0 {
+            validation_rules.push(format!("**Compulsory**: `Since Trainz build {}`", c));
+        }
+    }
+    if let Some(mv) = &rule.minimum_version {
+        validation_rules.push(format!("**Minimum Version**: `{}`", mv));
+    }
+    if let Some(ov) = &rule.obsolete_version {
+        validation_rules.push(format!("**Obsolete Version**: `{}`", ov));
+        if let Some(om) = &rule.obsolete_message {
+            validation_rules.push(format!("**Obsolete Message**: `{}`", om));
+        }
     }
     if let Some(f) = &rule.filter {
         validation_rules.push(format!("**Filter**: `{}`", f));
@@ -59,6 +77,10 @@ pub fn create_hover_from_rule(rule: &ContainerRule, range: &trainz_ast::Range) -
             doc.push_str(&format!("- {}\n", v_rule));
         }
         doc.push('\n');
+    }
+
+    if !path.is_empty() {
+        doc.push_str(&format!("**Validator Path**: `{}`\n", path.join("/")));
     }
 
     Some(Hover {

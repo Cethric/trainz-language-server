@@ -61,7 +61,8 @@
           "acs_text"
         ],
         "extensions": [
-          ".txt"
+          ".txt",
+          ".chp"
         ],
         "configuration": "./language-configuration.json"
       }

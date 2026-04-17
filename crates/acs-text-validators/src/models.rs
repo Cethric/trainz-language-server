@@ -3,30 +3,43 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArrayElementType {
-    Array(String),
-    Tuple(Vec<String>),
+    Array(String, String), // key, type_name
+    Tuple(Vec<(String, String)>),
+    Inline(Box<ContainerValidator>),
+    Rule(Box<ContainerRule>),
 }
 
 impl fmt::Display for ArrayElementType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ArrayElementType::Array(s) => write!(f, "Array<{}>", s),
-            ArrayElementType::Tuple(v) => write!(f, "Tuple<{}>", v.join(", ")),
+            ArrayElementType::Array(k, t) => write!(f, "Array<{}: {}>", k, t),
+            ArrayElementType::Tuple(v) => write!(
+                f,
+                "Tuple<{}>",
+                v.iter()
+                    .map(|(k, t)| format!("{}: {}", k, t))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            ArrayElementType::Inline(_) => write!(f, "InlineContainer"),
+            ArrayElementType::Rule(r) => write!(f, "Rule({})", r.key),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Validation {
+    Named(String),
     IntRange(i64, i64),
     HexRange(u64, u64),
     FloatRange(f64, f64),
     NeedCollateMeshes(Vec<String>),
     NotOwnParent,
-    Named(String),
+    MustBePaired(Vec<String>),
+    FilepathTableFilesExist,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ContainerRule {
     pub key: String,
     pub type_name: Option<String>,
@@ -38,10 +51,14 @@ pub struct ContainerRule {
     pub filter: Option<String>,
     pub disabled: Option<bool>,
     pub obsolete_tag: Option<bool>,
-    pub array_element: Option<Box<ContainerValidator>>,
+    pub obsolete_version: Option<f64>,
+    pub obsolete_message: Option<String>,
+    pub minimum_version: Option<f64>,
+    pub source: Option<String>,
+    pub child_validator: Option<Box<ContainerValidator>>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ContainerValidator {
     pub container_name: String,
     pub rules: Vec<ContainerRule>,
@@ -50,7 +67,7 @@ pub struct ContainerValidator {
     pub inherit: Vec<String>,
     pub top_level: bool,
     pub sub_possibilities: Vec<ContainerRule>,
-    pub tag_array: Option<ContainerRule>,
+    pub tag_array: Option<ArrayElementType>,
     pub allow_any_key: bool,
 }
 
@@ -70,6 +87,8 @@ impl fmt::Display for Validation {
             Validation::NeedCollateMeshes(v) => write!(f, "NeedCollateMeshes: {}", v.join(", ")),
             Validation::NotOwnParent => write!(f, "NotOwnParent"),
             Validation::Named(s) => write!(f, "{}", s),
+            Validation::MustBePaired(keys) => write!(f, "MustBePaired({})", keys.join(", ")),
+            Validation::FilepathTableFilesExist => write!(f, "FilepathTableFilesExist"),
         }
     }
 }

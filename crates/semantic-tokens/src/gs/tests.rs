@@ -4,13 +4,13 @@ use rayon::prelude::*;
 use trainz_ast::gs::process::process_trainz_ast;
 use trainz_parser::gs::grammar::{GameScriptParser, Rule};
 
-#[tracing::instrument]
+#[tracing::instrument(skip(target))]
 fn get_token_type(target: tower_lsp_server::ls_types::SemanticTokenType) -> u32 {
     let (types, _) = crate::legend::get_legend();
     types.par_iter().position_first(|t| *t == target).unwrap() as u32
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(src))]
 fn get_tokens_for_src(src: &str) -> Vec<tower_lsp_server::ls_types::SemanticToken> {
     let pairs = GameScriptParser::parse(Rule::program, src).unwrap();
     let program = process_trainz_ast(pairs, src);

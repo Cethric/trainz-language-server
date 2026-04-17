@@ -1,7 +1,6 @@
 use crate::find::HasRange;
 use crate::gs::expr::Expr;
 use crate::gs::literal::Identifier;
-use crate::gs::program::Program;
 use crate::gs::stmt::Block;
 use crate::gs::types::{Type, TypeOrVoid};
 use serde::{Deserialize, Serialize};
@@ -25,7 +24,6 @@ pub struct ClassDef {
 impl ClassDef {
     pub fn find_field<'a>(
         &'a self,
-        program: &'a Program,
         resolver: &'a dyn crate::gs::type_eval::ClassResolver,
         name: &str,
     ) -> Option<FieldDef> {
@@ -34,7 +32,7 @@ impl ClassDef {
         }
         for super_id in &self.superclasses {
             if let Some(super_class) = resolver.find_class(&super_id.name)
-                && let Some(field) = super_class.find_field(program, resolver, name)
+                && let Some(field) = super_class.find_field(resolver, name)
             {
                 return Some(field);
             }
@@ -68,7 +66,6 @@ impl ClassDef {
     pub fn is_subclass_of(
         &self,
         other_name: &str,
-        program: &Program,
         resolver: &dyn crate::gs::type_eval::ClassResolver,
     ) -> bool {
         if self.name.name == other_name || other_name == "object" {
@@ -79,7 +76,7 @@ impl ClassDef {
                 return true;
             }
             if let Some(super_class) = resolver.find_class(&super_id.name)
-                && super_class.is_subclass_of(other_name, program, resolver)
+                && super_class.is_subclass_of(other_name, resolver)
             {
                 return true;
             }

@@ -31,10 +31,10 @@ impl Kuid {
     }
 
     pub fn decrement(&mut self) {
-        if let Some(version) = self.version {
-            if version > 1 {
-                self.version = Some(version - 1);
-            }
+        if let Some(version) = self.version
+            && version > 1
+        {
+            self.version = Some(version - 1);
         }
     }
 }

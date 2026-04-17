@@ -9,12 +9,13 @@ use crate::acs_text::keys::add_key_completions_from_validator;
 use crate::acs_text::utils::is_in_range;
 use crate::acs_text::values::add_value_completions;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(kvs, position, validators, current_validator, asset_cache_path))]
 pub fn find_completions_recursive(
     kvs: &[KeyValuePair],
     position: Position,
     validators: &Validators,
     current_validator: Option<&ContainerValidator>,
+    asset_cache_path: Option<&std::path::Path>,
 ) -> Vec<CompletionItem> {
     let mut completions = vec![];
 
@@ -52,11 +53,16 @@ pub fn find_completions_recursive(
         debug!("No effective validator for this container");
     }
 
-    for kv in kvs {
+    for (index, kv) in kvs.iter().enumerate() {
         let rule = current_validator_to_use.as_ref().and_then(|cv| {
             cv.rules
                 .par_iter()
                 .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
+                .or_else(|| {
+                    cv.sub_possibilities
+                        .par_iter()
+                        .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
+                })
         });
 
         // If we are on the key itself, check if the cursor is within the value's range first.
@@ -72,38 +78,55 @@ pub fn find_completions_recursive(
                     debug!("Traversing into nested container '{}'", kv.key);
                     let next_validator = if let Some(cv) = current_validator_to_use {
                         if let Some(array_element_type) = &cv.array_element {
-                            let type_name = match array_element_type {
-                                ArrayElementType::Array(s) => Some(s),
-                                ArrayElementType::Tuple(types) => {
-                                    kv.key.parse::<usize>().ok().and_then(|idx| types.get(idx))
+                            match array_element_type {
+                                ArrayElementType::Array(_, s) => {
+                                    validators.container_map.get(&s.to_lowercase())
                                 }
-                            };
-                            type_name.and_then(|tn| {
-                                validators
-                                    .containers
-                                    .par_iter()
-                                    .find_first(|v| v.container_name.eq_ignore_ascii_case(tn))
-                            })
-                        } else {
-                            if let Some(rule) = rule {
+                                ArrayElementType::Tuple(types) => kv
+                                    .key
+                                    .parse::<usize>()
+                                    .ok()
+                                    .and_then(|idx| types.get(idx))
+                                    .and_then(|(_, tn)| {
+                                        validators.container_map.get(&tn.to_lowercase())
+                                    }),
+                                ArrayElementType::Inline(iv) => Some(iv.as_ref()),
+                                ArrayElementType::Rule(rule) => {
+                                    rule.child_validator.as_ref().map(|b| b.as_ref())
+                                }
+                            }
+                        } else if let Some(rule) = rule {
+                            if let Some(child_validator) = &rule.child_validator {
+                                Some(child_validator.as_ref())
+                            } else {
                                 let mut found_validator = None;
                                 if let Some(type_name) = &rule.type_name {
                                     found_validator =
-                                        validators.containers.par_iter().find_first(|v| {
-                                            v.container_name.eq_ignore_ascii_case(type_name)
-                                        });
+                                        validators.container_map.get(&type_name.to_lowercase());
                                 }
                                 found_validator
-                            } else {
-                                None
                             }
+                        } else if let Some(tag_array) = &cv.tag_array {
+                            match tag_array {
+                                ArrayElementType::Array(_, s) => {
+                                    validators.container_map.get(&s.to_lowercase())
+                                }
+                                ArrayElementType::Tuple(types) => {
+                                    types.get(index).and_then(|(_, tn)| {
+                                        validators.container_map.get(&tn.to_lowercase())
+                                    })
+                                }
+                                ArrayElementType::Inline(iv) => Some(iv.as_ref()),
+                                ArrayElementType::Rule(rule) => {
+                                    rule.child_validator.as_ref().map(|b| b.as_ref())
+                                }
+                            }
+                        } else {
+                            None
                         }
                     } else {
                         debug!("Searching for validator for key '{}'", kv.key);
-                        let v = validators
-                            .containers
-                            .par_iter()
-                            .find_first(|v| v.container_name.eq_ignore_ascii_case(&kv.key));
+                        let v = validators.container_map.get(&kv.key.to_lowercase());
                         if let Some(v) = v {
                             debug!("Found validator '{}'", v.container_name);
                         } else {
@@ -121,8 +144,13 @@ pub fn find_completions_recursive(
                         debug!("No next validator found for nested container '{}'", kv.key);
                     }
 
-                    let nested_completions =
-                        find_completions_recursive(inner_kvs, position, validators, next_validator);
+                    let nested_completions = find_completions_recursive(
+                        inner_kvs,
+                        position,
+                        validators,
+                        next_validator,
+                        asset_cache_path,
+                    );
                     if !nested_completions.is_empty() {
                         return nested_completions;
                     }
@@ -136,6 +164,7 @@ pub fn find_completions_recursive(
                     validators,
                     rule,
                     &mut completions,
+                    asset_cache_path,
                 );
                 if !completions.is_empty() {
                     return completions;
@@ -163,6 +192,7 @@ pub fn find_completions_recursive(
                     validators,
                     None,
                     &mut completions,
+                    asset_cache_path,
                 );
                 if !completions.is_empty() {
                     return completions;
@@ -189,6 +219,7 @@ pub fn find_completions_recursive(
                         validators,
                         None,
                         &mut completions,
+                        asset_cache_path,
                     );
                 } else {
                     for validator in &validators.containers {
@@ -221,7 +252,15 @@ pub fn find_completions_recursive(
             // If there's no value yet, suggest values for this key
             if kv.value.is_none() {
                 debug!("No value for key '{}', suggesting values", kv.key);
-                add_value_completions(&kv.key, None, position, validators, None, &mut completions);
+                add_value_completions(
+                    &kv.key,
+                    None,
+                    position,
+                    validators,
+                    None,
+                    &mut completions,
+                    asset_cache_path,
+                );
                 if !completions.is_empty() {
                     return completions;
                 }

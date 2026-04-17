@@ -5,7 +5,7 @@ use crate::util::add_folding_range;
 use tower_lsp_server::ls_types::FoldingRange;
 use trainz_ast::comments::{Comment, CommentProgram};
 
-#[tracing::instrument]
+#[tracing::instrument(skip(program))]
 pub fn comments_folding_range(program: &CommentProgram) -> Vec<FoldingRange> {
     let mut result = vec![];
 

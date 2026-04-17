@@ -10,7 +10,7 @@ use trainz_common::range::{combine_ranges, pair_to_range};
 use trainz_parser::gs::grammar::Rule;
 use trainz_parser::gs::pratt::PRATT;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 pub fn process_expr(pair: Pair<Rule>) -> Expr {
     let range = pair_to_range(&pair);
     let rule = pair.as_rule();
@@ -100,7 +100,7 @@ pub fn process_expr(pair: Pair<Rule>) -> Expr {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 fn process_expr_pratt(pair: Pair<Rule>) -> Expr {
     PRATT
         .map_primary(|primary| process_expr(primary))
@@ -208,7 +208,7 @@ fn process_expr_pratt(pair: Pair<Rule>) -> Expr {
         .parse(pair.into_inner())
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 fn process_unary_expr(pair: Pair<Rule>) -> Expr {
     let range = pair_to_range(&pair);
     let mut inner = pair.clone().into_inner();
@@ -326,7 +326,7 @@ fn process_unary_expr(pair: Pair<Rule>) -> Expr {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 fn process_postfix_expr(pair: Pair<Rule>) -> Expr {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -366,7 +366,7 @@ fn process_postfix_expr(pair: Pair<Rule>) -> Expr {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 fn process_postfix_op(pair: Pair<Rule>) -> PostfixOp {
     let range = pair_to_range(&pair);
     match pair.as_rule() {
@@ -418,7 +418,7 @@ fn process_postfix_op(pair: Pair<Rule>) -> PostfixOp {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 fn process_cast(pair: Pair<Rule>) -> Expr {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -473,7 +473,7 @@ fn process_cast(pair: Pair<Rule>) -> Expr {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 fn process_new_object(pair: Pair<Rule>) -> Expr {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -506,7 +506,7 @@ fn process_new_object(pair: Pair<Rule>) -> Expr {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 fn process_new_array(pair: Pair<Rule>) -> Expr {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();
@@ -543,7 +543,7 @@ fn process_new_array(pair: Pair<Rule>) -> Expr {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 fn process_primary_expr(pair: Pair<Rule>) -> Expr {
     let range = pair_to_range(&pair);
     let rule = pair.as_rule();
@@ -668,7 +668,7 @@ fn process_primary_expr(pair: Pair<Rule>) -> Expr {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 fn process_literal(pair: Pair<Rule>) -> Expr {
     let (inner, inner_rule) = if let Some(first) = pair.clone().into_inner().next() {
         let rule = first.as_rule();

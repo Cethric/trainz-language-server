@@ -5,17 +5,25 @@ use tower_lsp_server::ls_types::{Hover, MarkupContent, MarkupKind, Position};
 use trainz_acs_text_validators::{ContainerRule, Validators};
 use trainz_ast::acs_text::value::Value;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(script_resolver))]
 pub fn find_hover_in_value(
     value: &Value,
     position: Position,
     validators: &Validators,
     rule: Option<&ContainerRule>,
+    base_path: Option<&std::path::Path>,
+    script_resolver: Option<&dyn trainz_definition::acs_text::definitions::ScriptResolver>,
+    trainz_build_version: Option<f64>,
+    path: Vec<String>,
 ) -> Option<Hover> {
     match value {
         Value::Container(container_kv, _, _) => {
             let mut next_validator = None;
+            let mut next_path = path.clone();
+
             if let Some(rule) = rule {
+                next_path.push(rule.key.clone());
+
                 if let Some(kind_name) = &rule.kind {
                     next_validator = validators
                         .containers
@@ -28,13 +36,22 @@ pub fn find_hover_in_value(
                         .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name));
                 }
             }
-            find_hover_recursive(container_kv, position, validators, next_validator)
+            find_hover_recursive(
+                container_kv,
+                position,
+                validators,
+                next_validator,
+                base_path,
+                script_resolver,
+                trainz_build_version,
+                next_path,
+            )
         }
         _ => None,
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(value_str, allowed_values, value_range))]
 pub fn get_hover_for_simple_validator(
     value_str: &str,
     allowed_values: &HashMap<String, Option<String>>,

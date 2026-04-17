@@ -2,7 +2,7 @@ use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType
 use trainz_ast::find::HasRange;
 use trainz_ast::gs::types::Type;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(ty, raw_tokens))]
 pub fn collect_type_tokens(
     ty: &Type,
     raw_tokens: &mut Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)>,

@@ -27,8 +27,9 @@ async fn bench_process_acs_text_file(
 
 fn criterion_benchmark(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let (service, _socket) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], "test"));
+    let (service, _socket) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "test", None, None)
+    });
     let server = service.inner();
 
     let mut path = std::env::current_dir().unwrap();

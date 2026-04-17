@@ -54,7 +54,7 @@ impl<'a> CombinedResolver<'a> {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(s))]
 fn parse_uri_or_path(s: &str) -> Option<Uri> {
     if let Ok(uri) = s.parse::<Uri>()
         && uri.scheme().as_str() != ""

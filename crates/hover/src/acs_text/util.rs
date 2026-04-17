@@ -1,6 +1,6 @@
 use trainz_ast::acs_text::value::Value;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(position, range))]
 pub fn is_in_range(
     position: tower_lsp_server::ls_types::Position,
     range: &trainz_ast::Range,
@@ -17,7 +17,7 @@ pub fn is_in_range(
     true
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(value))]
 pub fn get_value_range(value: &Value) -> trainz_ast::Range {
     value.range()
 }

@@ -11,8 +11,12 @@ use trainz_parser::acs_text::parse_acs_text;
 use crate::Validation;
 use crate::models::{ArrayElementType, ContainerRule, ContainerValidator, Validators};
 
-#[tracing::instrument(skip(rule_details))]
-fn parse_rule(key: String, rule_details: Vec<KeyValuePair>) -> ContainerRule {
+#[tracing::instrument(skip(key, rule_details))]
+fn parse_rule(
+    key: String,
+    rule_details: Vec<KeyValuePair>,
+    default_top_level: bool,
+) -> ContainerRule {
     let mut type_name = None;
     let mut kind = None;
     let mut default_value = None;
@@ -22,32 +26,44 @@ fn parse_rule(key: String, rule_details: Vec<KeyValuePair>) -> ContainerRule {
     let mut filter = None;
     let mut disabled = None;
     let mut obsolete_tag = None;
+    let mut obsolete_version = None;
+    let mut obsolete_message = None;
+    let mut minimum_version = None;
+    let mut source = None;
+    let mut sub_rules = vec![];
+    let mut tag_array = None;
+    let mut array_element = None;
+    let mut sub_possibilities = vec![];
+    let mut inherit = vec![];
+    let mut top_level = default_top_level;
+    let mut allow_any_key = false;
+    let mut container_validation = None;
 
     for detail in rule_details {
         let key_lower = detail.key.to_lowercase();
         match key_lower.as_str() {
-            "type" => {
+            "type" | "element-type" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
                 type_name = match detail.value {
                     Some(Value::String(s, _)) => Some(s),
                     Some(Value::Variable(s, _)) => Some(s),
                     _ => None,
                 }
             }
-            "kind" => {
+            "kind" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
                 kind = match detail.value {
                     Some(Value::String(s, _)) => Some(s),
                     Some(Value::Variable(s, _)) => Some(s),
                     _ => None,
                 }
             }
-            "default" => {
+            "default" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
                 default_value = match detail.value {
                     Some(Value::String(s, _)) => Some(s),
                     Some(Value::Variable(s, _)) => Some(s),
                     _ => None,
                 }
             }
-            "description" => {
+            "description" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
                 description = match detail.value {
                     Some(Value::String(s, _)) => Some(s),
                     Some(Value::Variable(s, _)) => Some(s),
@@ -55,16 +71,19 @@ fn parse_rule(key: String, rule_details: Vec<KeyValuePair>) -> ContainerRule {
                 }
             }
             "validation" => {
-                if let Some(Value::Container(details, _, _)) = detail.value {
-                    rule_validation = parse_validation(&details);
-                } else if let Some(Value::String(s, _)) | Some(Value::Variable(s, _)) = detail.value
+                if let Some(Value::Container(details, _, _)) = &detail.value {
+                    rule_validation = parse_validation(details);
+                    container_validation = rule_validation.clone();
+                } else if let Some(Value::String(s, _)) | Some(Value::Variable(s, _)) =
+                    &detail.value
                 {
-                    rule_validation = Some(vec![Validation::Named(s)]);
+                    rule_validation = Some(vec![Validation::Named(s.clone())]);
+                    container_validation = rule_validation.clone();
                 } else {
                     warn!("Invalid validation value: {:?}", detail.value);
                 }
             }
-            "compulsory" => {
+            "compulsory" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
                 compulsory = match detail.value {
                     Some(Value::Numeric(NumericValue::Float(n), _)) => Some(n),
                     Some(Value::Numeric(NumericValue::Int(n), _)) => Some(n as f64),
@@ -81,13 +100,13 @@ fn parse_rule(key: String, rule_details: Vec<KeyValuePair>) -> ContainerRule {
                     _ => None,
                 };
             }
-            "filter" => {
+            "filter" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
                 filter = match detail.value {
                     Some(Value::String(s, _)) => Some(s),
                     _ => None,
                 }
             }
-            "disabled" => {
+            "disabled" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
                 disabled = match detail.value {
                     Some(Value::Numeric(NumericValue::Float(n), _)) => Some(n == 1.0),
                     Some(Value::Numeric(NumericValue::Int(n), _)) => Some(n == 1),
@@ -104,7 +123,7 @@ fn parse_rule(key: String, rule_details: Vec<KeyValuePair>) -> ContainerRule {
                     _ => None,
                 }
             }
-            "obsolete-tag" => {
+            "obsolete-tag" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
                 obsolete_tag = match detail.value {
                     Some(Value::Numeric(NumericValue::Float(n), _)) => Some(n == 1.0),
                     Some(Value::Numeric(NumericValue::Int(n), _)) => Some(n == 1),
@@ -121,9 +140,130 @@ fn parse_rule(key: String, rule_details: Vec<KeyValuePair>) -> ContainerRule {
                     _ => None,
                 }
             }
-            _ => {}
+            "obsolete-version" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
+                obsolete_version = match detail.value {
+                    Some(Value::Numeric(NumericValue::Float(n), _)) => Some(n),
+                    Some(Value::Numeric(NumericValue::Int(n), _)) => Some(n as f64),
+                    Some(Value::String(s, _)) => s.parse().ok(),
+                    _ => None,
+                }
+            }
+            "obsolete-message" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
+                obsolete_message = match detail.value {
+                    Some(Value::String(s, _)) => Some(s),
+                    _ => None,
+                }
+            }
+            "minimum-version" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
+                minimum_version = match detail.value {
+                    Some(Value::Numeric(NumericValue::Float(n), _)) => Some(n),
+                    Some(Value::Numeric(NumericValue::Int(n), _)) => Some(n as f64),
+                    Some(Value::String(s, _)) => s.parse().ok(),
+                    _ => None,
+                }
+            }
+            "source" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
+                source = match detail.value {
+                    Some(Value::String(s, _)) => Some(s),
+                    _ => None,
+                }
+            }
+            "inherit" => match detail.value {
+                Some(Value::Container(details, _, _)) => {
+                    for d in details {
+                        inherit.push(d.key);
+                    }
+                }
+                Some(Value::String(s, _)) | Some(Value::Variable(s, _)) => {
+                    inherit.push(s);
+                }
+                _ => {}
+            },
+            "top-level" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
+                top_level = match detail.value {
+                    Some(Value::String(s, _)) | Some(Value::Variable(s, _)) => {
+                        s == "1" || s == "true" || s == "container"
+                    }
+                    Some(Value::Numeric(n, _)) => parse_numeric_as_bool(&n),
+                    _ => false,
+                };
+            }
+            "allow-any-key" if !matches!(detail.value, Some(Value::Container(_, _, _))) => {
+                allow_any_key = match detail.value {
+                    Some(Value::Numeric(n, _)) => parse_numeric_as_bool(&n),
+                    _ => false,
+                };
+            }
+            "subpossibilities" => {
+                if let Some(Value::Container(details, _, _)) = detail.value {
+                    for sub_kv in details {
+                        if let Some(Value::Container(sub_details, _, _)) = sub_kv.value {
+                            sub_possibilities.push(parse_rule(sub_kv.key, sub_details, false));
+                        }
+                    }
+                }
+            }
+            _ => match detail.value {
+                Some(Value::Container(details, _, _)) => {
+                    if key_lower == "tagarray" || key_lower == "tag-array" {
+                        tag_array = parse_array_element(detail.key, details);
+                    } else if key_lower == "array-element" {
+                        array_element = parse_array_element(detail.key, details);
+                    } else if key_lower == "validation" {
+                        container_validation = parse_validation(&details);
+                    } else if key_lower == "obsolete-tag" {
+                        for sub_kv in details {
+                            if let Some(Value::Container(sub_details, _, _)) = sub_kv.value {
+                                let mut rule = parse_rule(sub_kv.key, sub_details, false);
+                                rule.obsolete_tag = Some(true);
+                                sub_possibilities.push(rule);
+                            }
+                        }
+                    } else {
+                        sub_rules.push(parse_rule(detail.key, details, false));
+                    }
+                }
+                Some(Value::String(s, _)) | Some(Value::Variable(s, _)) => {
+                    if key_lower == "tagarray" || key_lower == "tag-array" {
+                        tag_array = Some(ArrayElementType::Array(detail.key, s));
+                    } else if key_lower == "array-element" {
+                        array_element = Some(ArrayElementType::Array(detail.key, s));
+                    } else if key_lower != "uniquenames" {
+                        sub_rules.push(ContainerRule {
+                            key: detail.key,
+                            type_name: Some(s),
+                            ..Default::default()
+                        });
+                    }
+                }
+                _ => {}
+            },
         }
     }
+
+    let child_validator = if !sub_rules.is_empty()
+        || tag_array.is_some()
+        || array_element.is_some()
+        || !sub_possibilities.is_empty()
+        || !inherit.is_empty()
+        || top_level
+        || allow_any_key
+        || container_validation.is_some()
+    {
+        Some(Box::new(ContainerValidator {
+            container_name: key.clone(),
+            rules: sub_rules,
+            tag_array,
+            array_element,
+            sub_possibilities,
+            inherit,
+            top_level,
+            allow_any_key,
+            validation: container_validation,
+        }))
+    } else {
+        None
+    };
 
     ContainerRule {
         key,
@@ -136,7 +276,11 @@ fn parse_rule(key: String, rule_details: Vec<KeyValuePair>) -> ContainerRule {
         filter,
         disabled,
         obsolete_tag,
-        array_element: None,
+        obsolete_version,
+        obsolete_message,
+        minimum_version,
+        source,
+        child_validator,
     }
 }
 
@@ -164,6 +308,66 @@ fn parse_numeric_as_bool(numeric_value: &NumericValue) -> bool {
         NumericValue::Float(v) => *v > 0f64,
         NumericValue::Hex(v) => *v > 0,
         NumericValue::Int(v) => *v > 0,
+    }
+}
+
+fn parse_array_element(key: String, rule_details: Vec<KeyValuePair>) -> Option<ArrayElementType> {
+    let mut types = Vec::new();
+    let mut element_rules = Vec::new();
+
+    // Check if it's a "simple" array/tagarray that just contains properties like type, kind, etc.
+    let is_simple_rule = rule_details.iter().any(|d| {
+        let k = d.key.to_lowercase();
+        k == "type" || k == "kind" || k == "description" || k == "validation"
+    }) && !rule_details
+        .iter()
+        .any(|d| d.key.to_lowercase().starts_with("container-type"));
+
+    if is_simple_rule {
+        return Some(ArrayElementType::Rule(Box::new(parse_rule(
+            key,
+            rule_details,
+            false,
+        ))));
+    }
+
+    for d in rule_details {
+        let key_lower = d.key.to_lowercase();
+        match d.value {
+            Some(Value::String(s, _)) | Some(Value::Variable(s, _))
+                if key_lower.starts_with("container-type") =>
+            {
+                types.push((d.key, s));
+            }
+            Some(Value::Container(sub_details, _, _)) => {
+                element_rules.push(parse_rule(d.key, sub_details, false));
+            }
+            _ => {}
+        }
+    }
+
+    if !element_rules.is_empty() {
+        Some(ArrayElementType::Inline(Box::new(ContainerValidator {
+            container_name: key,
+            rules: element_rules,
+            ..Default::default()
+        })))
+    } else if !types.is_empty() {
+        // Sort by the numeric suffix of container-typeN
+        types.sort_by_key(|(k, _)| {
+            k.strip_prefix("container-type")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(0)
+        });
+
+        if types.len() == 1 {
+            let (k, v) = types.into_iter().next().unwrap();
+            Some(ArrayElementType::Array(k, v))
+        } else {
+            Some(ArrayElementType::Tuple(types))
+        }
+    } else {
+        None
     }
 }
 
@@ -211,6 +415,21 @@ fn parse_validation(validators: &Vec<KeyValuePair>) -> Option<Vec<Validation>> {
             }
             warn!("Invalid range validator: {:?}", validator.value);
             continue;
+        } else if validator.key.eq_ignore_ascii_case("MustBePaired") {
+            if let Some(Value::Container(details, _, _)) = &validator.value {
+                let mut paired = vec![];
+                for d in details {
+                    paired.push(d.key.clone());
+                }
+                validations.push(Validation::MustBePaired(paired));
+            }
+            continue;
+        } else if validator
+            .key
+            .eq_ignore_ascii_case("FilepathTableFilesExist")
+        {
+            validations.push(Validation::FilepathTableFilesExist);
+            continue;
         } else if validator.key.eq_ignore_ascii_case("NotOwnParent") {
             warn!(
                 "NotOwnParent validator not yet implemented {} {:?}",
@@ -235,11 +454,12 @@ fn parse_validation(validators: &Vec<KeyValuePair>) -> Option<Vec<Validation>> {
 type SimpleValidators = HashMap<String, HashMap<String, Option<String>>>;
 type ContainerValidators = Vec<ContainerValidator>;
 
-#[tracing::instrument(skip(validator_content))]
+#[tracing::instrument(skip(filename, validator_content))]
 fn process_file(
     filename: &str,
     validator_content: &str,
 ) -> Option<(SimpleValidators, ContainerValidators)> {
+    let is_kind_file = filename.eq_ignore_ascii_case("kind");
     if let Ok(pairs) = parse_acs_text(validator_content) {
         let validator_acs_text = process_acs_text_ast(pairs, validator_content);
 
@@ -253,143 +473,31 @@ fn process_file(
         let mut container_validators: ContainerValidators = vec![];
 
         if is_container_style {
-            for kv in validator_acs_text.key_value_pairs {
-                if let Some(Value::Container(container_kv, _, _)) = kv.value {
-                    let mut rules = vec![];
-                    let mut array_element: Option<ArrayElementType> = None;
-                    let mut validation = None;
-                    let mut inherit = vec![];
-                    let mut top_level = false;
-                    let mut subpossibilities = vec![];
-                    let mut tag_array = None;
-                    let mut allow_any_key = false;
+            for kv in &validator_acs_text.key_value_pairs {
+                if let Some(Value::Container(container_kv, _, _)) = &kv.value {
+                    let rule = parse_rule(kv.key.clone(), container_kv.clone(), is_kind_file);
+                    if let Some(mut validator) = rule.child_validator {
+                        validator.container_name = kv.key.clone();
+                        container_validators.push(*validator);
+                    } else {
+                        container_validators.push(ContainerValidator {
+                            container_name: kv.key.clone(),
+                            ..Default::default()
+                        });
+                    }
+                }
+            }
 
-                    for rule_kv in container_kv {
-                        match rule_kv.value {
-                            Some(Value::Container(rule_details, _, _)) => {
-                                if rule_kv.key.eq_ignore_ascii_case("array-element") {
-                                    let mut types = Vec::new();
-                                    for detail in rule_details {
-                                        if detail.key.starts_with("container-type")
-                                            && let Some(val) = match detail.value {
-                                                Some(Value::String(s, _))
-                                                | Some(Value::Variable(s, _)) => Some(s),
-                                                _ => None,
-                                            }
-                                        {
-                                            types.push((detail.key.clone(), val));
-                                        }
-                                    }
-                                    // Sort by the numeric suffix of container-typeN
-                                    types.sort_by_key(|(k, _)| {
-                                        k.strip_prefix("container-type")
-                                            .and_then(|s| s.parse::<usize>().ok())
-                                            .unwrap_or(0)
-                                    });
-
-                                    let type_values: Vec<String> =
-                                        types.into_iter().map(|(_, v)| v).collect();
-                                    if type_values.len() == 1 {
-                                        array_element =
-                                            Some(ArrayElementType::Array(type_values[0].clone()));
-                                    } else if type_values.len() > 1 {
-                                        array_element = Some(ArrayElementType::Tuple(type_values));
-                                    }
-                                    continue;
-                                } else if rule_kv.key.eq_ignore_ascii_case("validation") {
-                                    validation = parse_validation(&rule_details);
-                                    continue;
-                                } else if rule_kv.key.eq_ignore_ascii_case("inherit") {
-                                    for detail in rule_details {
-                                        inherit.push(detail.key);
-                                    }
-                                    continue;
-                                } else if rule_kv.key.eq_ignore_ascii_case("subpossibilities") {
-                                    for sub_kv in rule_details {
-                                        if let Some(Value::Container(sub_details, _, _)) =
-                                            sub_kv.value
-                                        {
-                                            subpossibilities
-                                                .push(parse_rule(sub_kv.key, sub_details));
-                                        }
-                                    }
-                                    continue;
-                                } else if rule_kv.key.eq_ignore_ascii_case("tagarray")
-                                    || rule_kv.key.eq_ignore_ascii_case("tag-array")
-                                {
-                                    tag_array = Some(parse_rule(kv.key.clone(), rule_details));
-                                    continue;
-                                } else {
-                                    rules.push(parse_rule(rule_kv.key.clone(), rule_details));
-                                }
-                            }
-                            Some(Value::String(s, _)) | Some(Value::Variable(s, _)) => {
-                                // Handle top-level keys in container definition
-                                let key_lower = rule_kv.key.to_lowercase();
-                                match key_lower.as_str() {
-                                    "kind" => { /* handle container kind if needed */ }
-                                    "top-level" => {
-                                        top_level = s == "1" || s == "true" || s == "container";
-                                    }
-                                    "inherit" => {
-                                        inherit.push(s);
-                                    }
-                                    "subpossibilities" | "array-element" | "tagarray"
-                                    | "uniquenames" | "allow-any-key" => {
-                                        // Already handled or special metadata
-                                    }
-                                    _ => {
-                                        // It's a simple rule override (e.g., author "string")
-                                        rules.push(ContainerRule {
-                                            key: rule_kv.key.clone(),
-                                            type_name: Some(s),
-                                            kind: None,
-                                            default_value: None,
-                                            description: None,
-                                            validation: None,
-                                            compulsory: None,
-                                            filter: None,
-                                            disabled: None,
-                                            obsolete_tag: None,
-                                            array_element: None,
-                                        });
-                                    }
-                                }
-                            }
-                            Some(Value::Numeric(n, _)) => {
-                                let key_lower = rule_kv.key.to_lowercase();
-                                match key_lower.as_str() {
-                                    "top-level" => top_level = parse_numeric_as_bool(&n),
-                                    "allow-any-key" => allow_any_key = parse_numeric_as_bool(&n),
-                                    "compulsory" => {
-                                        // parsed as a rule at container level? usually it's inside rule_details
-                                    }
-                                    _ => {}
-                                }
-                            }
-                            Some(Value::Array(v, _)) => {
-                                if rule_kv.key.to_lowercase().as_str() == "top-level"
-                                    && let Some(numeric_value) = v.first()
-                                {
-                                    top_level = parse_numeric_as_bool(numeric_value);
-                                }
-                            }
-                            _ => {}
+            // Post-process to handle 'top-level' set via a separate tag
+            for kv in &validator_acs_text.key_value_pairs {
+                if kv.key.eq_ignore_ascii_case("top-level")
+                    && let Some(Value::String(s, _)) | Some(Value::Variable(s, _)) = &kv.value
+                {
+                    for cv in &mut container_validators {
+                        if cv.container_name.eq_ignore_ascii_case(s) {
+                            cv.top_level = true;
                         }
                     }
-                    container_validators.push(ContainerValidator {
-                        container_name: kv.key.clone(),
-                        rules,
-                        array_element,
-                        validation,
-                        inherit,
-                        top_level,
-                        sub_possibilities: subpossibilities,
-                        tag_array,
-                        allow_any_key,
-                    });
-                } else {
-                    warn!("Did not parse validator {:?}", kv)
                 }
             }
         } else {
@@ -405,8 +513,11 @@ fn process_file(
     }
 }
 
-#[tracing::instrument(skip(validation_path))]
-pub fn load_validators(validation_path: &Path) -> Validators {
+#[tracing::instrument(skip(validation_path, extensions_overrides_path))]
+pub fn load_validators(
+    validation_path: &Path,
+    extensions_overrides_path: Option<&Path>,
+) -> Validators {
     let mut simple_validators: SimpleValidators = HashMap::new();
     let mut container_validators: ContainerValidators = vec![];
 
@@ -418,34 +529,48 @@ pub fn load_validators(validation_path: &Path) -> Validators {
         };
     }
 
-    let entries = match fs::read_dir(validation_path) {
-        Ok(entries) => entries,
-        Err(e) => {
-            error!("Failed to read validation directory: {}", e);
-            return Validators {
-                simple: simple_validators,
-                containers: container_validators,
-                container_map: HashMap::new(),
-            };
+    let mut load_from_dir = |dir: &Path| {
+        let entries = match fs::read_dir(dir) {
+            Ok(entries) => entries,
+            Err(e) => {
+                error!("Failed to read validation directory {:?}: {}", dir, e);
+                return;
+            }
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                if filename.is_empty() {
+                    continue;
+                }
+
+                if let Ok(validator_content) = fs::read_to_string(&path)
+                    && let Some((parsed_simple_validators, parsed_container_validators)) =
+                        process_file(filename, &validator_content)
+                {
+                    simple_validators.extend(parsed_simple_validators);
+                    // Handle overrides for containers: replace if name matches
+                    for new_cv in parsed_container_validators {
+                        if let Some(pos) = container_validators.iter().position(|cv| {
+                            cv.container_name
+                                .eq_ignore_ascii_case(&new_cv.container_name)
+                        }) {
+                            container_validators[pos] = new_cv;
+                        } else {
+                            container_validators.push(new_cv);
+                        }
+                    }
+                }
+            }
         }
     };
 
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_file() {
-            let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-            if filename.is_empty() {
-                continue;
-            }
+    load_from_dir(validation_path);
 
-            if let Ok(validator_content) = fs::read_to_string(&path)
-                && let Some((parsed_simple_validators, parsed_container_validators)) =
-                    process_file(filename, &validator_content)
-            {
-                simple_validators.extend(parsed_simple_validators);
-                container_validators.extend(parsed_container_validators);
-            }
-        }
+    if let Some(overrides) = extensions_overrides_path {
+        load_from_dir(overrides);
     }
 
     let trainz_build = include_str!("custom-validators/trainz-build.txt");
@@ -478,7 +603,7 @@ pub fn load_validators(validation_path: &Path) -> Validators {
                         let parent = validators.containers[j].clone();
                         for rule in &parent.rules {
                             if !merged_rules
-                                .iter()
+                                .par_iter()
                                 .any(|r: &ContainerRule| r.key.eq_ignore_ascii_case(&rule.key))
                             {
                                 merged_rules.push(rule.clone());
@@ -486,7 +611,7 @@ pub fn load_validators(validation_path: &Path) -> Validators {
                         }
                         for sub in &parent.sub_possibilities {
                             if !merged_subpossibilities
-                                .iter()
+                                .par_iter()
                                 .any(|r: &ContainerRule| r.key.eq_ignore_ascii_case(&sub.key))
                             {
                                 merged_subpossibilities.push(sub.clone());

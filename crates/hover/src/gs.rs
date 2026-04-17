@@ -130,7 +130,7 @@ pub fn trainz_hover(
     }
 
     if let Some(class) = current_class {
-        if let Some(field) = class.find_field(program, resolver, &id.name) {
+        if let Some(field) = class.find_field(resolver, &id.name) {
             let class_prefix = if let Some(parent) = &field.parent_class {
                 format!("{}::", parent)
             } else {
@@ -195,7 +195,7 @@ pub fn trainz_hover(
         match res {
             Ok(EvaluatedType::Type(Type::Named(class_id))) => {
                 if let Some(class) = resolver.find_class(&class_id.name) {
-                    if let Some(field) = class.find_field(program, resolver, &id.name) {
+                    if let Some(field) = class.find_field(resolver, &id.name) {
                         let class_prefix = if let Some(parent) = &field.parent_class {
                             format!("{}::", parent)
                         } else {

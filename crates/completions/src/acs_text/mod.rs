@@ -10,11 +10,12 @@ pub mod values;
 #[cfg(test)]
 mod tests;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(acs_text, params, validators, asset_cache_path))]
 pub fn acs_text_completions(
     acs_text: &AcsText,
     params: CompletionParams,
     validators: &Validators,
+    asset_cache_path: Option<&std::path::Path>,
 ) -> Vec<CompletionItem> {
     log::debug!(
         "Computing acs_text completions at line {}, character {}",
@@ -27,5 +28,6 @@ pub fn acs_text_completions(
         params.text_document_position.position,
         validators,
         None,
+        asset_cache_path,
     )
 }

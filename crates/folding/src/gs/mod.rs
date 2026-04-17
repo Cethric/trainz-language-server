@@ -9,7 +9,7 @@ mod tests;
 
 use rayon::prelude::*;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(program))]
 pub fn trainz_folding_range(program: &Program) -> Vec<FoldingRange> {
     let mut result = vec![];
 

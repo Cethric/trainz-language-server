@@ -2,7 +2,7 @@ use rayon::prelude::*;
 use trainz_ast::Range;
 use trainz_ast::gs::{ClassModifier, MethodModifier};
 
-#[tracing::instrument]
+#[tracing::instrument(skip(modifiers))]
 pub(crate) fn is_method_obsolete(modifiers: &Vec<(MethodModifier, Range)>) -> bool {
     modifiers
         .par_iter()
@@ -14,14 +14,14 @@ pub(crate) fn is_method_obsolete(modifiers: &Vec<(MethodModifier, Range)>) -> bo
         > 0
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(modifiers))]
 pub(crate) fn is_method_native(modifiers: &Vec<(MethodModifier, Range)>) -> bool {
     modifiers
         .par_iter()
         .any(|(modifier, _)| matches!(modifier, MethodModifier::Native))
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(modifiers))]
 pub(crate) fn is_class_obsolete(modifiers: &Vec<(ClassModifier, Range)>) -> bool {
     modifiers
         .par_iter()

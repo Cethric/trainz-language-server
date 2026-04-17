@@ -21,6 +21,7 @@ tracing = { workspace = true }
 trainz-ast = { workspace = true }
 trainz-acs-text-validators = { workspace = true }
 trainz-common = { workspace = true }
+trainz-definition = { workspace = true }
 
 [build-dependencies]
 shadow-rs = { version = "1.7" }

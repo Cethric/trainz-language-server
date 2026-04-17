@@ -1,7 +1,7 @@
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::{SemanticTokenModifier, SemanticTokenType};
 
-#[tracing::instrument]
+#[tracing::instrument(skip(target))]
 pub fn get_token_type(target: SemanticTokenType) -> u32 {
     let (types, _) = get_legend();
     types.par_iter().position_first(|t| *t == target).unwrap() as u32

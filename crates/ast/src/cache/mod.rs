@@ -29,7 +29,7 @@ impl AstCache {
         Self { cache_dir }
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(file_path))]
     fn get_cache_path(&self, file_path: &Path) -> PathBuf {
         let mut hasher = Sha256::new();
         hasher.update(file_path.to_string_lossy().as_bytes());
@@ -39,7 +39,7 @@ impl AstCache {
         path
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(file_path))]
     pub fn bust(&self, file_path: &Path) {
         let cache_path = self.get_cache_path(file_path);
         if cache_path.exists() {

@@ -23,6 +23,8 @@ trainz-ast = { workspace = true }
 trainz-acs-text-validators = { workspace = true }
 trainz-parser = { workspace = true }
 trainz-common = { workspace = true }
+trainz-tdx = { workspace = true }
+rusqlite = { workspace = true }
 
 [build-dependencies]
 shadow-rs = { version = "1.7" }

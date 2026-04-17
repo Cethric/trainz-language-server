@@ -2,17 +2,17 @@ use pest::iterators::Pair;
 use pest::{Position as PestPosition, RuleType};
 use tower_lsp_server::ls_types::{Position, Range};
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 pub fn pair_to_range<Rule: RuleType>(pair: &Pair<Rule>) -> Range {
     span_to_range(&pair.as_span())
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(span))]
 pub fn span_to_range(span: &pest::Span) -> Range {
     pos_to_range(&span.start_pos(), &span.end_pos())
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(start, end))]
 pub fn pos_to_range(start: &PestPosition, end: &PestPosition) -> Range {
     let (start_line, start_col) = start.line_col();
     let (end_line, end_col) = end.line_col();
@@ -28,7 +28,7 @@ pub fn pos_to_range(start: &PestPosition, end: &PestPosition) -> Range {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(container, item))]
 pub fn range_is_inside_range(container: &Range, item: &Range) -> bool {
     // Start comparison
     if item.start.line < container.start.line
@@ -46,7 +46,7 @@ pub fn range_is_inside_range(container: &Range, item: &Range) -> bool {
     true
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(container, item))]
 pub fn clamp_range(container: &Range, item: Range) -> Range {
     let mut clamped = item;
     if item.start.line < container.start.line
@@ -63,7 +63,7 @@ pub fn clamp_range(container: &Range, item: Range) -> Range {
     clamped
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(range1, range2))]
 pub fn combine_ranges(range1: Range, range2: Range) -> Range {
     let start = if range1.start.line < range2.start.line
         || (range1.start.line == range2.start.line

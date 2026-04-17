@@ -4,12 +4,14 @@ use rayon::prelude::*;
 use tokio::time::{Duration, timeout};
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{LanguageServer, LspService};
+use trainz_common::language_id::{ACS_TEXT_LANGUAGE_ID, GAME_SCRIPT_LANGUAGE_ID};
 use trainz_semantic_tokens::legend::get_token_type;
 
 #[tokio::test]
 async fn test_did_change_deadlock() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "", None, None)
+    });
 
     let uri = Uri::from_file_path(
         std::env::current_dir()
@@ -30,7 +32,7 @@ async fn test_did_change_deadlock() {
     let did_open_params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
             uri: uri.clone(),
-            language_id: "game-script".to_string(),
+            language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
             version: 1,
             text: content.to_string(),
         },
@@ -62,8 +64,9 @@ async fn test_did_change_deadlock() {
 
 #[tokio::test]
 async fn test_semantic_tokens_initial() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "", None, None)
+    });
     let uri = Uri::from_file_path(
         std::env::current_dir()
             .unwrap()
@@ -84,7 +87,7 @@ async fn test_semantic_tokens_initial() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content.to_string(),
             },
@@ -142,8 +145,9 @@ async fn test_semantic_tokens_initial() {
 
 #[tokio::test]
 async fn test_semantic_tokens_statements_literals() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "", None, None)
+    });
     let uri = Uri::from_file_path(
         std::env::current_dir()
             .unwrap()
@@ -163,7 +167,7 @@ async fn test_semantic_tokens_statements_literals() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content.to_string(),
             },
@@ -233,7 +237,7 @@ async fn test_semantic_tokens_statements_literals() {
 #[tokio::test]
 async fn test_semantic_tokens_update() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
     });
     let uri = Uri::from_file_path(
         std::env::current_dir()
@@ -256,7 +260,7 @@ async fn test_semantic_tokens_update() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content1.to_string(),
             },
@@ -320,8 +324,9 @@ async fn test_semantic_tokens_update() {
 
 #[tokio::test]
 async fn test_semantic_tokens_acs_text() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "", None, None)
+    });
     let uri = Uri::from_file_path(
         std::env::current_dir()
             .unwrap()
@@ -342,7 +347,7 @@ async fn test_semantic_tokens_acs_text() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "acs_text".to_string(),
+                language_id: ACS_TEXT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content.to_string(),
             },
@@ -389,8 +394,9 @@ async fn test_semantic_tokens_acs_text() {
 
 #[tokio::test]
 async fn test_semantic_tokens_isclass() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "", None, None)
+    });
     let uri = Uri::from_file_path(
         std::env::current_dir()
             .unwrap()
@@ -409,7 +415,7 @@ async fn test_semantic_tokens_isclass() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content.to_string(),
             },
@@ -458,8 +464,9 @@ async fn test_semantic_tokens_isclass() {
 
 #[tokio::test]
 async fn test_semantic_tokens_include() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "", None, None)
+    });
     let uri = Uri::from_file_path(
         std::env::current_dir()
             .unwrap()
@@ -478,7 +485,7 @@ async fn test_semantic_tokens_include() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content.to_string(),
             },
@@ -570,7 +577,7 @@ my_container {
     std::fs::write(&container_path, container_rules).unwrap();
 
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, Some(validator_dir.clone()), vec![], "")
+        GameScriptLanguageServer::new(client, Some(validator_dir.clone()), vec![], "", None, None)
     });
 
     service.inner().initialized(InitializedParams {}).await;
@@ -586,7 +593,7 @@ my_container {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "acs_text".to_string(),
+                language_id: ACS_TEXT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content.to_string(),
             },
@@ -611,7 +618,8 @@ my_container {
 
                 let has_era_error = items.par_iter().any(|diag| {
                     diag.message
-                        .contains("Invalid value(s) 'invalid_era' for key 'category-era'")
+                        .contains("Invalid value(s) 'invalid_era' for key")
+                        && diag.message.contains("category-era")
                         && diag.message.contains("era1")
                         && diag.message.contains("era2")
                         && diag.severity == Some(DiagnosticSeverity::ERROR)
@@ -717,6 +725,120 @@ my_container {
 }
 
 #[tokio::test]
+async fn test_acs_text_diagnostics_kind_validation() {
+    let temp_dir = std::env::current_dir()
+        .unwrap()
+        .join("temp_kind_validation_test");
+    if temp_dir.exists() {
+        std::fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    let validator_dir = temp_dir.join("validators");
+    let test_file_dir = temp_dir.join("test_file_dir");
+    std::fs::create_dir_all(&validator_dir).unwrap();
+    std::fs::create_dir_all(&test_file_dir).unwrap();
+
+    // Add a container validator
+    let container_path = validator_dir.join("my_kind.txt");
+    let container_rules = r#"
+my_kind {
+    top-level 1
+    key {
+        type "string"
+    }
+}
+"#;
+    std::fs::write(&container_path, container_rules).unwrap();
+
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, Some(validator_dir.clone()), vec![], "", None, None)
+    });
+
+    service.inner().initialized(InitializedParams {}).await;
+
+    // Test Case 1: Missing value for 'kind'
+    let content1 = "kind\n";
+    let uri1 = Uri::from_file_path(test_file_dir.join("test_missing_value.acs_text")).unwrap();
+    std::fs::write(uri1.to_file_path().unwrap(), content1).unwrap();
+
+    service
+        .inner()
+        .did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: uri1.clone(),
+                language_id: ACS_TEXT_LANGUAGE_ID.to_string(),
+                version: 1,
+                text: content1.to_string(),
+            },
+        })
+        .await;
+
+    let params1 = DocumentDiagnosticParams {
+        text_document: TextDocumentIdentifier { uri: uri1.clone() },
+        identifier: None,
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+        previous_result_id: None,
+    };
+
+    let result1 = service.inner().diagnostic(params1).await.unwrap();
+    if let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(full)) = result1 {
+        let items = &full.full_document_diagnostic_report.items;
+        let has_missing_value_error = items
+            .iter()
+            .any(|diag| diag.message.contains("Missing value for 'kind'"));
+        assert!(
+            has_missing_value_error,
+            "Should find diagnostic for missing 'kind' value. Diagnostics: {:?}",
+            items
+        );
+    } else {
+        panic!("Expected full diagnostic report");
+    }
+
+    // Test Case 2: Invalid validator for 'kind'
+    let content2 = "kind \"unknown_kind\"\n";
+    let uri2 = Uri::from_file_path(test_file_dir.join("test_unknown_kind.acs_text")).unwrap();
+    std::fs::write(uri2.to_file_path().unwrap(), content2).unwrap();
+
+    service
+        .inner()
+        .did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: uri2.clone(),
+                language_id: ACS_TEXT_LANGUAGE_ID.to_string(),
+                version: 1,
+                text: content2.to_string(),
+            },
+        })
+        .await;
+
+    let params2 = DocumentDiagnosticParams {
+        text_document: TextDocumentIdentifier { uri: uri2.clone() },
+        identifier: None,
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+        previous_result_id: None,
+    };
+
+    let result2 = service.inner().diagnostic(params2).await.unwrap();
+    if let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(full)) = result2 {
+        let items = &full.full_document_diagnostic_report.items;
+        let has_unknown_kind_error = items
+            .iter()
+            .any(|diag| diag.message.contains("Unknown kind 'unknown_kind'"));
+        assert!(
+            has_unknown_kind_error,
+            "Should find diagnostic for unknown 'kind'. Diagnostics: {:?}",
+            items
+        );
+    } else {
+        panic!("Expected full diagnostic report");
+    }
+
+    std::fs::remove_dir_all(temp_dir).unwrap();
+}
+
+#[tokio::test]
 async fn test_thumbnails_validation_extended() {
     let temp_dir = std::env::current_dir()
         .unwrap()
@@ -768,7 +890,7 @@ thumbnails-element
     std::fs::write(temp_dir.join("container.txt"), container_content).unwrap();
 
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![], "")
+        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![], "", None, None)
     });
 
     service.inner().initialized(InitializedParams {}).await;
@@ -781,12 +903,12 @@ thumbnails-element
     .unwrap();
 
     let content = r#"thumbnails {
-  preview {
+  0 {
     image "icon/icon.jpg"
     width "invalid_width"
     height 180
   }
-  main {
+  1 {
     image "main.jpg"
     width 800
   }
@@ -803,7 +925,7 @@ thumbnails-element
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "acs_text".to_string(),
+                language_id: ACS_TEXT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content.to_string(),
             },
@@ -963,7 +1085,7 @@ thumbnails-element
     std::fs::write(temp_dir.join("container.txt"), container_content).unwrap();
 
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![], "")
+        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![], "", None, None)
     });
 
     service.inner().initialized(InitializedParams {}).await;
@@ -1000,7 +1122,7 @@ thumbnails-element
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "acs_text".to_string(),
+                language_id: ACS_TEXT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content.to_string(),
             },
@@ -1096,7 +1218,7 @@ era2 "Era 2 Description"
     std::fs::write(temp_dir.join("category-era.txt"), era_content).unwrap();
 
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![], "")
+        GameScriptLanguageServer::new(client, Some(temp_dir.clone()), vec![], "", None, None)
     });
 
     service.inner().initialized(InitializedParams {}).await;
@@ -1131,7 +1253,7 @@ category-era "era1;invalid"
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: uri.clone(),
-                language_id: "acs_text".to_string(),
+                language_id: ACS_TEXT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content.to_string(),
             },
@@ -1313,8 +1435,9 @@ category-era "era1;invalid"
 
 #[tokio::test]
 async fn test_workspace_folders_initialization() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "", None, None)
+    });
 
     let root_path = std::env::current_dir().unwrap().join("test_workspace");
     let root_uri = Uri::from_file_path(&root_path).unwrap();
@@ -1336,8 +1459,9 @@ async fn test_workspace_folders_initialization() {
 
 #[tokio::test]
 async fn test_did_change_workspace_folders() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "", None, None)
+    });
 
     // Initial state: empty
     assert_eq!(service.inner().workspace_folders().len(), 0);
@@ -1382,8 +1506,9 @@ async fn test_did_change_workspace_folders() {
 
 #[tokio::test]
 async fn test_high_concurrency_file_processing() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "", None, None)
+    });
 
     let num_files = 20;
     let mut handles = vec![];
@@ -1403,7 +1528,7 @@ async fn test_high_concurrency_file_processing() {
         let params = DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri,
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content,
             },
@@ -1422,8 +1547,9 @@ async fn test_high_concurrency_file_processing() {
 
 #[tokio::test]
 async fn test_concurrency_recursive_includes() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "", None, None)
+    });
 
     let root_dir = std::env::current_dir()
         .unwrap()
@@ -1451,7 +1577,7 @@ async fn test_concurrency_recursive_includes() {
     let params_chain = DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
             uri: main_uri,
-            language_id: "game-script".to_string(),
+            language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
             version: 1,
             text: std::fs::read_to_string(&main_path).unwrap(),
         },
@@ -1467,7 +1593,7 @@ async fn test_concurrency_recursive_includes() {
         let params = DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: other_uri,
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content,
             },
@@ -1484,8 +1610,9 @@ async fn test_concurrency_recursive_includes() {
 
 #[tokio::test]
 async fn test_recursive_includes_three_levels() {
-    let (service, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+    let (service, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "", None, None)
+    });
 
     let root_dir = std::env::current_dir()
         .unwrap()
@@ -1512,7 +1639,7 @@ async fn test_recursive_includes_three_levels() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: a_uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content.clone(),
             },
@@ -1537,8 +1664,9 @@ async fn test_recursive_includes_three_levels() {
     }
 
     // 2. Create a NEW service (simulating a server restart)
-    let (service2, _) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], ""));
+    let (service2, _) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "", None, None)
+    });
 
     // Open A.gs again
     service2
@@ -1546,7 +1674,7 @@ async fn test_recursive_includes_three_levels() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: a_uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: content,
             },

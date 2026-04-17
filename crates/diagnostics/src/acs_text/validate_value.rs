@@ -1,5 +1,5 @@
 use crate::acs_text::validate_container::validate_container;
-use crate::acs_text::validate_simple_value;
+use crate::acs_text::validate_simple_value::{validate_simple_value, validate_simple_value_str};
 use rayon::prelude::*;
 use std::path::Path;
 use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity};
@@ -7,7 +7,15 @@ use tracing::warn;
 use trainz_acs_text_validators::{ContainerRule, Validation, Validators};
 use trainz_ast::acs_text::{NumericValue, Value};
 
-#[tracing::instrument]
+#[tracing::instrument(skip(
+    value,
+    rule,
+    all_validators,
+    diagnostics,
+    container_name,
+    base_path,
+    trainz_build_version
+))]
 pub fn validate_value(
     value: &Value,
     rule: &ContainerRule,
@@ -15,6 +23,7 @@ pub fn validate_value(
     diagnostics: &mut Vec<Diagnostic>,
     container_name: &str,
     base_path: Option<&Path>,
+    trainz_build_version: Option<f64>,
 ) {
     if let Some(type_name) = &rule.type_name {
         let actual_type = match value {
@@ -65,8 +74,33 @@ pub fn validate_value(
                     }
                     _ => true,
                 }
+            } else if actual_type == "string" {
+                match value {
+                    Value::String(s, _) => s != "0" && s != "1",
+                    _ => true,
+                }
             } else {
                 actual_type != "bool" && actual_type != "variable"
+            }
+        } else if type_name == "rgb" {
+            if actual_type == "array" {
+                if let Value::Array(parts, _) = value {
+                    if parts.len() != 3 {
+                        true
+                    } else {
+                        parts.iter().any(|p| {
+                            if let NumericValue::Int(i) = p {
+                                *i > 256i64 || *i < 0
+                            } else {
+                                true
+                            }
+                        })
+                    }
+                } else {
+                    true
+                }
+            } else {
+                true
             }
         } else if type_name == "kuid"
             || type_name == "kuidbrowser"
@@ -76,7 +110,20 @@ pub fn validate_value(
         } else if type_name == "filepath" {
             actual_type != "string" && actual_type != "variable"
         } else if type_name.starts_with("vector") || type_name == "floatlist" {
-            !is_array_type && actual_type != "variable"
+            if !is_array_type && actual_type != "variable" {
+                true
+            } else if let Value::Array(v, _) = value {
+                if type_name == "vector2" && v.len() != 2 {
+                    true
+                } else if type_name == "vector3" && v.len() != 2 {
+                    // Issue update says: "A vector3 is the same as a vector2"
+                    true
+                } else {
+                    type_name == "floatlist" && v.len() < 2
+                }
+            } else {
+                false
+            }
         } else if type_name == "combobox" || type_name == "listbox" || type_name == "filepathedit" {
             actual_type != "string" && actual_type != "variable"
         } else if type_name == "doublestring" {
@@ -85,6 +132,10 @@ pub fn validate_value(
             actual_type != type_name.as_str()
                 && actual_type != "variable"
                 && !(type_name == "array" && is_array_type)
+                && !(actual_type == "container"
+                    && all_validators
+                        .container_map
+                        .contains_key(&type_name.to_lowercase()))
         };
 
         if type_mismatch {
@@ -96,7 +147,7 @@ pub fn validate_value(
                 range: value.range(),
                 severity: Some(DiagnosticSeverity::ERROR),
                 message,
-                source: Some(String::from("acs_text-validator")),
+                source: Some(String::from("acs-validator")),
                 ..Default::default()
             });
         }
@@ -106,18 +157,71 @@ pub fn validate_value(
             && let Some(base_path) = base_path
             && let Value::String(s, _) = value
         {
-            let file_path = if let Some(parent) = base_path.parent() {
-                parent.join(s)
-            } else {
-                Path::new(s).to_path_buf()
-            };
+            let mut check_paths = vec![s.clone()];
 
-            if !file_path.exists() {
+            if s.to_lowercase().ends_with(".trainzmesh") {
+                let stem = &s[..s.len() - 11];
+                check_paths.push(format!("{}.fbx", stem));
+            }
+
+            if rule.kind.as_deref() == Some("texture") {
+                if s.to_lowercase().ends_with(".texture") {
+                    check_paths.push(format!("{}.txt", s));
+                }
+            } else if rule.kind.as_deref() == Some("image") {
+                let lower = s.to_lowercase();
+                if !lower.ends_with(".png")
+                    && !lower.ends_with(".jpg")
+                    && !lower.ends_with(".jpeg")
+                    && !lower.ends_with(".tga")
+                {
+                    diagnostics.push(Diagnostic {
+                        range: value.range(),
+                        severity: Some(DiagnosticSeverity::ERROR),
+                        message: format!(
+                            "File '{}' for key '{}' must be png, jpg, jpeg or tga.",
+                            s, rule.key
+                        ),
+                        source: Some(String::from("acs-validator")),
+                        ..Default::default()
+                    });
+                }
+            } else if rule.kind.as_deref() == Some("html") {
+                if !s.to_lowercase().ends_with(".html") {
+                    diagnostics.push(Diagnostic {
+                        range: value.range(),
+                        severity: Some(DiagnosticSeverity::ERROR),
+                        message: format!(
+                            "File '{}' for key '{}' must be a html file.",
+                            s, rule.key
+                        ),
+                        source: Some(String::from("acs-validator")),
+                        ..Default::default()
+                    });
+                }
+            } else if rule.kind.as_deref() == Some("animation") {
+                // assume extension check if we knew it, for now just existence
+            }
+
+            let mut exists = false;
+            for p in &check_paths {
+                let file_path = if let Some(parent) = base_path.parent() {
+                    parent.join(p)
+                } else {
+                    Path::new(p).to_path_buf()
+                };
+                if file_path.exists() {
+                    exists = true;
+                    break;
+                }
+            }
+
+            if !exists {
                 diagnostics.push(Diagnostic {
                     range: value.range(),
                     severity: Some(DiagnosticSeverity::ERROR),
                     message: format!("File '{}' for key '{}' does not exist.", s, rule.key),
-                    source: Some(String::from("acs_text-validator")),
+                    source: Some(String::from("acs-validator")),
                     ..Default::default()
                 });
             }
@@ -131,7 +235,7 @@ pub fn validate_value(
                     && let Some(allowed_values) = all_validators.simple.get("category-class")
                     && let Value::String(s, _) = value
                 {
-                    validate_simple_value::validate_simple_value_str(
+                    validate_simple_value_str(
                         value.range(),
                         s,
                         "category-class",
@@ -142,7 +246,7 @@ pub fn validate_value(
                     && let Some(allowed_values) = all_validators.simple.get("category-region")
                     && let Value::String(s, _) = value
                 {
-                    validate_simple_value::validate_simple_value_str(
+                    validate_simple_value_str(
                         value.range(),
                         s,
                         "category-region",
@@ -153,27 +257,19 @@ pub fn validate_value(
                     && let Some(allowed_values) = all_validators.simple.get("category-era")
                     && let Value::String(s, _) = value
                 {
-                    for era in s.split(';') {
-                        if era.is_empty() {
-                            continue;
-                        }
-                        if !allowed_values.contains_key(era) {
-                            diagnostics.push(Diagnostic {
-                                range: value.range(),
-                                severity: Some(DiagnosticSeverity::ERROR),
-                                message: format!(
-                                    "Invalid value(s) '{}' for key 'category-era'. Allowed values are: {}",
-                                    era,
-                                    allowed_values
-                                        .keys()
-                                        .map(|k| k.to_string())
-                                        .collect::<Vec<_>>()
-                                        .join(", ")
-                                ),
-                                source: Some(String::from("acs_text-validator")),
-                                ..Default::default()
-                            });
-                        }
+                    let values: Vec<&str> = s
+                        .split(';')
+                        .map(|e| e.trim())
+                        .filter(|e| !e.is_empty())
+                        .collect();
+                    for entry in values {
+                        validate_simple_value_str(
+                            value.range(),
+                            entry,
+                            "category-era",
+                            allowed_values,
+                            diagnostics,
+                        );
                     }
                 }
             }
@@ -182,7 +278,17 @@ pub fn validate_value(
 
     match value {
         Value::Container(container_kv, _, _) => {
-            if let Some(kind_name) = &rule.kind {
+            if let Some(validator) = &rule.child_validator {
+                validate_container(
+                    container_kv,
+                    validator,
+                    all_validators,
+                    diagnostics,
+                    None,
+                    base_path,
+                    trainz_build_version,
+                );
+            } else if let Some(kind_name) = &rule.kind {
                 if let Some(validator) = all_validators
                     .containers
                     .par_iter()
@@ -195,13 +301,11 @@ pub fn validate_value(
                         diagnostics,
                         None,
                         base_path,
+                        trainz_build_version,
                     );
                 }
             } else if let Some(type_name) = &rule.type_name
-                && let Some(validator) = all_validators
-                    .containers
-                    .par_iter()
-                    .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name))
+                && let Some(validator) = all_validators.container_map.get(&type_name.to_lowercase())
             {
                 validate_container(
                     container_kv,
@@ -210,16 +314,18 @@ pub fn validate_value(
                     diagnostics,
                     None,
                     base_path,
+                    trainz_build_version,
                 );
             }
         }
         Value::String(s, _) | Value::Variable(s, _) => {
             if let Some(type_name) = &rule.type_name {
+                let validator_name = rule.source.as_ref().unwrap_or(type_name);
                 if type_name == "combobox" {
-                    if let Some(validator) = all_validators.simple.get(&rule.key) {
-                        validate_simple_value::validate_simple_value(
+                    if let Some(validator) = all_validators.simple.get(validator_name) {
+                        validate_simple_value(
                             value,
-                            &rule.key,
+                            &format!("{} {}", rule.key, type_name),
                             validator,
                             diagnostics,
                         );
@@ -230,21 +336,21 @@ pub fn validate_value(
                         .map(|e| e.trim())
                         .filter(|e| !e.is_empty())
                         .collect();
-                    if let Some(validator) = all_validators.simple.get(&rule.key) {
+                    if let Some(validator) = all_validators.simple.get(validator_name) {
                         for entry in values {
-                            validate_simple_value::validate_simple_value_str(
+                            validate_simple_value_str(
                                 value.range(),
                                 entry,
-                                &rule.key,
+                                &format!("{} {}", rule.key, type_name),
                                 validator,
                                 diagnostics,
                             );
                         }
                     }
-                } else if let Some(validator) = all_validators.simple.get(type_name) {
-                    validate_simple_value::validate_simple_value(
+                } else if let Some(validator) = all_validators.simple.get(validator_name) {
+                    validate_simple_value(
                         value,
-                        &rule.key,
+                        &format!("{} {}", rule.key, type_name),
                         validator,
                         diagnostics,
                     );
@@ -260,7 +366,7 @@ pub fn validate_value(
                         "Value '{}' for key '{}' does not match filter '{}'.",
                         s, rule.key, filter
                     ),
-                    source: Some(String::from("acs_text-validator")),
+                    source: Some(String::from("acs-validator")),
                     ..Default::default()
                 });
             }
@@ -268,52 +374,153 @@ pub fn validate_value(
                 for validator in validations {
                     match validator {
                         Validation::IntRange(min, max) => {
-                            warn!(
-                                "Range validator not implemented yet for {} {:?} {} {}",
-                                rule.key, value, min, max
-                            )
+                            let val = match value {
+                                Value::Numeric(NumericValue::Int(i), _) => *i as f64,
+                                Value::Numeric(NumericValue::Float(f), _) => *f,
+                                Value::String(s, _) => s.parse::<f64>().unwrap_or(0.0),
+                                _ => 0.0,
+                            };
+                            if val < *min as f64 || val > *max as f64 {
+                                diagnostics.push(Diagnostic {
+                                    range: value.range(),
+                                    severity: Some(DiagnosticSeverity::ERROR),
+                                    message: format!(
+                                        "Value {} for key '{}' is out of range [{}, {}].",
+                                        val, rule.key, min, max
+                                    ),
+                                    source: Some(String::from("acs-validator")),
+                                    ..Default::default()
+                                });
+                            }
                         }
                         Validation::HexRange(min, max) => {
-                            warn!(
-                                "Range validator not implemented yet for {} {:?} {} {}",
-                                rule.key, value, min, max
-                            )
+                            let val = match value {
+                                Value::Numeric(NumericValue::Int(i), _) => *i as f64,
+                                Value::Numeric(NumericValue::Float(f), _) => *f,
+                                Value::String(s, _) => s.parse::<f64>().unwrap_or(0.0),
+                                _ => 0.0,
+                            };
+                            if val < *min as f64 || val > *max as f64 {
+                                diagnostics.push(Diagnostic {
+                                    range: value.range(),
+                                    severity: Some(DiagnosticSeverity::ERROR),
+                                    message: format!(
+                                        "Value {} for key '{}' is out of range [{}, {}].",
+                                        val, rule.key, min, max
+                                    ),
+                                    source: Some(String::from("acs-validator")),
+                                    ..Default::default()
+                                });
+                            }
                         }
                         Validation::FloatRange(min, max) => {
-                            warn!(
-                                "Range validator not implemented yet for {} {:?} {} {}",
-                                rule.key, value, min, max
-                            )
+                            let val = match value {
+                                Value::Numeric(NumericValue::Int(i), _) => *i as f64,
+                                Value::Numeric(NumericValue::Float(f), _) => *f,
+                                Value::String(s, _) => s.parse::<f64>().unwrap_or(0.0),
+                                _ => 0.0,
+                            };
+                            if val < *min || val > *max {
+                                diagnostics.push(Diagnostic {
+                                    range: value.range(),
+                                    severity: Some(DiagnosticSeverity::ERROR),
+                                    message: format!(
+                                        "Value {} for key '{}' is out of range [{}, {}].",
+                                        val, rule.key, min, max
+                                    ),
+                                    source: Some(String::from("acs-validator")),
+                                    ..Default::default()
+                                });
+                            }
+                        }
+                        Validation::MustBePaired(keys) => {
+                            if let Value::Container(entries, _, _) = value {
+                                for (i, kv) in entries.iter().enumerate() {
+                                    let expected = &keys[i % keys.len()];
+                                    if !kv.key.eq_ignore_ascii_case(expected) {
+                                        diagnostics.push(Diagnostic {
+                                            range: value.range(),
+                                            severity: Some(DiagnosticSeverity::ERROR),
+                                            message: format!(
+                                                "Key '{}' at index {} violates MustBePaired group. Expected '{}'.",
+                                                kv.key, i, expected
+                                            ),
+                                            source: Some(String::from("acs-validator")),
+                                            ..Default::default()
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        Validation::FilepathTableFilesExist => {
+                            if let Value::Container(entries, _, _) = value {
+                                for kv in entries {
+                                    if let Some(Value::String(s, range)) = &kv.value
+                                        && let Some(base) = base_path
+                                    {
+                                        let mut check_paths = vec![s.clone()];
+
+                                        if s.to_lowercase().ends_with(".trainzmesh") {
+                                            let stem = &s[..s.len() - 11];
+                                            check_paths.push(format!("{}.fbx", stem));
+                                        }
+
+                                        let mut exists = false;
+                                        for p in &check_paths {
+                                            let file_path = if let Some(parent) = base.parent() {
+                                                parent.join(p)
+                                            } else {
+                                                Path::new(p).to_path_buf()
+                                            };
+                                            if file_path.exists() {
+                                                exists = true;
+                                                break;
+                                            }
+                                        }
+
+                                        if !exists {
+                                            diagnostics.push(Diagnostic {
+                                                range: *range,
+                                                severity: Some(DiagnosticSeverity::ERROR),
+                                                message: format!(
+                                                    "File '{}' in FilepathTable does not exist.",
+                                                    s
+                                                ),
+                                                source: Some(String::from("acs-validator")),
+                                                ..Default::default()
+                                            });
+                                        }
+                                    }
+                                }
+                            }
                         }
                         Validation::NeedCollateMeshes(_meshes) => {
-                            // todo!(
-                            //     "NeedCollateMeshes validator not implemented yet for {} {:?} {:?}",
-                            //     rule.key,
-                            //     value,
-                            //     meshes
-                            // );
+                            // ...
                         }
                         Validation::NotOwnParent => {
-                            // todo!(
-                            //     "NotOwnParent validator not implemented yet for {} {:?}",
-                            //     rule.key,
-                            //     value
-                            // );
+                            // ...
                         }
                         Validation::Named(validation) => {
-                            if validation.eq_ignore_ascii_case("ScriptFileExists") {
+                            if validation.eq_ignore_ascii_case("ScriptFileExists")
+                                || validation.eq_ignore_ascii_case("scriptfileexists")
+                            {
                                 if let Some(base_path) = base_path {
-                                    let file_path = if let Some(parent) = base_path.parent() {
-                                        parent.join(s)
+                                    let mut exists = false;
+                                    let script_names = if s.to_lowercase().ends_with(".gs") {
+                                        vec![s.clone()]
                                     } else {
-                                        Path::new(s).to_path_buf()
+                                        vec![s.clone(), format!("{}.gs", s)]
                                     };
 
-                                    let mut exists = file_path.exists();
-                                    if !exists && !s.to_lowercase().ends_with(".gs") {
-                                        let gs_path = file_path.with_added_extension("gs");
-                                        if gs_path.exists() {
+                                    for name in script_names {
+                                        let file_path = if let Some(parent) = base_path.parent() {
+                                            parent.join(&name)
+                                        } else {
+                                            Path::new(&name).to_path_buf()
+                                        };
+                                        if file_path.exists() {
                                             exists = true;
+                                            break;
                                         }
                                     }
 
@@ -325,7 +532,75 @@ pub fn validate_value(
                                                 "File '{}' for key '{}' does not exist.",
                                                 s, rule.key
                                             ),
-                                            source: Some(String::from("acs_text-validator")),
+                                            source: Some(String::from("acs-validator")),
+                                            ..Default::default()
+                                        });
+                                    }
+                                }
+                            } else if validation.eq_ignore_ascii_case("IsNotZero") {
+                                let val = match value {
+                                    Value::Numeric(NumericValue::Int(i), _) => *i as f64,
+                                    Value::Numeric(NumericValue::Float(f), _) => *f,
+                                    Value::String(s, _) => s.parse::<f64>().unwrap_or(1.0), // assume non-zero if not a number?
+                                    _ => 0.0,
+                                };
+                                if val == 0.0 {
+                                    diagnostics.push(Diagnostic {
+                                        range: value.range(),
+                                        severity: Some(DiagnosticSeverity::ERROR),
+                                        message: format!(
+                                            "Value for key '{}' must not be zero.",
+                                            rule.key
+                                        ),
+                                        source: Some(String::from("acs-validator")),
+                                        ..Default::default()
+                                    });
+                                }
+                            } else if validation.eq_ignore_ascii_case("IsPositive") {
+                                let val = match value {
+                                    Value::Numeric(NumericValue::Int(i), _) => *i as f64,
+                                    Value::Numeric(NumericValue::Float(f), _) => *f,
+                                    Value::String(s, _) => s.parse::<f64>().unwrap_or(0.0),
+                                    _ => -1.0,
+                                };
+                                if val < 0.0 {
+                                    diagnostics.push(Diagnostic {
+                                        range: value.range(),
+                                        severity: Some(DiagnosticSeverity::ERROR),
+                                        message: format!(
+                                            "Value for key '{}' must be positive.",
+                                            rule.key
+                                        ),
+                                        source: Some(String::from("acs-validator")),
+                                        ..Default::default()
+                                    });
+                                }
+                            } else if validation.eq_ignore_ascii_case("HasValidTextureFile") {
+                                if let Some(base_path) = base_path {
+                                    let file_path = if let Some(parent) = base_path.parent() {
+                                        parent.join(s)
+                                    } else {
+                                        Path::new(s).to_path_buf()
+                                    };
+                                    if !file_path.exists() {
+                                        diagnostics.push(Diagnostic {
+                                            range: value.range(),
+                                            severity: Some(DiagnosticSeverity::ERROR),
+                                            message: format!(
+                                                "Texture file '{}' does not exist.",
+                                                s
+                                            ),
+                                            source: Some(String::from("acs-validator")),
+                                            ..Default::default()
+                                        });
+                                    } else {
+                                        diagnostics.push(Diagnostic {
+                                            range: value.range(),
+                                            severity: Some(DiagnosticSeverity::WARNING),
+                                            message: String::from(
+                                                "Texture validation has not been done yet.",
+                                            ),
+                                            source: Some(String::from("acs-validator")),
                                             ..Default::default()
                                         });
                                     }
@@ -341,7 +616,7 @@ pub fn validate_value(
                                             "Value '{}' for key '{}' is not a valid {}.",
                                             s, rule.key, validation
                                         ),
-                                        source: Some(String::from("acs_text-validator")),
+                                        source: Some(String::from("acs-validator")),
                                         ..Default::default()
                                     });
                                 }

@@ -3,7 +3,7 @@ use crate::gs::types::collect_type_tokens;
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
 use trainz_ast::gs::{MethodDef, MethodModifier};
 
-#[tracing::instrument]
+#[tracing::instrument(skip(method, raw_tokens, known_classes, has_separate_declaration))]
 pub fn collect_method_tokens(
     method: &MethodDef,
     raw_tokens: &mut Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)>,

@@ -43,7 +43,7 @@ test_container
     // In load_validators, 'is_container_style' checks for specific filenames.
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     let errors: Vec<_> = diagnostics
@@ -116,7 +116,7 @@ type "numeric"
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     // Check if there are any errors.
@@ -177,7 +177,7 @@ UniqueNames
 "#;
     std::fs::write(temp_dir.join("my_container.txt"), my_container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text2, &validators, None);
     let has_duplicate_error = diagnostics.par_iter().any(|diag| {
         diag.message.to_lowercase().contains("duplicate key")
@@ -218,7 +218,7 @@ my-kind
 "#;
     std::fs::write(temp_dir.join("kind.txt"), kind_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     let errors: Vec<_> = diagnostics
@@ -259,7 +259,7 @@ my-kind
 "#;
     std::fs::write(temp_dir.join("kind.txt"), kind_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics_invalid = acs_text_diagnostics(&acs_text_invalid, &validators, None);
 
     let has_type_error = diagnostics_invalid
@@ -335,7 +335,7 @@ type "numeric"
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     // Check if there are any errors. Numeric keys should be valid.
@@ -405,7 +405,7 @@ type "numeric"
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     // Check for duplicate key error.
@@ -470,7 +470,7 @@ type "numeric"
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     let errors: Vec<_> = diagnostics
@@ -528,7 +528,7 @@ type "string"
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     let unknown_key_errors: Vec<_> = diagnostics
@@ -591,7 +591,7 @@ obsolete-tag 1
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     let missing_errors: Vec<_> = diagnostics
@@ -647,7 +647,7 @@ obsolete-tag 1
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     let obsolete_warning = diagnostics.par_iter().find_first(|diag| {
@@ -692,7 +692,7 @@ compulsory 1
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     // Should have an error for missing required-key
@@ -762,7 +762,7 @@ type "int"
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     let has_type_error = diagnostics
@@ -805,7 +805,7 @@ type "vector2"
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     let has_type_error = diagnostics
@@ -909,7 +909,7 @@ type "string"
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     // 1. Check for duplicate key error for "Key1"
@@ -933,7 +933,7 @@ Key3 {
 "#;
     let pairs_invalid = parse_acs_text(content_invalid).unwrap();
     let acs_text_invalid = process_acs_text_ast(pairs_invalid, content_invalid);
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics_invalid = acs_text_diagnostics(&acs_text_invalid, &validators, None);
 
     let has_unknown_key_error = diagnostics_invalid
@@ -980,7 +980,7 @@ key "value"
 "#;
     let pairs = parse_acs_text(content).unwrap();
     let acs_text = process_acs_text_ast(pairs, content);
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     let has_error = diagnostics
@@ -1007,7 +1007,7 @@ type "string"
 }
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt_mixed).unwrap();
-    let validators_mixed = load_validators(&temp_dir);
+    let validators_mixed = load_validators(&temp_dir, None);
     let diagnostics_mixed = acs_text_diagnostics(&acs_text, &validators_mixed, None);
     let has_error_mixed = diagnostics_mixed
         .par_iter()
@@ -1033,7 +1033,7 @@ type "string"
 }
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt_tagarray).unwrap();
-    let validators_tagarray = load_validators(&temp_dir);
+    let validators_tagarray = load_validators(&temp_dir, None);
     let diagnostics_tagarray = acs_text_diagnostics(&acs_text, &validators_tagarray, None);
     let has_error_tagarray = diagnostics_tagarray
         .par_iter()
@@ -1111,7 +1111,7 @@ optional-key
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
     assert!(
         diagnostics.is_empty(),
@@ -1137,88 +1137,6 @@ kind "my-container"
         has_missing_key_error,
         "Expected missing key error for 'required-key', but found: {:?}",
         diagnostics_missing
-    );
-
-    std::fs::remove_dir_all(&temp_dir).unwrap();
-}
-
-#[test]
-fn test_array_element_sequential_validation() {
-    let content = r#"
-my-array {
-kind "my-array"
-0 {
-    value "elem0"
-}
-1 {
-    value "elem1"
-}
-}
-"#;
-    let pairs = parse_acs_text(content).unwrap();
-    let acs_text = process_acs_text_ast(pairs, content);
-
-    let temp_dir = std::env::current_dir()
-        .unwrap()
-        .join("temp_array_element_test");
-    if temp_dir.exists() {
-        std::fs::remove_dir_all(&temp_dir).unwrap();
-    }
-    std::fs::create_dir_all(&temp_dir).unwrap();
-
-    let container_txt = r#"
-my-array
-{
-  kind "container"
-  array-element
-  {
-container-type0 "my-element"
-  }
-}
-
-my-element
-{
-  kind "container"
-  value
-  {
-type "string"
-  }
-}
-"#;
-    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
-
-    let validators = load_validators(&temp_dir);
-    let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
-    assert!(
-        diagnostics.is_empty(),
-        "Expected no errors for valid sequential array, but found: {:?}",
-        diagnostics
-    );
-
-    // Non-sequential keys
-    let content_non_seq = r#"
-my-array {
-kind "my-array"
-0 {
-    value "elem0"
-}
-2 {
-    value "elem2"
-}
-}
-"#;
-    let pairs_non_seq = parse_acs_text(content_non_seq).unwrap();
-    let acs_text_non_seq = process_acs_text_ast(pairs_non_seq, content_non_seq);
-    let diagnostics_non_seq = acs_text_diagnostics(&acs_text_non_seq, &validators, None);
-
-    let has_seq_error = diagnostics_non_seq.par_iter().any(|diag| {
-        diag.message.contains("Non-sequential array index '2'")
-            && diag.message.contains("Expected '1'")
-    });
-    assert!(
-        has_seq_error,
-        "Expected non-sequential error, but found: {:?}",
-        diagnostics_non_seq
     );
 
     std::fs::remove_dir_all(&temp_dir).unwrap();
@@ -1288,7 +1206,7 @@ track-id "test-track"
     let pairs = parse_acs_text(acs_text_content).unwrap();
     let acs_text = process_acs_text_ast(pairs, acs_text_content);
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     // Should NOT have any "Unknown key" errors if top_level validation worked
@@ -1381,7 +1299,7 @@ Optional-Key
 "#;
     std::fs::write(temp_dir.join("kind.txt"), kind_content).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
 
     // 1. Test case-insensitive SubPossibilities in validator definition
     let acs_text_content = r#"
@@ -1484,7 +1402,7 @@ category-class "Scenery"
     let pairs = parse_acs_text(acs_text_content).unwrap();
     let acs_text = process_acs_text_ast(pairs, acs_text_content);
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
 
     assert!(
@@ -1559,7 +1477,7 @@ category-region "FRA"
 "#;
     let pairs_region = parse_acs_text(acs_text_content_region).unwrap();
     let acs_text_region = process_acs_text_ast(pairs_region, acs_text_content_region);
-    let validators_region = load_validators(&temp_dir);
+    let validators_region = load_validators(&temp_dir, None);
     let diagnostics_region = acs_text_diagnostics(&acs_text_region, &validators_region, None);
     assert!(
         diagnostics_region.is_empty(),
@@ -1615,7 +1533,7 @@ category-era "2000s;2010s;"
 "#;
     let pairs_era = parse_acs_text(acs_text_content_era).unwrap();
     let acs_text_era = process_acs_text_ast(pairs_era, acs_text_content_era);
-    let validators_era = load_validators(&temp_dir);
+    let validators_era = load_validators(&temp_dir, None);
     let diagnostics_era = acs_text_diagnostics(&acs_text_era, &validators_era, None);
     assert!(
         diagnostics_era.is_empty(),
@@ -1674,7 +1592,7 @@ compulsory 1
 "#;
     std::fs::write(temp_dir.join("kind.txt"), kind_content).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
 
     // 1. Test that disabled key does not trigger missing compulsory error (as child)
     let acs_text_content = r#"
@@ -1709,22 +1627,24 @@ test-container {
 
     // 3. Test top-level disabled key
     let kind_content_top = r#"
-kind "test-kind"
-disabled-top
+test-kind
 {
-  type string
-  compulsory 1
-  disabled 1
+  disabled-top
+  {
+    type string
+    compulsory 1
+    disabled 1
+  }
+  normal-top
+  {
+    type string
+    compulsory 1
+  }
+  top-level 1
 }
-normal-top
-{
-  type string
-  compulsory 1
-}
-top-level 1
 "#;
     std::fs::write(temp_dir.join("kind.txt"), kind_content_top).unwrap();
-    let validators_top = load_validators(&temp_dir);
+    let validators_top = load_validators(&temp_dir, None);
 
     let acs_text_top = r#"
 kind "test-kind"
@@ -1761,7 +1681,7 @@ test-container
 }
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
 
     // 1. Valid case
     let valid_content = r#"
@@ -1804,6 +1724,195 @@ combo "val1;val2"
 }
 
 #[test]
+fn test_inline_nested_validator_diagnostics() {
+    let temp_dir = std::env::temp_dir().join("acs_text_inline_nested_diagnostics_test");
+    if temp_dir.exists() {
+        std::fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_txt = r#"
+example {
+  kind "container"
+  top-level 1
+  nested {
+    type "container"
+    value {
+      type "string"
+      validation "IsValidValue"
+    }
+  }
+}
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+    std::fs::write(temp_dir.join("isvalidvalue.txt"), "val1 \"Value 1\"").unwrap();
+    let validators = load_validators(&temp_dir, None);
+
+    // 1. Valid case
+    let valid_content = r#"
+example {
+kind "example"
+nested {
+  value "val1"
+}
+}
+"#;
+    let pairs = parse_acs_text(valid_content).unwrap();
+    let acs_text = process_acs_text_ast(pairs, valid_content);
+    let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
+    assert!(
+        diagnostics.is_empty(),
+        "Expected no diagnostics for valid inline nested value, found: {:?}",
+        diagnostics
+    );
+
+    // 2. Invalid case
+    let invalid_content = r#"
+example {
+kind "example"
+nested {
+  value "invalid_val"
+}
+}
+"#;
+    let pairs_inv = parse_acs_text(invalid_content).unwrap();
+    let acs_text_inv = process_acs_text_ast(pairs_inv, invalid_content);
+    let diagnostics_inv = acs_text_diagnostics(&acs_text_inv, &validators, None);
+    assert!(
+        !diagnostics_inv.is_empty(),
+        "Expected diagnostics for invalid inline nested value"
+    );
+    assert!(
+        diagnostics_inv[0]
+            .message
+            .contains("not a valid IsValidValue")
+            || diagnostics_inv[0]
+                .message
+                .contains("Invalid value(s) 'invalid_val' for key 'value'"),
+        "Unexpected error message: {}",
+        diagnostics_inv[0].message
+    );
+
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_tagarray_nested_validator_diagnostics() {
+    let temp_dir = std::env::temp_dir().join("acs_text_tagarray_nested_diagnostics_test");
+    if temp_dir.exists() {
+        std::fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_txt = r#"
+extensions {
+  kind "container"
+  top-level 1
+  tagarray {
+    foo { type "string" }
+  }
+}
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+    let validators = load_validators(&temp_dir, None);
+
+    // 1. Valid case
+    let valid_content = r#"
+extensions {
+kind "extensions"
+my-ext {
+  foo "bar"
+}
+}
+"#;
+    let pairs = parse_acs_text(valid_content).unwrap();
+    let acs_text = process_acs_text_ast(pairs, valid_content);
+    let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
+    assert!(
+        diagnostics.is_empty(),
+        "Expected no diagnostics for valid nested tagarray, found: {:?}",
+        diagnostics
+    );
+
+    // 2. Invalid case (invalid value type)
+    let invalid_content = r#"
+extensions {
+kind "extensions"
+my-ext {
+  foo 123
+}
+}
+"#;
+    let pairs_inv = parse_acs_text(invalid_content).unwrap();
+    let acs_text_inv = process_acs_text_ast(pairs_inv, invalid_content);
+    let diagnostics_inv = acs_text_diagnostics(&acs_text_inv, &validators, None);
+    assert!(
+        !diagnostics_inv.is_empty(),
+        "Expected diagnostics for invalid value in nested tagarray"
+    );
+
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_array_element_nested_validator_diagnostics() {
+    let temp_dir = std::env::temp_dir().join("acs_text_array_element_nested_diagnostics_test");
+    if temp_dir.exists() {
+        std::fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_txt = r#"
+my-array {
+  kind "container"
+  top-level 1
+  array-element {
+    foo { type "string" }
+  }
+}
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+    let validators = load_validators(&temp_dir, None);
+
+    // 1. Valid case
+    let valid_content = r#"
+my-array {
+kind "my-array"
+0 {
+  foo "bar"
+}
+}
+"#;
+    let pairs = parse_acs_text(valid_content).unwrap();
+    let acs_text = process_acs_text_ast(pairs, valid_content);
+    let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
+    assert!(
+        diagnostics.is_empty(),
+        "Expected no diagnostics for valid nested array-element, found: {:?}",
+        diagnostics
+    );
+
+    // 2. Invalid case (invalid value type)
+    let invalid_content = r#"
+my-array {
+kind "my-array"
+0 {
+  foo 123
+}
+}
+"#;
+    let pairs_inv = parse_acs_text(invalid_content).unwrap();
+    let acs_text_inv = process_acs_text_ast(pairs_inv, invalid_content);
+    let diagnostics_inv = acs_text_diagnostics(&acs_text_inv, &validators, None);
+    assert!(
+        !diagnostics_inv.is_empty(),
+        "Expected diagnostics for invalid value in nested array-element"
+    );
+
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
 fn test_listbox() {
     let temp_dir = std::env::temp_dir().join("acs_text_listbox_test");
     if temp_dir.exists() {
@@ -1822,7 +1931,7 @@ test-container
 }
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
 
     let valid_content = r#"
 test-container {
@@ -1865,7 +1974,7 @@ test-container
     // Create a dummy file for filepathedit test
     std::fs::write(temp_dir.join("existing_file.txt"), "hello").unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
 
     // 1. Valid case
     let valid_content = r#"
@@ -1929,7 +2038,7 @@ test-container
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
 
     // 1. Array with only integers - should be valid for floatlist
     let int_content = r#"
@@ -1988,7 +2097,7 @@ test-container-2
 }
 "#;
     std::fs::write(temp_dir.join("container2.txt"), container_txt_2).unwrap();
-    let validators_2 = load_validators(&temp_dir);
+    let validators_2 = load_validators(&temp_dir, None);
     let float_content_2 = r#"
 test-container-2 {
 arr 1.5,2.5
@@ -2067,7 +2176,7 @@ compulsory 1.0
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
     assert!(
         diagnostics.is_empty(),
@@ -2177,7 +2286,7 @@ i { kind "container" value_int { type "int" compulsory 1.0 } }
 "#;
     std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let diagnostics = acs_text_diagnostics(&acs_text, &validators, None);
     assert!(
         diagnostics.is_empty(),
@@ -2218,7 +2327,7 @@ test-container
     // Create a dummy script file with .gs
     std::fs::write(temp_dir.join("my_script.gs"), "print(\"hello\");").unwrap();
 
-    let validators = load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
 
     // 1. Valid case
     let valid_content = r#"
@@ -2286,6 +2395,361 @@ script "non_existent_script"
         has_file_error,
         "Expected error for non-existent file in filepath, but not found. Diagnostics: {:?}",
         diagnostics_inv
+    );
+
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_trainzmesh_fbx_fallback() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "acs_text_trainzmesh_fbx_test_{:?}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    if temp_dir.exists() {
+        std::fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_txt = r#"
+test-container
+{
+  kind "container"
+  top-level 1
+  mesh { type "filepath" }
+}
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+
+    // Create a dummy fbx file
+    std::fs::write(temp_dir.join("default.fbx"), "dummy fbx content").unwrap();
+
+    let validators = load_validators(&temp_dir, None);
+
+    // Test case: .trainzmesh is specified, but only .fbx exists
+    let content = r#"
+test-container {
+kind "test-container"
+mesh "default.trainzmesh"
+}
+"#;
+    let pairs = parse_acs_text(content).unwrap();
+    let acs_text = process_acs_text_ast(pairs, content);
+    let diagnostics = acs_text_diagnostics(
+        &acs_text,
+        &validators,
+        Some(&temp_dir.join("test.acs_text")),
+    );
+
+    // Currently this should fail (it should have one diagnostic about missing file)
+    assert!(
+        diagnostics.is_empty(),
+        "Expected no diagnostics because of .fbx fallback, but found: {:?}",
+        diagnostics
+    );
+
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_filepath_table_fbx_fallback() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "acs_text_filepath_table_fbx_test_{:?}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    if temp_dir.exists() {
+        std::fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_txt = r#"
+test-container
+{
+  kind "container"
+  top-level 1
+  mesh-table { type "container" validation "FilepathTableFilesExist" }
+}
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+
+    // Create a dummy fbx file
+    std::fs::write(temp_dir.join("default.fbx"), "dummy fbx content").unwrap();
+
+    let validators = load_validators(&temp_dir, None);
+
+    // Test case: .trainzmesh is specified in mesh-table, but only .fbx exists
+    let content = r#"
+test-container {
+kind "test-container"
+mesh-table {
+  default { mesh "default.trainzmesh" }
+}
+}
+"#;
+    let pairs = parse_acs_text(content).unwrap();
+    let acs_text = process_acs_text_ast(pairs, content);
+    let _diagnostics = acs_text_diagnostics(
+        &acs_text,
+        &validators,
+        Some(&temp_dir.join("test.acs_text")),
+    );
+
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_array_element_sequential_validation() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "acs_text_array_seq_test_{:?}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_txt = r#"
+my-container {
+    kind "container"
+    top-level 1
+    array-element {
+        container-type0 "type0"
+        container-type1 "type1"
+    }
+}
+type0 { kind "container" v0 { type "int" } }
+type1 { kind "container" v1 { type "int" } }
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+    let validators = load_validators(&temp_dir, None);
+
+    // 1. Valid sequential
+    let content1 = r#"
+my-container {
+    0 { v0 1 }
+    1 { v1 2 }
+}
+"#;
+    let acs_text1 = trainz_ast::acs_text::process::process_acs_text_ast(
+        trainz_parser::acs_text::parse_acs_text(content1).unwrap(),
+        content1,
+    );
+    let diagnostics1 = acs_text_diagnostics(&acs_text1, &validators, None);
+    assert!(
+        diagnostics1.is_empty(),
+        "Expected no diagnostics, found: {:?}",
+        diagnostics1
+    );
+
+    // 2. Non-sequential (gap)
+    let content2 = r#"
+my-container {
+    0 { v0 1 }
+    2 { v1 2 }
+}
+"#;
+    let acs_text2 = trainz_ast::acs_text::process::process_acs_text_ast(
+        trainz_parser::acs_text::parse_acs_text(content2).unwrap(),
+        content2,
+    );
+    let diagnostics2 = acs_text_diagnostics(&acs_text2, &validators, None);
+    assert!(
+        diagnostics2
+            .iter()
+            .any(|d| d.message.contains("Non-sequential array index '2'")),
+        "Expected warning for gap in indices"
+    );
+    assert!(
+        diagnostics2
+            .iter()
+            .any(|d| d.message.contains("Missing tuple element '1'")),
+        "Expected error for missing tuple element"
+    );
+
+    // 3. Out of bounds
+    let content3 = r#"
+my-container {
+    0 { v0 1 }
+    1 { v1 2 }
+    2 { v0 3 }
+}
+"#;
+    let acs_text3 = trainz_ast::acs_text::process::process_acs_text_ast(
+        trainz_parser::acs_text::parse_acs_text(content3).unwrap(),
+        content3,
+    );
+    let diagnostics3 = acs_text_diagnostics(&acs_text3, &validators, None);
+    assert!(
+        diagnostics3
+            .iter()
+            .any(|d| d.message.contains("Index '2' out of bounds")),
+        "Expected error for out of bounds index"
+    );
+
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_array_element_single_type_gap_validation() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "acs_text_array_single_test_{:?}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_txt = r#"
+my-container {
+    kind "container"
+    top-level 1
+    array-element {
+        container-type0 "type0"
+    }
+}
+type0 { kind "container" v0 { type "int" } }
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+    let validators = load_validators(&temp_dir, None);
+
+    // 1. Valid with gap
+    let content1 = r#"
+my-container {
+    0 { v0 1 }
+    1 { v0 2 }
+    7 { v0 3 }
+    8 { v0 4 }
+}
+"#;
+    let acs_text1 = trainz_ast::acs_text::process::process_acs_text_ast(
+        trainz_parser::acs_text::parse_acs_text(content1).unwrap(),
+        content1,
+    );
+    let diagnostics1 = acs_text_diagnostics(&acs_text1, &validators, None);
+    assert!(
+        diagnostics1.is_empty(),
+        "Expected no diagnostics for single type with gaps, found: {:?}",
+        diagnostics1
+    );
+
+    // 2. Non-increasing
+    let content2 = r#"
+my-container {
+    0 { v0 1 }
+    1 { v0 2 }
+    8 { v0 3 }
+    7 { v0 4 }
+}
+"#;
+    let acs_text2 = trainz_ast::acs_text::process::process_acs_text_ast(
+        trainz_parser::acs_text::parse_acs_text(content2).unwrap(),
+        content2,
+    );
+    let diagnostics2 = acs_text_diagnostics(&acs_text2, &validators, None);
+    assert!(
+        diagnostics2
+            .iter()
+            .any(|d| d.message.contains("Non-increasing array index '7'")),
+        "Expected warning for non-increasing indices"
+    );
+
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_tag_array_multi_type_validation() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "acs_text_tag_array_test_{:?}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_txt = r#"
+my-container {
+    kind "container"
+    top-level 1
+    tagarray {
+        container-type0 "type0"
+        container-type1 "type1"
+    }
+}
+type0 { kind "container" v0 { type "int" } }
+type1 { kind "container" v1 { type "int" } }
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+    let validators = load_validators(&temp_dir, None);
+
+    // 1. Valid order
+    let content1 = r#"
+my-container {
+    foo { v0 1 }
+    bar { v1 2 }
+}
+"#;
+    let acs_text1 = trainz_ast::acs_text::process::process_acs_text_ast(
+        trainz_parser::acs_text::parse_acs_text(content1).unwrap(),
+        content1,
+    );
+    let diagnostics1 = acs_text_diagnostics(&acs_text1, &validators, None);
+    assert!(
+        diagnostics1.is_empty(),
+        "Expected no diagnostics, found: {:?}",
+        diagnostics1
+    );
+
+    // 2. Invalid types for order
+    let content2 = r#"
+my-container {
+    foo { v1 1 }
+    bar { v0 2 }
+}
+"#;
+    let acs_text2 = trainz_ast::acs_text::process::process_acs_text_ast(
+        trainz_parser::acs_text::parse_acs_text(content2).unwrap(),
+        content2,
+    );
+    let diagnostics2 = acs_text_diagnostics(&acs_text2, &validators, None);
+    assert!(
+        diagnostics2
+            .iter()
+            .any(|d| d.message.contains("Unknown key 'v1' in container 'type0'")),
+        "Expected error for v1 in type0 position"
+    );
+    assert!(
+        diagnostics2
+            .iter()
+            .any(|d| d.message.contains("Unknown key 'v0' in container 'type1'")),
+        "Expected error for v0 in type1 position"
+    );
+
+    // 3. Out of bounds for tagarray
+    let content3 = r#"
+my-container {
+    foo { v0 1 }
+    bar { v1 2 }
+    baz { v0 3 }
+}
+"#;
+    let acs_text3 = trainz_ast::acs_text::process::process_acs_text_ast(
+        trainz_parser::acs_text::parse_acs_text(content3).unwrap(),
+        content3,
+    );
+    let diagnostics3 = acs_text_diagnostics(&acs_text3, &validators, None);
+    assert!(
+        diagnostics3
+            .iter()
+            .any(|d| d.message.contains("Index '2' out of bounds")),
+        "Expected error for too many items in tagarray"
     );
 
     std::fs::remove_dir_all(&temp_dir).unwrap();

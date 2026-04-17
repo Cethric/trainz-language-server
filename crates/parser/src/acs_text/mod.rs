@@ -9,7 +9,7 @@ use shadow_rs::shadow;
 
 shadow!(build);
 
-#[tracing::instrument]
+#[tracing::instrument(skip(src))]
 pub fn parse_acs_text(src: &'_ str) -> Result<Pairs<'_, Rule>, ParseError> {
     match AuranConfigAcsTextParser::parse(Rule::acs_text, src) {
         Ok(pairs) => {

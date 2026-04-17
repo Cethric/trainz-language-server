@@ -7,7 +7,7 @@ use trainz_acs_text_validators::Validators;
 use trainz_ast::acs_text::value::Value;
 use trainz_common::wiki::get_wiki_kind_name;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(key, value, position, validators, rule, completions, asset_cache_path))]
 pub fn add_value_completions(
     key: &str,
     value: Option<&Value>,
@@ -15,6 +15,7 @@ pub fn add_value_completions(
     validators: &Validators,
     rule: Option<&trainz_acs_text_validators::ContainerRule>,
     completions: &mut Vec<CompletionItem>,
+    asset_cache_path: Option<&std::path::Path>,
 ) {
     debug!("Adding value completions for key '{}'", key);
 
@@ -60,6 +61,81 @@ pub fn add_value_completions(
         filter_text, selected_values
     );
 
+    if let Some(rule) = rule
+        && let Some(type_name) = &rule.type_name
+    {
+        let validator_name = rule.source.as_ref().unwrap_or(type_name);
+        if let Some(options) = validators.simple.get(validator_name) {
+            for (value_str, description) in options {
+                if selected_values.contains(&value_str.to_lowercase()) && filter_text.is_empty() {
+                    continue;
+                }
+                let label = value_str.clone();
+                let detail = description.clone();
+                completions.push(CompletionItem {
+                    label,
+                    detail,
+                    kind: Some(CompletionItemKind::ENUM_MEMBER),
+                    insert_text: Some(value_str.to_string()),
+                    insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+                    insert_text_mode: Some(InsertTextMode::AS_IS),
+                    ..Default::default()
+                });
+            }
+        }
+
+        if (type_name == "kuidbrowser" || type_name == "stringkuidbrowser")
+            && let Some(cache_path) = asset_cache_path
+            && let Ok(conn) = rusqlite::Connection::open(cache_path)
+            && let Ok(mut stmt) = conn.prepare("SELECT kuid, username, acs FROM assets")
+        {
+            let asset_iter = stmt.query_map([], |row| {
+                let kuid_val: i64 = row.get(0)?;
+                let username: Option<String> = row.get(1)?;
+                let acs: Vec<u8> = row.get(2)?;
+                Ok((kuid_val, username, acs))
+            });
+
+            if let Ok(asset_iter) = asset_iter {
+                for asset in asset_iter.flatten() {
+                    let (kuid_val, username, acs) = asset;
+                    let (user_id, content_id, version) = trainz_tdx::TdxValue::split_kuid(kuid_val);
+                    let kuid_str = if type_name == "stringkuidbrowser" {
+                        format!("<kuid2:{}:{}:{}>", user_id, content_id, version)
+                    } else {
+                        format!("kuid2:{}:{}:{}", user_id, content_id, version)
+                    };
+
+                    let mut documentation = String::new();
+                    if let Ok(parsed_acs) = trainz_tdx::acs_bin::AcsParser::new(&acs).parse()
+                        && let trainz_tdx::TdxValue::Container(entries) = parsed_acs
+                    {
+                        for (tag, val) in entries {
+                            if tag == "description"
+                                && let trainz_tdx::TdxValue::String(s) = val
+                            {
+                                documentation = s;
+                            }
+                        }
+                    }
+
+                    completions.push(CompletionItem {
+                        label: kuid_str.clone(),
+                        detail: username,
+                        kind: Some(CompletionItemKind::VALUE),
+                        documentation: if documentation.is_empty() {
+                            None
+                        } else {
+                            Some(Documentation::String(documentation))
+                        },
+                        insert_text: Some(kuid_str),
+                        ..Default::default()
+                    });
+                }
+            }
+        }
+    }
+
     // Named validators from the rule
     if let Some(rule) = rule
         && let Some(validations) = &rule.validation
@@ -71,12 +147,18 @@ pub fn add_value_completions(
                     "IsValidCategoryEra" => Some("category-era"),
                     "IsValidCategoryRegion" => Some("category-region"),
                     "IsValidCategoryClass" => Some("category-class"),
-                    _ => None,
+                    _ => Some(name.as_str()),
                 };
 
                 if let Some(s_key) = simple_key
-                    && let Some(options) = validators.simple.get(s_key)
+                    && (validators.simple.contains_key(s_key)
+                        || validators.simple.contains_key(&s_key.to_lowercase()))
                 {
+                    let options = validators
+                        .simple
+                        .get(s_key)
+                        .or_else(|| validators.simple.get(&s_key.to_lowercase()))
+                        .unwrap();
                     for (value_str, description) in options {
                         if selected_values.contains(&value_str.to_lowercase())
                             && filter_text.is_empty()

@@ -9,7 +9,7 @@ use trainz_common::range::{pair_to_range, pos_to_range};
 use trainz_parser::acs_text::grammar::Rule;
 use value::process_value;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pairs))]
 pub fn process_acs_text_ast(pairs: Pairs<Rule>, src: &str) -> AcsText {
     let mut key_value_pairs = vec![];
     let mut root_range = Range::default();
@@ -40,7 +40,7 @@ pub fn process_acs_text_ast(pairs: Pairs<Rule>, src: &str) -> AcsText {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 pub fn process_key_value_pair(pair: Pair<Rule>) -> KeyValuePair {
     let range = pair_to_range(&pair);
     let mut inner = pair.into_inner();

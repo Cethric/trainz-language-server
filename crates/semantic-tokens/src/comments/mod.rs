@@ -4,7 +4,7 @@ mod tests;
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
 use trainz_ast::comments::{Comment, CommentProgram};
 
-#[tracing::instrument]
+#[tracing::instrument(skip(program))]
 pub fn comments_semantic_tokens(
     program: &CommentProgram,
 ) -> Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)> {

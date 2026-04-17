@@ -25,8 +25,9 @@ async fn bench_process_gs_file(server: &GameScriptLanguageServer, path: PathBuf,
 
 fn criterion_benchmark(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let (service, _socket) =
-        LspService::new(|client| GameScriptLanguageServer::new(client, None, vec![], "test"));
+    let (service, _socket) = LspService::new(|client| {
+        GameScriptLanguageServer::new(client, None, vec![], "test", None, None)
+    });
     let server = service.inner();
 
     // In Cargo, benches run with CWD set to the crate root.

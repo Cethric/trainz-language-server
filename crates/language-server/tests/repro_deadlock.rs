@@ -2,12 +2,13 @@ use std::fs;
 use tokio::time::{Duration, timeout};
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{LanguageServer, LspService};
+use trainz_common::language_id::GAME_SCRIPT_LANGUAGE_ID;
 use trainz_language_server::state::GameScriptLanguageServer;
 
 #[tokio::test]
 async fn test_circular_include_deadlock() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
     });
     let temp_dir = std::env::current_dir()
         .unwrap()
@@ -26,7 +27,7 @@ async fn test_circular_include_deadlock() {
     let did_open_params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
             uri: uri_a.clone(),
-            language_id: "game-script".to_string(),
+            language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
             version: 1,
             text: fs::read_to_string(&path_a).unwrap(),
         },

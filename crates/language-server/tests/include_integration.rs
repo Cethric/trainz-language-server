@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{LanguageServer, LspService};
+use trainz_common::language_id::GAME_SCRIPT_LANGUAGE_ID;
 use trainz_language_server::state::GameScriptLanguageServer;
 
 fn setup_temp_workspace(test_name: &str) -> (PathBuf, Uri) {
@@ -32,7 +33,7 @@ fn setup_temp_workspace(test_name: &str) -> (PathBuf, Uri) {
 #[tokio::test]
 async fn test_include_document_symbols() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
     });
     let (temp_dir, main_uri) = setup_temp_workspace("test_include_document_symbols");
 
@@ -55,7 +56,7 @@ async fn test_include_document_symbols() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: main_uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: fs::read_to_string(main_uri.to_file_path().unwrap()).unwrap(),
             },
@@ -102,7 +103,7 @@ async fn test_include_document_symbols() {
 #[tokio::test]
 async fn test_include_goto_definition() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
     });
     let (temp_dir, main_uri) = setup_temp_workspace("test_include_goto_definition");
     let helper_uri = Uri::from_file_path(temp_dir.join("Helper.gs")).unwrap();
@@ -126,7 +127,7 @@ async fn test_include_goto_definition() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: helper_uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: fs::read_to_string(helper_uri.to_file_path().unwrap()).unwrap(),
             },
@@ -139,7 +140,7 @@ async fn test_include_goto_definition() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: main_uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: fs::read_to_string(main_uri.to_file_path().unwrap()).unwrap(),
             },
@@ -265,7 +266,7 @@ async fn test_include_goto_definition() {
 #[tokio::test]
 async fn test_include_document_links() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version")
+        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
     });
     let (temp_dir, main_uri) = setup_temp_workspace("test_include_document_links");
     let helper_uri = Uri::from_file_path(temp_dir.join("Helper.gs")).unwrap();
@@ -289,7 +290,7 @@ async fn test_include_document_links() {
         .did_open(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: main_uri.clone(),
-                language_id: "game-script".to_string(),
+                language_id: GAME_SCRIPT_LANGUAGE_ID.to_string(),
                 version: 1,
                 text: fs::read_to_string(main_uri.to_file_path().unwrap()).unwrap(),
             },

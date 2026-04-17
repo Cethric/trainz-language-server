@@ -6,5 +6,6 @@ pub mod cache;
 pub mod comments;
 pub mod find;
 pub mod gs;
+pub mod gsl;
 
 shadow!(build);

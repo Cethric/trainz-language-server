@@ -32,12 +32,7 @@ impl EvaluatedType {
     }
 }
 
-pub fn is_type_compatible(
-    expected: &Type,
-    actual: &Type,
-    program: &Program,
-    resolver: &dyn ClassResolver,
-) -> bool {
+pub fn is_type_compatible(expected: &Type, actual: &Type, resolver: &dyn ClassResolver) -> bool {
     match (expected, actual) {
         (Type::Bool(_), Type::Bool(_)) => true,
         (Type::Int(_), Type::Int(_)) => true,
@@ -51,12 +46,12 @@ pub fn is_type_compatible(
             }
             // Check inheritance: actual must be a subclass of expected
             if let Some(actual_class) = resolver.find_class(&a_id.name) {
-                return actual_class.is_subclass_of(&e_id.name, program, resolver);
+                return actual_class.is_subclass_of(&e_id.name, resolver);
             }
             false
         }
         (Type::Array(e_inner, _), Type::Array(a_inner, _)) => {
-            is_type_compatible(e_inner, a_inner, program, resolver)
+            is_type_compatible(e_inner, a_inner, resolver)
         }
         // Implicit casts
         (Type::Float(_), Type::Int(_)) => true, // int to float
@@ -145,7 +140,7 @@ pub fn evaluate_expr_type(
                     return Err("Cannot use 'inherited' outside of a method".to_string());
                 }
 
-                if let Some(field) = class.find_field(program, resolver, &id.name) {
+                if let Some(field) = class.find_field(resolver, &id.name) {
                     return match &field.ty {
                         Type::Array(inner, range) => {
                             let size = known_array_sizes.get(&id.name).cloned();
@@ -333,7 +328,7 @@ pub fn evaluate_expr_type(
                                             if let Some(class) = resolver.find_class(&class_id.name)
                                             {
                                                 if let Some(field) =
-                                                    class.find_field(program, resolver, &id.name)
+                                                    class.find_field(resolver, &id.name)
                                                 {
                                                     EvaluatedType::Type(field.ty.clone())
                                                 } else if let Some(methods) =
@@ -510,12 +505,7 @@ pub fn evaluate_expr_type(
     }
 }
 
-pub fn is_compatible(
-    source: &Type,
-    target: &Type,
-    program: &Program,
-    resolver: &dyn ClassResolver,
-) -> bool {
+pub fn is_compatible(source: &Type, target: &Type, resolver: &dyn ClassResolver) -> bool {
     // 1. Exact match
     if format!("{}", source) == format!("{}", target) {
         return true;
@@ -526,7 +516,7 @@ pub fn is_compatible(
         (Type::Named(src_id), Type::Named(tgt_id)) => {
             // Check inheritance: src must be a subclass of tgt
             if let Some(src_class) = resolver.find_class(&src_id.name) {
-                return src_class.is_subclass_of(&tgt_id.name, program, resolver);
+                return src_class.is_subclass_of(&tgt_id.name, resolver);
             }
         }
         (Type::Object(_), _) => return true,

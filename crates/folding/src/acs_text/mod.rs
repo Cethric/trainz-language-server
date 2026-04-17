@@ -8,7 +8,7 @@ use trainz_ast::acs_text::base::AcsText;
 #[cfg(test)]
 mod tests;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(acs_text))]
 pub fn acs_text_folding_range(acs_text: &AcsText) -> Vec<FoldingRange> {
     acs_text
         .key_value_pairs
@@ -18,7 +18,7 @@ pub fn acs_text_folding_range(acs_text: &AcsText) -> Vec<FoldingRange> {
         .collect::<Vec<FoldingRange>>()
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(value))]
 fn collect_key_value_folding_ranges(value: &Value) -> Vec<FoldingRange> {
     if let Value::Container(pairs, _, full_range) = value {
         let range = *full_range;

@@ -121,7 +121,7 @@ pub(crate) fn process_expr(
 
                         if let Ok(EvaluatedType::Type(Type::Named(class_id))) = res
                             && let Some(class) = resolver.find_class(&class_id.name)
-                            && class.find_field(program, resolver, &id.name).is_some()
+                            && class.find_field(resolver, &id.name).is_some()
                         {
                             kind = SymbolKind::PROPERTY;
                         }

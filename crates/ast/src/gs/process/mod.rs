@@ -16,7 +16,7 @@ mod stmt;
 #[cfg(test)]
 mod tests;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pairs, src))]
 pub fn process_trainz_ast(pairs: Pairs<Rule>, src: &str) -> Program {
     let mut includes = vec![];
     let mut class_definitions = HashMap::new();

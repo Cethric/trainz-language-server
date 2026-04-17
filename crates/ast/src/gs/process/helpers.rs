@@ -3,6 +3,7 @@ use pest::iterators::Pair;
 use trainz_common::range::pair_to_range;
 use trainz_parser::gs::grammar::Rule;
 
+#[tracing::instrument(skip(scopes, parent, range, variables))]
 pub fn push_scope(
     scopes: &mut Vec<Scope>,
     parent: Option<usize>,
@@ -24,6 +25,7 @@ pub fn push_scope(
     id
 }
 
+#[tracing::instrument(skip(scope_id, statements, range))]
 pub fn create_block(scope_id: usize, statements: Vec<Stmt>, range: crate::Range) -> Block {
     Block {
         statements,
@@ -32,7 +34,7 @@ pub fn create_block(scope_id: usize, statements: Vec<Stmt>, range: crate::Range)
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 pub fn process_identifier(pair: Pair<Rule>) -> Identifier {
     let name = pair.as_str().to_string();
     let range = pair_to_range(&pair);
@@ -58,7 +60,7 @@ pub fn process_identifier(pair: Pair<Rule>) -> Identifier {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 pub fn process_type(pair: Pair<Rule>) -> Type {
     let range = pair_to_range(&pair);
     match pair.as_rule() {
@@ -93,7 +95,7 @@ pub fn process_type(pair: Pair<Rule>) -> Type {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 pub fn process_type_or_void(pair: Pair<Rule>) -> TypeOrVoid {
     let range = pair_to_range(&pair);
     match pair.as_rule() {

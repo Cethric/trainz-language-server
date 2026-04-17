@@ -10,7 +10,7 @@ use shadow_rs::shadow;
 
 shadow!(build);
 
-#[tracing::instrument]
+#[tracing::instrument(skip(src))]
 pub fn parse_gs_comments(src: &'_ str) -> Result<Pairs<'_, GsRule>, ParseError> {
     match GsCommentsParser::parse(GsRule::comment_program, src) {
         Ok(pairs) => Ok(pairs),
@@ -18,7 +18,7 @@ pub fn parse_gs_comments(src: &'_ str) -> Result<Pairs<'_, GsRule>, ParseError> 
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(src))]
 pub fn parse_acs_text_comments(src: &'_ str) -> Result<Pairs<'_, AcsTextRule>, ParseError> {
     match AcsTextCommentsParser::parse(AcsTextRule::comment_program, src) {
         Ok(pairs) => Ok(pairs),

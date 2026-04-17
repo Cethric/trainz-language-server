@@ -14,12 +14,14 @@ use trainz_acs_text_validators::Validators;
 use trainz_ast::acs_text::{AcsText, Kuid};
 use trainz_ast::cache::AstCache;
 use trainz_ast::gs::Program;
+use trainz_tdx::TdxValue;
 
 #[derive(Debug, Clone)]
 pub struct Project {
     pub root: PathBuf,
     pub config_txt: PathBuf,
     pub script_files: DashSet<PathBuf>,
+    pub chump_files: DashSet<PathBuf>,
     pub assets: DashSet<PathBuf>,
 }
 
@@ -27,6 +29,7 @@ pub struct Project {
 pub enum ParsedFileType {
     AcsText(Arc<AcsText>),
     GameScript(Arc<Program>),
+    AcsBinary(Arc<Vec<(String, TdxValue)>>),
 }
 
 pub struct RecursiveIncludeResolver<'a> {
@@ -117,6 +120,8 @@ pub struct GameScriptLanguageServer {
     pub client: Client,
     pub search_paths: Vec<PathBuf>,
     pub validation_path: Option<PathBuf>,
+    pub asset_cache_path: Option<PathBuf>,
+    pub extensions_overrides_path: Option<PathBuf>,
     pub validators: Arc<OnceLock<Validators>>,
     pub parsed_files: DashMap<String, ParsedFile>,
     pub counts: DashMap<String, AtomicUsize>,
@@ -134,16 +139,22 @@ impl GameScriptLanguageServer {
         validation_path: Option<PathBuf>,
         search_paths: Vec<PathBuf>,
         version: &str,
+        asset_cache_path: Option<PathBuf>,
+        extensions_overrides_path: Option<PathBuf>,
     ) -> Self {
         info!("Create GameScriptLanguageServer {}", version);
 
         trace!("Search paths {:?}", search_paths);
         trace!("Validation path {:?}", validation_path);
+        trace!("Asset cache path {:?}", asset_cache_path);
+        trace!("Extensions overrides path {:?}", extensions_overrides_path);
 
         Self {
             client,
             search_paths,
             validation_path,
+            asset_cache_path,
+            extensions_overrides_path,
             validators: Arc::new(OnceLock::new()),
             parsed_files: DashMap::new(),
             counts: DashMap::new(),

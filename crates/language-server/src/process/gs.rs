@@ -24,7 +24,7 @@ pub trait ProcessGS {
 }
 
 impl ProcessGS for GameScriptLanguageServer {
-    #[tracing::instrument(skip(self, content, workspace_folders, progress))]
+    #[tracing::instrument(skip(self, path, content, workspace_folders, changed, progress))]
     async fn process_gs_file(
         &self,
         path: &Path,
@@ -50,6 +50,7 @@ impl ProcessGS for GameScriptLanguageServer {
     }
 }
 
+#[tracing::instrument(skip(include, base_path, workspace_folders, search_paths))]
 fn find_include_path(
     include: &str,
     base_path: &Path,
@@ -80,7 +81,7 @@ fn find_include_path(
 
 impl GameScriptLanguageServer {
     #[async_recursion]
-    #[tracing::instrument(skip(self, workspace_folders, progress))]
+    #[tracing::instrument(skip(self, include, workspace_folders, progress))]
     async fn process_gs_include(
         &self,
         include: Include,
@@ -157,7 +158,7 @@ impl GameScriptLanguageServer {
     }
 
     #[async_recursion]
-    #[tracing::instrument(skip(self, content, workspace_folders, progress))]
+    #[tracing::instrument(skip(self, path, content, workspace_folders, changed, progress))]
     async fn process_gs_file_inner(
         &self,
         path: &Path,
@@ -257,7 +258,7 @@ impl GameScriptLanguageServer {
 
                 includes.extend(parsed_arc.includes.clone());
             } else if let Err(e) = pairs {
-                error!("Failed to parse file: {:?}", e)
+                error!("Failed to parse file: {:?} {:#?}", path_str.to_string(), e)
             }
         } else {
             unreachable!("path is not a string");

@@ -1,11 +1,10 @@
 use clap::Parser;
 use rayon::ThreadPoolBuilder;
 use shadow_rs::shadow;
-use std::env;
 use std::path::PathBuf;
 use tokio::main;
 use tower_lsp_server::{LspService, Server};
-use tracing::debug;
+use tracing::{debug, info};
 use trainz_common::logging::{BoxMakeWriter, setup_logger};
 use trainz_language_server::state::GameScriptLanguageServer;
 
@@ -43,6 +42,14 @@ struct Args {
     /// Log file path
     #[arg(long, env = "TRAINZ_LANGUAGE_SERVER_LOG_FILE")]
     log_file: Option<PathBuf>,
+
+    /// Path to the asset cache sqlite file
+    #[arg(long, env = "TRAINZ_LANGUAGE_SERVER_ASSET_CACHE")]
+    asset_cache: Option<PathBuf>,
+
+    /// Path to a folder for defining extensions overrides
+    #[arg(long, env = "TRAINZ_LANGUAGE_SERVER_EXTENSIONS_OVERRIDES")]
+    extensions_overrides: Option<PathBuf>,
 }
 
 #[main]
@@ -62,16 +69,25 @@ async fn main() {
     };
     setup_logger(Some(args.verbosity.into()), Some(writer));
 
-    let validation_path = args.validation_path.or_else(|| {
-        env::var("TRAINZ_LANGUAGE_SERVER_ACS_TEXT_VALIDATION_PATH")
-            .ok()
-            .map(PathBuf::from)
-    });
+    info!(
+        "Launching Trainz Language Server v{} - {:?}",
+        PKG_VERSION, args
+    );
 
+    let validation_path = args.validation_path;
     let search_paths = args.search_paths;
+    let asset_cache = args.asset_cache;
+    let extensions_overrides = args.extensions_overrides;
 
     let (service, socket) = LspService::build(|client| {
-        GameScriptLanguageServer::new(client, validation_path, search_paths.clone(), PKG_VERSION)
+        GameScriptLanguageServer::new(
+            client,
+            validation_path,
+            search_paths.clone(),
+            PKG_VERSION,
+            asset_cache,
+            extensions_overrides,
+        )
     })
     .finish();
 

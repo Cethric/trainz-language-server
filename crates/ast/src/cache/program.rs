@@ -11,7 +11,7 @@ pub trait ProgramCache {
 }
 
 impl ProgramCache for AstCache {
-    #[tracing::instrument]
+    #[tracing::instrument(skip(file_path))]
     fn load(&self, file_path: &Path) -> Option<Program> {
         let cache_path = self.get_cache_path(file_path);
         if !cache_path.exists() {
@@ -25,7 +25,7 @@ impl ProgramCache for AstCache {
         Some(program)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(file_path, program))]
     fn save(&self, file_path: &Path, program: &Program) -> Result<(), Box<dyn std::error::Error>> {
         let cache_path = self.get_cache_path(file_path);
 

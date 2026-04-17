@@ -52,7 +52,6 @@ enum DefinitionResult {
     Location(Location),
 }
 
-#[tracing::instrument(skip(script_resolver))]
 fn find_definition_recursive(
     kvs: &[KeyValuePair],
     position: Position,
@@ -61,7 +60,7 @@ fn find_definition_recursive(
     base_path: Option<&Path>,
     script_resolver: Option<&dyn ScriptResolver>,
 ) -> Option<DefinitionResult> {
-    for kv in kvs {
+    for (index, kv) in kvs.iter().enumerate() {
         // Check if cursor is over key
         if is_in_range(position, &kv.key_range) {
             return Some(DefinitionResult::Key(kv.key.clone()));
@@ -76,48 +75,83 @@ fn find_definition_recursive(
                 let mut next_validator = None;
 
                 if let Some(cv) = current_validator {
-                    rule = cv
-                        .rules
-                        .par_iter()
-                        .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key));
-                    if let Some(r) = rule
-                        && let Some(type_name) = &r.type_name
-                    {
-                        next_validator = validators
-                            .containers
-                            .par_iter()
-                            .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name));
-                    }
-
-                    if next_validator.is_none()
-                        && let Some(array_element_type) = &cv.array_element
-                    {
-                        let type_name = match array_element_type {
-                            ArrayElementType::Array(s) => Some(s),
-                            ArrayElementType::Tuple(types) => {
-                                kv.key.parse::<usize>().ok().and_then(|idx| types.get(idx))
+                    if let Some(array_element_type) = &cv.array_element {
+                        match array_element_type {
+                            ArrayElementType::Array(_, s) => {
+                                next_validator = validators.container_map.get(&s.to_lowercase());
                             }
-                        };
-                        next_validator = type_name.and_then(|tn| {
-                            validators
-                                .containers
-                                .par_iter()
-                                .find_first(|v| v.container_name.eq_ignore_ascii_case(tn))
-                        });
+                            ArrayElementType::Tuple(types) => {
+                                next_validator = kv.key.parse::<usize>().ok().and_then(|idx| {
+                                    types.get(idx).and_then(|(_, tn)| {
+                                        validators.container_map.get(&tn.to_lowercase())
+                                    })
+                                });
+                            }
+                            ArrayElementType::Inline(iv) => {
+                                next_validator = Some(iv.as_ref());
+                            }
+                            ArrayElementType::Rule(r) => {
+                                rule = Some(r.as_ref());
+                                if let Some(cv) = &r.child_validator {
+                                    next_validator = Some(cv.as_ref());
+                                } else if let Some(tn) = &r.type_name {
+                                    next_validator =
+                                        validators.container_map.get(&tn.to_lowercase());
+                                }
+                            }
+                        }
+                    } else {
+                        rule = cv
+                            .rules
+                            .par_iter()
+                            .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
+                            .or_else(|| {
+                                cv.sub_possibilities
+                                    .par_iter()
+                                    .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
+                            });
+                        if let Some(r) = rule {
+                            if let Some(child_validator) = &r.child_validator {
+                                next_validator = Some(child_validator.as_ref());
+                            } else if let Some(type_name) = &r.type_name {
+                                next_validator =
+                                    validators.container_map.get(&type_name.to_lowercase());
+                            }
+                        } else if let Some(tag_array) = &cv.tag_array {
+                            match tag_array {
+                                ArrayElementType::Array(_, s) => {
+                                    next_validator =
+                                        validators.container_map.get(&s.to_lowercase());
+                                }
+                                ArrayElementType::Tuple(types) => {
+                                    next_validator = types.get(index).and_then(|(_, tn)| {
+                                        validators.container_map.get(&tn.to_lowercase())
+                                    });
+                                }
+                                ArrayElementType::Inline(iv) => {
+                                    next_validator = Some(iv.as_ref());
+                                }
+                                ArrayElementType::Rule(r) => {
+                                    rule = Some(r.as_ref());
+                                    if let Some(cv) = &r.child_validator {
+                                        next_validator = Some(cv.as_ref());
+                                    } else if let Some(tn) = &r.type_name {
+                                        next_validator =
+                                            validators.container_map.get(&tn.to_lowercase());
+                                    }
+                                }
+                            }
+                        }
                     }
                 } else {
                     // Top-level
-                    next_validator = validators
-                        .containers
-                        .par_iter()
-                        .find_first(|cv| cv.container_name.eq_ignore_ascii_case(&kv.key));
+                    next_validator = validators.container_map.get(&kv.key.to_lowercase());
 
                     // If not a container, check simple validators
                     if next_validator.is_none() && validators.simple.contains_key(&kv.key) {
                         rule = validators
-                            .containers
-                            .par_iter()
-                            .find_first(|c| c.container_name.eq_ignore_ascii_case(&kv.key))
+                            .container_map
+                            .get(&kv.key.to_lowercase())
                             .and_then(|container| {
                                 container
                                     .rules
@@ -189,23 +223,20 @@ fn find_definition_recursive(
 
                     if let Some(script_name) = script_name
                         && let Some((_uri, program)) = resolver.resolve_script(base, script_name)
+                        && let Some(class_def) = program.classes.get(class_name)
                     {
-                        if let Some(class_def) = program.classes.get(class_name) {
-                            return Some(DefinitionResult::Location(Location {
-                                uri: Uri::from_file_path(
-                                    std::path::Path::new(&program.src)
-                                        .canonicalize()
-                                        .unwrap_or_else(|_e| {
-                                            std::path::PathBuf::from(&program.src)
-                                        }),
-                                )
-                                .unwrap_or_else(|| {
-                                    // Fallback to _uri if program.src is not a valid path
-                                    _uri
-                                }),
-                                range: class_def.name.range,
-                            }));
-                        }
+                        return Some(DefinitionResult::Location(Location {
+                            uri: Uri::from_file_path(
+                                std::path::Path::new(&program.src)
+                                    .canonicalize()
+                                    .unwrap_or_else(|_e| std::path::PathBuf::from(&program.src)),
+                            )
+                            .unwrap_or({
+                                // Fallback to _uri if program.src is not a valid path
+                                _uri
+                            }),
+                            range: class_def.name.range,
+                        }));
                     }
                 }
 
@@ -227,8 +258,8 @@ fn find_definition_recursive(
     None
 }
 
-#[tracing::instrument]
-fn is_in_range(pos: Position, range: &trainz_ast::Range) -> bool {
+#[tracing::instrument(skip(pos, range))]
+fn is_in_range(pos: Position, range: &Range) -> bool {
     if pos.line < range.start.line || pos.line > range.end.line {
         return false;
     }
@@ -241,12 +272,12 @@ fn is_in_range(pos: Position, range: &trainz_ast::Range) -> bool {
     true
 }
 
-#[tracing::instrument]
-fn get_value_range(value: &Value) -> trainz_ast::Range {
+#[tracing::instrument(skip(value))]
+fn get_value_range(value: &Value) -> Range {
     value.range()
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(acs_text, target, uri, locations))]
 fn find_all_key_locations(
     acs_text: &AcsText,
     target: &str,
@@ -266,7 +297,7 @@ fn find_all_key_locations(
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(kv_pairs, target, uri, locations))]
 fn find_all_key_locations_inner(
     kv_pairs: &Vec<KeyValuePair>,
     target: &str,
@@ -342,10 +373,19 @@ mod tests {
                 filter: None,
                 disabled: None,
                 obsolete_tag: None,
-                array_element: None,
+                obsolete_version: None,
+                obsolete_message: None,
+                minimum_version: None,
+                source: None,
+                child_validator: None,
             }],
             ..Default::default()
         });
+        for v in &validators.containers {
+            validators
+                .container_map
+                .insert(v.container_name.to_lowercase(), v.clone());
+        }
 
         let pos = Position {
             line: 2,
@@ -427,6 +467,11 @@ mod tests {
             ],
             ..Default::default()
         });
+        for v in &validators.containers {
+            validators
+                .container_map
+                .insert(v.container_name.to_lowercase(), v.clone());
+        }
 
         // 1. Test filepath
         let pos_file = Position {
@@ -537,5 +582,65 @@ mod tests {
         );
         // The range should be the range of "MyClass" identifier in the script
         assert_eq!(locs_class[0].range.start.line, 0);
+    }
+
+    #[test]
+    fn test_inline_nested_validator_goto_definition() {
+        let content = r#"
+example {
+  nested {
+    target_file "test.txt"
+  }
+}
+"#;
+        let pairs = trainz_parser::acs_text::parse_acs_text(content).unwrap();
+        let acs_text = trainz_ast::acs_text::process::process_acs_text_ast(pairs, content);
+
+        let dir = tempfile::tempdir().unwrap();
+        let target_file_path = dir.path().join("test.txt");
+        std::fs::write(&target_file_path, "test").unwrap();
+
+        let mut validators = Validators::default();
+        validators.containers.push(ContainerValidator {
+            container_name: "example".to_string(),
+            rules: vec![ContainerRule {
+                key: "nested".to_string(),
+                child_validator: Some(Box::new(ContainerValidator {
+                    container_name: "nested".to_string(),
+                    rules: vec![ContainerRule {
+                        key: "target_file".to_string(),
+                        type_name: Some("filepath".to_string()),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        for v in &validators.containers {
+            validators
+                .container_map
+                .insert(v.container_name.to_lowercase(), v.clone());
+        }
+
+        let pos = Position {
+            line: 3,
+            character: 18, // Inside "test.txt"
+        };
+        let uri = Uri::from_file_path("/test.acs_text").unwrap();
+        let locs =
+            acs_text_goto_definition(&acs_text, pos, uri, &validators, Some(dir.path()), None)
+                .unwrap();
+
+        assert_eq!(
+            locs.len(),
+            1,
+            "Should find 1 location for inline nested goto"
+        );
+        assert_eq!(
+            locs[0].uri.to_file_path().unwrap().canonicalize().unwrap(),
+            target_file_path.canonicalize().unwrap()
+        );
     }
 }

@@ -216,7 +216,8 @@ export function activate(context: ExtensionContext) {
     const clientOptions: LanguageClientOptions = {
         documentSelector: [
             {scheme: 'file', pattern: '**/*.gs', language: 'game-script'},
-            {scheme: 'file', pattern: '**/*.txt', language: 'acs_text'}
+            {scheme: 'file', pattern: '**/*.txt', language: 'acs_text'},
+            {scheme: 'file', pattern: '**/*.chp', language: 'acs_text'}
         ],
         synchronize: {
             fileEvents: workspace.createFileSystemWatcher('**/.clientrc')

@@ -3,7 +3,7 @@ use crate::util::add_folding_range;
 use tower_lsp_server::ls_types::FoldingRange;
 use trainz_ast::gs::ClassDef;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(class, result))]
 pub fn collect_class_folding_ranges(class: &ClassDef, result: &mut Vec<FoldingRange>) {
     add_folding_range(class.body_range, result, Some(String::from("{ ... }")));
 
@@ -14,7 +14,7 @@ pub fn collect_class_folding_ranges(class: &ClassDef, result: &mut Vec<FoldingRa
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(method, result))]
 fn collect_method_folding_ranges(
     method: &trainz_ast::gs::MethodDef,
     result: &mut Vec<FoldingRange>,

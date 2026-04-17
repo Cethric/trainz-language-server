@@ -3,7 +3,7 @@ use tower_lsp_server::ls_types::{
 };
 use trainz_ast::gs::program::Program;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(_program, _params))]
 pub fn trainz_completions(_program: &Program, _params: CompletionParams) -> Vec<CompletionItem> {
     vec![
         CompletionItem {

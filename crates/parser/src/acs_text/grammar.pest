@@ -12,7 +12,7 @@ error_recovery_acs_text = _{ !key ~ !brace_close ~ !EOI ~ ANY }
 
 key_value_pair = { #tag = key ~ value? ~ newline* }
 
-key = @{ (ASCII_ALPHANUMERIC | "/" | "_" | "-")+ }
+key = @{ (ASCII_ALPHANUMERIC | "/" | "_" | "-" | ".")+ }
 
 value = { (string_value | array_value | numeric_value | variable_value | kuid_value | container_value) ~ newline? }
 

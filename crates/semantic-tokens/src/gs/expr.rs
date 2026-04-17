@@ -2,7 +2,7 @@ use crate::gs::types::collect_type_tokens;
 use tower_lsp_server::ls_types::{Range, SemanticTokenModifier, SemanticTokenType};
 use trainz_ast::gs::{Expr, PostfixOp};
 
-#[tracing::instrument]
+#[tracing::instrument(skip(expr, raw_tokens, known_classes))]
 pub fn collect_expr_tokens(
     expr: &Expr,
     raw_tokens: &mut Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)>,

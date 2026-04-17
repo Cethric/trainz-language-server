@@ -9,7 +9,7 @@ use tower_lsp_server::ls_types::{Range, SemanticToken, SemanticTokenModifier, Se
 
 shadow!(build);
 
-#[tracing::instrument]
+#[tracing::instrument(skip(raw_tokens, src))]
 pub fn process_raw_tokens(
     mut raw_tokens: Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)>,
     src: Option<&str>,

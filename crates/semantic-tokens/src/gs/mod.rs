@@ -17,7 +17,7 @@ use tracing::debug;
 use trainz_ast::gs::program::Program;
 use trainz_ast::gs::{ClassModifier, FieldModifier};
 
-#[tracing::instrument]
+#[tracing::instrument(skip(program))]
 pub fn semantic_tokens(
     program: &Program,
 ) -> Vec<(Range, SemanticTokenType, Vec<SemanticTokenModifier>)> {

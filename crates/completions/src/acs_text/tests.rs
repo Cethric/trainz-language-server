@@ -1,6 +1,7 @@
 use super::*;
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::{Position, TextDocumentIdentifier, TextDocumentPositionParams};
+use trainz_acs_text_validators::load_validators;
 use trainz_ast::acs_text::process::process_acs_text_ast;
 use trainz_parser::acs_text::parse_acs_text;
 
@@ -50,8 +51,8 @@ category-era "2000s; "
         context: None,
     };
 
-    let validators = trainz_acs_text_validators::load_validators(&temp_dir);
-    let completions = acs_text_completions(&acs_text, params, &validators);
+    let validators = load_validators(&temp_dir, None);
+    let completions = acs_text_completions(&acs_text, params, &validators, None);
 
     println!("Completions for '2000s; ': {:?}", completions);
 
@@ -116,8 +117,8 @@ my_container {
         context: None,
     };
 
-    let validators = trainz_acs_text_validators::load_validators(&temp_dir);
-    let completions = acs_text_completions(&acs_text, params, &validators);
+    let validators = load_validators(&temp_dir, None);
+    let completions = acs_text_completions(&acs_text, params, &validators, None);
 
     assert!(!completions.is_empty(), "Completions should not be empty");
 
@@ -190,9 +191,9 @@ region_container {
         context: None,
     };
 
-    let validators_region = trainz_acs_text_validators::load_validators(&temp_dir);
+    let validators = load_validators(&temp_dir, None);
     let completions_region =
-        acs_text_completions(&acs_text_region, params_region, &validators_region);
+        acs_text_completions(&acs_text_region, params_region, &validators, None);
 
     assert!(
         !completions_region.is_empty(),
@@ -263,8 +264,8 @@ era_container {
         context: None,
     };
 
-    let validators_era = trainz_acs_text_validators::load_validators(&temp_dir);
-    let completions_era = acs_text_completions(&acs_text_era, params_era, &validators_era);
+    let validators = load_validators(&temp_dir, None);
+    let completions_era = acs_text_completions(&acs_text_era, params_era, &validators, None);
 
     assert!(
         !completions_era.is_empty(),
@@ -330,8 +331,8 @@ library {
         context: None,
     };
 
-    let validators = trainz_acs_text_validators::load_validators(&temp_dir);
-    let completions = acs_text_completions(&acs_text, params, &validators);
+    let validators = load_validators(&temp_dir, None);
+    let completions = acs_text_completions(&acs_text, params, &validators, None);
 
     // Should NOT suggest "lib"
     assert!(
@@ -387,8 +388,8 @@ my_container {
         context: None,
     };
 
-    let validators = trainz_acs_text_validators::load_validators(&temp_dir);
-    let completions = acs_text_completions(&acs_text, params, &validators);
+    let validators = load_validators(&temp_dir, None);
+    let completions = acs_text_completions(&acs_text, params, &validators, None);
     eprintln!("Completions: {:?}", completions);
     eprintln!("AcsText KeyValuePairs: {:?}", acs_text.key_value_pairs);
 
@@ -449,8 +450,8 @@ my_container {
         context: None,
     };
 
-    let validators = trainz_acs_text_validators::load_validators(&temp_dir);
-    let completions = acs_text_completions(&acs_text, params, &validators);
+    let validators = load_validators(&temp_dir, None);
+    let completions = acs_text_completions(&acs_text, params, &validators, None);
 
     assert!(
         !completions.is_empty(),
@@ -516,8 +517,8 @@ not-top-level {
         context: None,
     };
 
-    let validators = trainz_acs_text_validators::load_validators(&temp_dir);
-    let completions = acs_text_completions(&acs_text, params, &validators);
+    let validators = load_validators(&temp_dir, None);
+    let completions = acs_text_completions(&acs_text, params, &validators, None);
     let labels: Vec<String> = completions.par_iter().map(|c| c.label.clone()).collect();
 
     assert!(labels.contains(&"library".to_string()));
@@ -563,8 +564,8 @@ track {
         context: None,
     };
 
-    let validators = trainz_acs_text_validators::load_validators(&temp_dir);
-    let completions = acs_text_completions(&acs_text, params, &validators);
+    let validators = load_validators(&temp_dir, None);
+    let completions = acs_text_completions(&acs_text, params, &validators, None);
     let labels: Vec<String> = completions.par_iter().map(|c| c.label.clone()).collect();
 
     assert!(labels.contains(&"library".to_string()));
@@ -606,8 +607,8 @@ scenery {
         context: None,
     };
 
-    let validators = trainz_acs_text_validators::load_validators(&temp_dir);
-    let completions = acs_text_completions(&acs_text, params, &validators);
+    let validators = load_validators(&temp_dir, None);
+    let completions = acs_text_completions(&acs_text, params, &validators, None);
     let labels: Vec<String> = completions.par_iter().map(|c| c.label.clone()).collect();
 
     assert!(
@@ -618,4 +619,331 @@ scenery {
     assert!(labels.contains(&"scenery".to_string()));
 
     std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_array_element_multi_type_completions() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "acs_text_array_compl_test_{:?}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_txt = r#"
+my-container {
+    kind "container"
+    top-level 1
+    array-element {
+        container-type0 "type0"
+        container-type1 "type1"
+    }
+}
+type0 { kind "container" v0 { type "int" } }
+type1 { kind "container" v1 { type "int" } }
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+    let validators = load_validators(&temp_dir, None);
+
+    // Completion inside element 0
+    let content0 = "my-container {\n    0 {\n        \n    }\n}";
+    let pairs0 = parse_acs_text(content0).unwrap();
+    let acs_text0 = process_acs_text_ast(pairs0, content0);
+    let params0 = CompletionParams {
+        text_document_position: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier {
+                uri: "file:///test.acs_text".parse().unwrap(),
+            },
+            position: Position {
+                line: 2,
+                character: 8,
+            },
+        },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+        context: None,
+    };
+    let completions0 = acs_text_completions(&acs_text0, params0, &validators, None);
+    let labels0: Vec<String> = completions0.iter().map(|c| c.label.clone()).collect();
+    assert!(
+        labels0.contains(&"v0".to_string()),
+        "Expected v0 in element 0 completions, got {:?}",
+        labels0
+    );
+    assert!(!labels0.contains(&"v1".to_string()));
+
+    // Completion inside element 1
+    let content1 = "my-container {\n    0 { v0 1 }\n    1 {\n        \n    }\n}";
+    let pairs1 = parse_acs_text(content1).unwrap();
+    let acs_text1 = process_acs_text_ast(pairs1, content1);
+    let params1 = CompletionParams {
+        text_document_position: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier {
+                uri: "file:///test.acs_text".parse().unwrap(),
+            },
+            position: Position {
+                line: 3,
+                character: 8,
+            },
+        },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+        context: None,
+    };
+    let completions1 = acs_text_completions(&acs_text1, params1, &validators, None);
+    let labels1: Vec<String> = completions1.iter().map(|c| c.label.clone()).collect();
+    assert!(
+        labels1.contains(&"v1".to_string()),
+        "Expected v1 in element 1 completions, got {:?}",
+        labels1
+    );
+    assert!(!labels1.contains(&"v0".to_string()));
+
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_tag_array_multi_type_completions() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "acs_text_tag_array_compl_test_{:?}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_txt = r#"
+my-container {
+    kind "container"
+    top-level 1
+    tagarray {
+        container-type0 "type0"
+        container-type1 "type1"
+    }
+}
+type0 { kind "container" v0 { type "int" } }
+type1 { kind "container" v1 { type "int" } }
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_txt).unwrap();
+    let validators = load_validators(&temp_dir, None);
+
+    // Completion inside 1st element (order based)
+    let content0 = "my-container {\n    foo {\n        \n    }\n}";
+    let pairs0 = parse_acs_text(content0).unwrap();
+    let acs_text0 = process_acs_text_ast(pairs0, content0);
+    let params0 = CompletionParams {
+        text_document_position: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier {
+                uri: "file:///test.acs_text".parse().unwrap(),
+            },
+            position: Position {
+                line: 2,
+                character: 8,
+            },
+        },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+        context: None,
+    };
+    let completions0 = acs_text_completions(&acs_text0, params0, &validators, None);
+    let labels0: Vec<String> = completions0.iter().map(|c| c.label.clone()).collect();
+    assert!(
+        labels0.contains(&"v0".to_string()),
+        "Expected v0 in 1st element completions, got {:?}",
+        labels0
+    );
+
+    // Completion inside 2nd element
+    let content1 = "my-container {\n    foo { v0 1 }\n    bar {\n        \n    }\n}";
+    let pairs1 = parse_acs_text(content1).unwrap();
+    let acs_text1 = process_acs_text_ast(pairs1, content1);
+    let params1 = CompletionParams {
+        text_document_position: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier {
+                uri: "file:///test.acs_text".parse().unwrap(),
+            },
+            position: Position {
+                line: 3,
+                character: 8,
+            },
+        },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+        context: None,
+    };
+    let completions1 = acs_text_completions(&acs_text1, params1, &validators, None);
+    let labels1: Vec<String> = completions1.iter().map(|c| c.label.clone()).collect();
+    assert!(
+        labels1.contains(&"v1".to_string()),
+        "Expected v1 in 2nd element completions, got {:?}",
+        labels1
+    );
+
+    std::fs::remove_dir_all(&temp_dir).unwrap();
+}
+
+#[test]
+fn test_inline_nested_validator_completions() {
+    let temp_dir = std::env::temp_dir().join("language-server-test-inline-nested");
+    if temp_dir.exists() {
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_content = r#"
+example {
+  nested {
+    type "container"
+    value {
+      type "string"
+      validation "IsValidValue"
+    }
+  }
+}
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_content).unwrap();
+
+    let is_valid_value_content = r#"
+val1 "Value 1"
+val2 "Value 2"
+"#;
+    let is_valid_value_path = temp_dir.join("isvalidvalue.txt");
+    std::fs::write(is_valid_value_path, is_valid_value_content).unwrap();
+
+    let acs_text_content = "example {\n  nested {\n    value \"\"\n  }\n}";
+    let pairs = parse_acs_text(acs_text_content).unwrap();
+    let acs_text = process_acs_text_ast(pairs, acs_text_content);
+
+    let params = CompletionParams {
+        text_document_position: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier {
+                uri: "file:///test.acs_text".parse().unwrap(),
+            },
+            position: Position {
+                line: 2,
+                character: 11, // Inside value "" of 'value'
+            },
+        },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+        context: None,
+    };
+
+    let validators = load_validators(&temp_dir, None);
+    let completions = acs_text_completions(&acs_text, params, &validators, None);
+    let labels: Vec<String> = completions.par_iter().map(|c| c.label.clone()).collect();
+
+    assert!(
+        labels.contains(&"val1".to_string()),
+        "Should suggest 'val1' from inline nested validator, got {:?}",
+        labels
+    );
+    assert!(labels.contains(&"val2".to_string()));
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
+fn test_tagarray_nested_validator_completions() {
+    let temp_dir = std::env::temp_dir().join("language-server-test-tagarray-nested");
+    if temp_dir.exists() {
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_content = r#"
+extensions {
+  kind "container"
+  top-level 1
+  tagarray {
+    foo { type "string" }
+  }
+}
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_content).unwrap();
+
+    let acs_text_content = "extensions {\n  my-ext {\n    \n  }\n}";
+    let pairs = parse_acs_text(acs_text_content).unwrap();
+    let acs_text = process_acs_text_ast(pairs, acs_text_content);
+
+    let params = CompletionParams {
+        text_document_position: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier {
+                uri: "file:///test.acs_text".parse().unwrap(),
+            },
+            position: Position {
+                line: 2,
+                character: 4, // Inside 'my-ext' container
+            },
+        },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+        context: None,
+    };
+
+    let validators = load_validators(&temp_dir, None);
+    let completions = acs_text_completions(&acs_text, params, &validators, None);
+    let labels: Vec<String> = completions.par_iter().map(|c| c.label.clone()).collect();
+
+    assert!(
+        labels.contains(&"foo".to_string()),
+        "Should suggest 'foo' from nested tagarray validator, got {:?}",
+        labels
+    );
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
+fn test_array_element_nested_validator_completions() {
+    let temp_dir = std::env::temp_dir().join("language-server-test-array-element-nested");
+    if temp_dir.exists() {
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+    std::fs::create_dir_all(&temp_dir).unwrap();
+
+    let container_content = r#"
+my-array {
+  kind "container"
+  top-level 1
+  array-element {
+    foo { type "string" }
+  }
+}
+"#;
+    std::fs::write(temp_dir.join("container.txt"), container_content).unwrap();
+
+    let acs_text_content = "my-array {\n  0 {\n    \n  }\n}";
+    let pairs = parse_acs_text(acs_text_content).unwrap();
+    let acs_text = process_acs_text_ast(pairs, acs_text_content);
+
+    let params = CompletionParams {
+        text_document_position: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier {
+                uri: "file:///test.acs_text".parse().unwrap(),
+            },
+            position: Position {
+                line: 2,
+                character: 4, // Inside '0' container
+            },
+        },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+        context: None,
+    };
+
+    let validators = load_validators(&temp_dir, None);
+    let completions = acs_text_completions(&acs_text, params, &validators, None);
+    let labels: Vec<String> = completions.par_iter().map(|c| c.label.clone()).collect();
+
+    assert!(
+        labels.contains(&"foo".to_string()),
+        "Should suggest 'foo' from nested array-element validator, got {:?}",
+        labels
+    );
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
 }

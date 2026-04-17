@@ -47,8 +47,8 @@ fn test_acs_text_hover_case_insensitive_key() {
         work_done_progress_params: Default::default(),
     };
 
-    let validators = load_validators(temp_dir.path());
-    let hover = acs_text_hover(&acs_text, params, &validators);
+    let validators = load_validators(temp_dir.path(), None);
+    let hover = acs_text_hover(&acs_text, params, &validators, None, None);
     assert!(hover.is_some(), "Hover should be found for KeyA");
     let hover = hover.unwrap();
     if let tower_lsp_server::ls_types::HoverContents::Markup(markup) = hover.contents {
@@ -78,12 +78,69 @@ fn test_acs_text_hover_case_insensitive_container() {
         work_done_progress_params: Default::default(),
     };
 
-    let validators = load_validators(temp_dir.path());
-    let hover_top = acs_text_hover(&acs_text, params_top, &validators);
+    let validators = load_validators(temp_dir.path(), None);
+    let hover_top = acs_text_hover(&acs_text, params_top, &validators, None, None);
     assert!(
         hover_top.is_some(),
         "Hover should be found for top-level My_Container"
     );
+}
+
+#[test]
+fn test_inline_nested_validator_hover() {
+    let content = r#"
+example {
+  nested {
+    value "val1"
+  }
+}
+"#;
+    let pairs = parse_acs_text(content).unwrap();
+    let acs_text = process_acs_text_ast(pairs, content);
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let container_content = r#"
+example {
+  nested {
+    type "container"
+    value {
+      type "string"
+      description "This is an inline nested value"
+    }
+  }
+}
+"#;
+    std::fs::write(temp_dir.path().join("container.txt"), container_content).unwrap();
+
+    let params = HoverParams {
+        text_document_position_params: tower_lsp_server::ls_types::TextDocumentPositionParams {
+            text_document: tower_lsp_server::ls_types::TextDocumentIdentifier {
+                uri: "file:///test.acs_text".parse().unwrap(),
+            },
+            position: Position {
+                line: 3,
+                character: 6, // Inside "value"
+            },
+        },
+        work_done_progress_params: Default::default(),
+    };
+
+    let validators = load_validators(temp_dir.path(), None);
+    let hover = acs_text_hover(&acs_text, params, &validators, None, None);
+    assert!(
+        hover.is_some(),
+        "Hover should be found for inline nested 'value'"
+    );
+    let hover = hover.unwrap();
+    if let tower_lsp_server::ls_types::HoverContents::Markup(markup) = hover.contents {
+        assert!(
+            markup.value.contains("This is an inline nested value"),
+            "Hover documentation should contain description from inline nested validator, got: {}",
+            markup.value
+        );
+    } else {
+        panic!("Expected MarkupContent");
+    }
 }
 
 #[test]
@@ -125,8 +182,8 @@ my-kind
         work_done_progress_params: Default::default(),
     };
 
-    let validators = load_validators(temp_dir.path());
-    let hover = acs_text_hover(&acs_text, params, &validators);
+    let validators = load_validators(temp_dir.path(), None);
+    let hover = acs_text_hover(&acs_text, params, &validators, None, None);
     let hover = hover.unwrap();
     if let tower_lsp_server::ls_types::HoverContents::Markup(markup) = hover.contents {
         assert!(
@@ -150,7 +207,7 @@ my-kind
             "Hover should contain validation rules section"
         );
         assert!(
-            markup.value.contains("**Compulsory**: `1`"),
+            markup.value.contains("**Compulsory**: `Yes`"),
             "Hover should contain compulsory rule"
         );
         assert!(
@@ -219,8 +276,8 @@ string-entry
         work_done_progress_params: Default::default(),
     };
 
-    let validators = load_validators(temp_dir.path());
-    let hover_key = acs_text_hover(&acs_text, params_key, &validators);
+    let validators = load_validators(temp_dir.path(), None);
+    let hover_key = acs_text_hover(&acs_text, params_key, &validators, None, None);
     assert!(
         hover_key.is_some(),
         "Hover should be found for TagArray entry Key1"
@@ -233,6 +290,12 @@ string-entry
         assert!(
             markup.value.contains("string-entry"),
             "Hover should indicate validation against string-entry"
+        );
+        assert!(
+            markup
+                .value
+                .contains("**Validator Path**: `string-table/Key1`"),
+            "Hover should contain simplified validator path for TagArray entry"
         );
     }
 
@@ -250,8 +313,8 @@ string-entry
         work_done_progress_params: Default::default(),
     };
 
-    let validators = load_validators(temp_dir.path());
-    let hover_inner = acs_text_hover(&acs_text, params_inner, &validators);
+    let validators = load_validators(temp_dir.path(), None);
+    let hover_inner = acs_text_hover(&acs_text, params_inner, &validators, None, None);
     assert!(
         hover_inner.is_some(),
         "Hover should be found for inner key 'value'"
@@ -293,7 +356,7 @@ DC "DC Category"
     )
     .unwrap();
 
-    let validators = load_validators(temp_dir.path());
+    let validators = load_validators(temp_dir.path(), None);
 
     // 1. Hover over "AA" value for engine-type
     let params1 = HoverParams {
@@ -309,7 +372,7 @@ DC "DC Category"
         work_done_progress_params: Default::default(),
     };
 
-    let hover1 = acs_text_hover(&acs_text, params1, &validators);
+    let hover1 = acs_text_hover(&acs_text, params1, &validators, None, None);
     assert!(
         hover1.is_some(),
         "Hover should be found for engine-type value"
@@ -355,7 +418,7 @@ DC "DC Category"
         work_done_progress_params: Default::default(),
     };
 
-    let hover2 = acs_text_hover(&acs_text, params2, &validators);
+    let hover2 = acs_text_hover(&acs_text, params2, &validators, None, None);
     assert!(
         hover2.is_some(),
         "Hover should be found for category-class value"
@@ -394,7 +457,7 @@ fn test_rule_type_simple_validator_hover() {
     let engine_type_txt = "AA \"Electric Multi-current\"\nAC \"AC Electric\"\n";
     std::fs::write(temp_dir.path().join("engine-type.txt"), engine_type_txt).unwrap();
 
-    let validators = load_validators(temp_dir.path());
+    let validators = load_validators(temp_dir.path(), None);
 
     // This test is skipped because range matching in tests is inconsistent
     // across environments, but the implementation has been verified manually.
@@ -424,7 +487,7 @@ kind
 "#;
     std::fs::write(temp_dir.path().join("kind.txt"), config_txt).unwrap();
 
-    let validators = load_validators(temp_dir.path());
+    let validators = load_validators(temp_dir.path(), None);
 
     // Hover over "mosignal" (value of kind)
     // kind "mosignal"\n
@@ -442,7 +505,7 @@ kind
         work_done_progress_params: Default::default(),
     };
 
-    let hover = acs_text_hover(&acs_text, params, &validators);
+    let hover = acs_text_hover(&acs_text, params, &validators, None, None);
     assert!(hover.is_some(), "Hover should be found for kind value");
     if let tower_lsp_server::ls_types::HoverContents::Markup(markup) = hover.unwrap().contents {
         assert!(
@@ -483,7 +546,7 @@ mosignal
 "#;
     std::fs::write(temp_dir.path().join("kind.txt"), kind_txt).unwrap();
 
-    let validators = load_validators(temp_dir.path());
+    let validators = load_validators(temp_dir.path(), None);
 
     // Hover over "kind" (key)
     // kind "mosignal"\n
@@ -501,7 +564,7 @@ mosignal
         work_done_progress_params: Default::default(),
     };
 
-    let hover = acs_text_hover(&acs_text, params, &validators);
+    let hover = acs_text_hover(&acs_text, params, &validators, None, None);
     assert!(hover.is_some(), "Hover should be found for kind key");
     if let tower_lsp_server::ls_types::HoverContents::Markup(markup) = hover.unwrap().contents {
         assert!(
@@ -580,7 +643,7 @@ fn test_container_wiki_hover() {
     let config_txt = "thumbnails\n{\n}\ntop-level \"thumbnails\"\n";
     std::fs::write(temp_dir.path().join("container.txt"), config_txt).unwrap();
 
-    let validators = load_validators(temp_dir.path());
+    let validators = load_validators(temp_dir.path(), None);
 
     // Hover over "thumbnails" (top-level container key)
     let params = HoverParams {
@@ -596,7 +659,7 @@ fn test_container_wiki_hover() {
         work_done_progress_params: Default::default(),
     };
 
-    let hover = acs_text_hover(&acs_text, params, &validators);
+    let hover = acs_text_hover(&acs_text, params, &validators, None, None);
     assert!(
         hover.is_some(),
         "Hover should be found for thumbnails container"
@@ -611,6 +674,316 @@ fn test_container_wiki_hover() {
                 .value
                 .contains("https://online.ts2009.com/mediaWiki/index.php/\"Thumbnails\"_container"),
             "Hover should contain the correct Wiki URL"
+        );
+    }
+}
+
+#[test]
+fn test_array_element_multi_type_hover() {
+    let temp_dir = tempfile::tempdir().unwrap();
+
+    let container_txt = r#"
+my-container {
+    kind "container"
+    top-level 1
+    array-element {
+        container-type0 "type0"
+        container-type1 "type1"
+    }
+}
+type0 { kind "container" v0 { type "int" } }
+type1 { kind "container" v1 { type "int" } }
+"#;
+    std::fs::write(temp_dir.path().join("container.txt"), container_txt).unwrap();
+    let validators = load_validators(temp_dir.path(), None);
+
+    // Hover over key "0" (element 0)
+    let content = "my-container {\n    0 { v0 1 }\n    1 { v1 2 }\n}";
+    let pairs = parse_acs_text(content).unwrap();
+    let acs_text = process_acs_text_ast(pairs, content);
+
+    let params0 = HoverParams {
+        text_document_position_params: tower_lsp_server::ls_types::TextDocumentPositionParams {
+            text_document: tower_lsp_server::ls_types::TextDocumentIdentifier {
+                uri: "file:///config.txt".parse().unwrap(),
+            },
+            position: Position {
+                line: 1,
+                character: 4,
+            }, // over "0"
+        },
+        work_done_progress_params: Default::default(),
+    };
+    let hover0 = acs_text_hover(&acs_text, params0, &validators, None, None);
+    assert!(hover0.is_some());
+    if let tower_lsp_server::ls_types::HoverContents::Markup(markup) = hover0.unwrap().contents {
+        assert!(markup.value.contains("type0"));
+    }
+
+    // Hover over key "1" (element 1)
+    let params1 = HoverParams {
+        text_document_position_params: tower_lsp_server::ls_types::TextDocumentPositionParams {
+            text_document: tower_lsp_server::ls_types::TextDocumentIdentifier {
+                uri: "file:///config.txt".parse().unwrap(),
+            },
+            position: Position {
+                line: 2,
+                character: 4,
+            }, // over "1"
+        },
+        work_done_progress_params: Default::default(),
+    };
+    let hover1 = acs_text_hover(&acs_text, params1, &validators, None, None);
+    assert!(hover1.is_some());
+    if let tower_lsp_server::ls_types::HoverContents::Markup(markup) = hover1.unwrap().contents {
+        assert!(markup.value.contains("type1"));
+    }
+}
+
+#[test]
+fn test_thumbnails_nested_path_hover() {
+    let temp_dir = tempfile::tempdir().unwrap();
+
+    let container_txt = r#"
+thumbnails
+{
+    kind "structure"
+    array-element
+    {
+        container-type0 "thumbnails-element"
+    }
+}
+
+thumbnails-element
+{
+    kind "array"
+    subpossibilities
+    {
+        image
+        {
+            kind value
+            type filepathedit
+            datatype "image"
+            description "The thumbnail image"
+        }
+    }
+}
+"#;
+    std::fs::write(temp_dir.path().join("container.txt"), container_txt).unwrap();
+    let validators = load_validators(temp_dir.path(), None);
+
+    let content = r#"thumbnails {
+    0 {
+        image "icon.jpg"
+    }
+}"#;
+    let pairs = parse_acs_text(content).unwrap();
+    let acs_text = process_acs_text_ast(pairs, content);
+
+    // Hover over "image"
+    let params = HoverParams {
+        text_document_position_params: tower_lsp_server::ls_types::TextDocumentPositionParams {
+            text_document: tower_lsp_server::ls_types::TextDocumentIdentifier {
+                uri: "file:///config.txt".parse().unwrap(),
+            },
+            position: Position {
+                line: 2,
+                character: 10,
+            }, // over "image"
+        },
+        work_done_progress_params: Default::default(),
+    };
+
+    let hover = acs_text_hover(&acs_text, params, &validators, None, None);
+    assert!(hover.is_some(), "Hover should be found for 'image'");
+    if let tower_lsp_server::ls_types::HoverContents::Markup(markup) = hover.unwrap().contents {
+        assert!(markup.value.contains("thumbnails/0/image"));
+        assert!(markup.value.contains("The thumbnail image"));
+    }
+}
+
+#[test]
+fn test_mesh_table_nested_path_hover() {
+    let temp_dir = tempfile::tempdir().unwrap();
+
+    let container_txt = r#"
+mesh-table
+{
+    kind "structure"
+    array-element
+    {
+        container-type0 "mesh-element"
+    }
+}
+
+mesh-element
+{
+    kind "structure"
+    subpossibilities
+    {
+        effects
+        {
+            kind element
+            element-type "effects"
+        }
+        mesh
+        {
+            kind value
+            type filepath
+            description "The mesh file"
+        }
+    }
+}
+
+effects
+{
+    kind "structure"
+    array-element
+    {
+        container-type0 "effect-element"
+    }
+}
+
+effect-element
+{
+    kind "structure"
+    subpossibilities
+    {
+        kind
+        {
+            kind value
+            type string
+            description "The effect kind"
+        }
+    }
+}
+"#;
+    std::fs::write(temp_dir.path().join("container.txt"), container_txt).unwrap();
+    let validators = load_validators(temp_dir.path(), None);
+
+    let content = r#"mesh-table {
+    0 {
+        mesh "default.trainzmesh"
+        effects {
+            0 {
+                kind "corona"
+            }
+        }
+    }
+}"#;
+    let pairs = parse_acs_text(content).unwrap();
+    let acs_text = process_acs_text_ast(pairs, content);
+
+    // Hover over "kind" inside "0"
+    let params = HoverParams {
+        text_document_position_params: tower_lsp_server::ls_types::TextDocumentPositionParams {
+            text_document: tower_lsp_server::ls_types::TextDocumentIdentifier {
+                uri: "file:///config.txt".parse().unwrap(),
+            },
+            position: Position {
+                line: 5,
+                character: 18,
+            }, // over "kind"
+        },
+        work_done_progress_params: Default::default(),
+    };
+
+    let hover = acs_text_hover(&acs_text, params, &validators, None, None);
+    assert!(hover.is_some(), "Hover should be found for 'kind'");
+    if let tower_lsp_server::ls_types::HoverContents::Markup(markup) = hover.unwrap().contents {
+        assert!(markup.value.contains("mesh-table/0/effects/0/kind"));
+    }
+}
+
+#[test]
+fn test_mosignal_nested_path_hover() {
+    let content = r#"
+mosignal {
+    signals {
+        0 {
+            light   1
+        }
+    }
+}
+"#;
+    let pairs = parse_acs_text(content).unwrap();
+    let acs_text = process_acs_text_ast(pairs, content);
+
+    let temp_dir = tempfile::tempdir().unwrap();
+
+    let mosignal_txt = r#"
+mosignal
+{
+  kind "Structure"
+  SubPossibilities
+  {
+    signals
+    {
+      kind element
+      element-type "signals"
+    }
+  }
+}
+"#;
+
+    let signals_txt = r#"
+signals
+{
+  kind "Structure"
+  array-element
+  {
+    container-type0 "signal-element"
+  }
+}
+"#;
+
+    let signal_element_txt = r#"
+signal-element
+{
+  kind "Structure"
+  SubPossibilities
+  {
+    light
+    {
+      kind value
+      type int
+    }
+  }
+}
+"#;
+
+    std::fs::write(temp_dir.path().join("mosignal.txt"), mosignal_txt).unwrap();
+    std::fs::write(temp_dir.path().join("signals.txt"), signals_txt).unwrap();
+    std::fs::write(
+        temp_dir.path().join("signal-element.txt"),
+        signal_element_txt,
+    )
+    .unwrap();
+
+    let validators = load_validators(temp_dir.path(), None);
+
+    // Hover over "light"
+    let params = HoverParams {
+        text_document_position_params: tower_lsp_server::ls_types::TextDocumentPositionParams {
+            text_document: tower_lsp_server::ls_types::TextDocumentIdentifier {
+                uri: "file:///test.acs_text".parse().unwrap(),
+            },
+            position: Position {
+                line: 4,
+                character: 14, // Inside "light"
+            },
+        },
+        work_done_progress_params: Default::default(),
+    };
+
+    let hover = acs_text_hover(&acs_text, params, &validators, None, None);
+    assert!(hover.is_some(), "Hover should be found for light");
+    let hover = hover.unwrap();
+    if let tower_lsp_server::ls_types::HoverContents::Markup(markup) = hover.contents {
+        assert!(
+            markup
+                .value
+                .contains("**Validator Path**: `mosignal/signals/0/light`")
         );
     }
 }

@@ -3,7 +3,7 @@ use pest::RuleType;
 use pest::iterators::{Pair, Pairs};
 use tower_lsp_server::ls_types::Position;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pairs, position))]
 pub fn find_at_position<Rule: RuleType>(
     pairs: Pairs<Rule>,
     position: Position,

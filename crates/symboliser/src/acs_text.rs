@@ -6,8 +6,7 @@ use trainz_ast::acs_text::base::AcsText;
 use trainz_ast::acs_text::key_value_pair::KeyValuePair;
 use trainz_common::range::clamp_range;
 
-#[allow(deprecated)]
-#[tracing::instrument]
+#[tracing::instrument(skip(acs_text, validators))]
 pub fn acs_text_symboliser(
     acs_text: &AcsText,
     validators: Option<&Validators>,
@@ -28,18 +27,19 @@ pub fn acs_text_symboliser(
     let symbols: Vec<DocumentSymbol> = acs_text
         .key_value_pairs
         .par_iter()
-        .map(|kv| process_key_value_symbol(kv, validator, validators))
+        .enumerate()
+        .map(|(index, kv)| process_key_value_symbol(kv, validator, validators, index))
         .collect();
 
     symbols
 }
 
-#[allow(deprecated)]
-#[tracing::instrument]
+#[tracing::instrument(skip(kv, validator, all_validators))]
 fn process_key_value_symbol(
     kv: &KeyValuePair,
     validator: Option<&ContainerValidator>,
     all_validators: Option<&Validators>,
+    index: usize,
 ) -> DocumentSymbol {
     let mut children = vec![];
 
@@ -61,43 +61,87 @@ fn process_key_value_symbol(
     {
         children = kv_pairs
             .par_iter()
-            .map(|inner_kv| {
-                let inner_validator = rule
-                    .and_then(|r| r.type_name.as_ref())
-                    .and_then(|type_name| {
-                        all_validators.and_then(|vs| {
-                            vs.containers
-                                .par_iter()
-                                .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name))
-                        })
-                    })
-                    .or_else(|| {
-                        validator
-                            .and_then(|v| v.array_element.as_ref())
-                            .and_then(|ae| {
-                                let type_name = match ae {
-                                    ArrayElementType::Array(s) => Some(s),
-                                    ArrayElementType::Tuple(types) => inner_kv
-                                        .key
-                                        .parse::<usize>()
-                                        .ok()
-                                        .and_then(|idx| types.get(idx)),
-                                };
-                                type_name.and_then(|tn| {
+            .enumerate()
+            .map(|(inner_index, inner_kv)| {
+                let inner_validator = if let Some(rule) = rule {
+                    if let Some(child_validator) = &rule.child_validator {
+                        Some(child_validator.as_ref().clone())
+                    } else if let Some(type_name) = &rule.type_name {
+                        all_validators
+                            .and_then(|vs| vs.container_map.get(&type_name.to_lowercase()).cloned())
+                    } else {
+                        None
+                    }
+                } else if let Some(v) = validator
+                    && let Some(ae) = &v.array_element
+                {
+                    match ae {
+                        ArrayElementType::Array(_, s) => all_validators
+                            .and_then(|vs| vs.container_map.get(&s.to_lowercase()).cloned()),
+                        ArrayElementType::Tuple(types) => inner_kv
+                            .key
+                            .parse::<usize>()
+                            .ok()
+                            .and_then(|idx| types.get(idx))
+                            .and_then(|(_, tn)| {
+                                all_validators.and_then(|vs| {
+                                    vs.container_map.get(&tn.to_lowercase()).cloned()
+                                })
+                            }),
+                        ArrayElementType::Inline(iv) => Some(*iv.clone()),
+                        ArrayElementType::Rule(r) => {
+                            if let Some(cv) = &r.child_validator {
+                                Some(cv.as_ref().clone())
+                            } else {
+                                r.type_name.as_ref().and_then(|tn| {
                                     all_validators.and_then(|vs| {
-                                        vs.containers.par_iter().find_first(|v| {
-                                            v.container_name.eq_ignore_ascii_case(tn)
-                                        })
+                                        vs.container_map.get(&tn.to_lowercase()).cloned()
                                     })
                                 })
+                            }
+                        }
+                    }
+                } else if let Some(v) = validator
+                    && let Some(tag_array) = &v.tag_array
+                {
+                    match tag_array {
+                        ArrayElementType::Array(_, s) => all_validators
+                            .and_then(|vs| vs.container_map.get(&s.to_lowercase()).cloned()),
+                        ArrayElementType::Tuple(types) => {
+                            types.get(inner_index).and_then(|(_, tn)| {
+                                all_validators.and_then(|vs| {
+                                    vs.container_map.get(&tn.to_lowercase()).cloned()
+                                })
                             })
-                    });
+                        }
+                        ArrayElementType::Inline(iv) => Some(*iv.clone()),
+                        ArrayElementType::Rule(r) => {
+                            if let Some(cv) = &r.child_validator {
+                                Some(cv.as_ref().clone())
+                            } else {
+                                r.type_name.as_ref().and_then(|tn| {
+                                    all_validators.and_then(|vs| {
+                                        vs.container_map.get(&tn.to_lowercase()).cloned()
+                                    })
+                                })
+                            }
+                        }
+                    }
+                } else {
+                    None
+                };
 
-                process_key_value_symbol(inner_kv, inner_validator, all_validators)
+                process_key_value_symbol(
+                    inner_kv,
+                    inner_validator.as_ref(),
+                    all_validators,
+                    inner_index,
+                )
             })
             .collect();
     }
 
+    #[allow(deprecated)]
     DocumentSymbol {
         name: kv.key.clone(),
         detail: None,

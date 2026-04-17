@@ -5,7 +5,7 @@ use pest::iterators::Pair;
 use trainz_common::range::{pair_to_range, pos_to_range};
 use trainz_parser::acs_text::grammar::Rule;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 pub fn process_value(pair: Pair<Rule>) -> Value {
     let inner = pair
         .into_inner()
@@ -14,7 +14,7 @@ pub fn process_value(pair: Pair<Rule>) -> Value {
     process_value_inner(inner)
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(inner))]
 fn process_value_inner(inner: Pair<Rule>) -> Value {
     let inner_range = pair_to_range(&inner);
     match inner.as_rule() {
@@ -96,7 +96,7 @@ fn process_value_inner(inner: Pair<Rule>) -> Value {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(pair))]
 pub fn process_numeric_value(pair: Pair<Rule>) -> NumericValue {
     let pair = if pair.as_rule() == Rule::numeric_value {
         pair.into_inner().next().unwrap()

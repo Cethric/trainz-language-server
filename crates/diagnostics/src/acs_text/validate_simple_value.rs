@@ -4,7 +4,7 @@ use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity};
 use trainz_ast::Range;
 use trainz_ast::acs_text::Value;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(value, key_to_check, allowed_values, diagnostics))]
 pub fn validate_simple_value(
     value: &Value,
     key_to_check: &str,
@@ -26,7 +26,7 @@ pub fn validate_simple_value(
     );
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(range, value, key_to_check, allowed_values, diagnostics))]
 pub fn validate_simple_value_str(
     range: Range,
     value: &str,
@@ -52,7 +52,7 @@ pub fn validate_simple_value_str(
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            source: Some(String::from("acs_text-validator")),
+            source: Some(String::from("acs-validator")),
             ..Default::default()
         });
     }

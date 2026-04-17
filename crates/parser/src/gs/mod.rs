@@ -7,7 +7,7 @@ use grammar::{GameScriptParser, Rule};
 use pest::Parser;
 use pest::iterators::Pairs;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(src))]
 pub fn parse(src: &'_ str) -> Result<Pairs<'_, Rule>, ParseError> {
     match GameScriptParser::parse(Rule::program, src) {
         Ok(pairs) => {
