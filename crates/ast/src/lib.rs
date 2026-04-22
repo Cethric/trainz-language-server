@@ -1,3 +1,5 @@
+//! AST definitions for GS and AcsText languages used in Trainz.
+
 use shadow_rs::shadow;
 pub use tower_lsp_server::ls_types::{Position, Range};
 

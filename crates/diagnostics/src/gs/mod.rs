@@ -14,6 +14,17 @@ use trainz_ast::gs::type_eval;
 use trainz_ast::gs::types::TypeOrVoid;
 use trainz_ast::gs::{ClassDef, Expr, MethodDef};
 
+/// Performs diagnostic validation on a Game Script program.
+///
+/// # Arguments
+///
+/// * `path` - The file path of the program.
+/// * `program` - The `Program` AST node to validate.
+/// * `resolver` - The `ClassResolver` for resolving class definitions.
+/// * `program_resolver` - The `ProgramResolver` for resolving project dependencies.
+///
+/// # Returns
+/// A `Vec<Diagnostic>` containing any errors or warnings found.
 #[tracing::instrument(skip(path, program, resolver, program_resolver))]
 pub fn trainz_diagnostics(
     path: &str,

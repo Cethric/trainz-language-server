@@ -1,0 +1,7 @@
+imagelist
+{
+  element
+  {
+    kind "Structure"
+  }
+}

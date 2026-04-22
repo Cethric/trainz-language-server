@@ -18,8 +18,13 @@ shadow-rs = { workspace = true }
 trainz-ast = { workspace = true }
 trainz-parser = { workspace = true }
 tracing = { workspace = true }
-log = { workspace = true }
 rayon = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+async-recursion = { workspace = true }
 
 [build-dependencies]
 shadow-rs = { version = "1.7" }
+
+[dev-dependencies]
+tempfile.workspace = true

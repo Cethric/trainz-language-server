@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use std::fmt::Display;
 
+/// Represents a GS type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Type {
     Bool(crate::Range),
@@ -30,6 +31,16 @@ impl Display for Type {
 }
 
 impl Type {
+    /// Sets the range of the type.
+    ///
+    /// # Arguments
+    /// * `range` - The new range to set.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // type_obj.set_range(new_range);
+    /// ```
     pub fn set_range(&mut self, range: crate::Range) {
         match self {
             Type::Bool(r) => *r = range,

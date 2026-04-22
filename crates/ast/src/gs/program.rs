@@ -4,21 +4,54 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tower_lsp_server::ls_types::Position;
 
+/// Represents a GS program AST.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Program {
+    /// Includes in the program.
     pub includes: Vec<Include>,
+    /// Classes defined in the program.
     pub classes: HashMap<String, ClassDef>,
+    /// Scopes in the program.
     pub scopes: Vec<Scope>,
+    /// The ID of the root scope.
     pub root_scope_id: usize,
+    /// The range of the program.
     pub range: crate::Range,
+    /// The source code.
     pub src: String,
 }
 
 impl Program {
+    /// Gets a scope by its ID.
+    ///
+    /// # Arguments
+    /// * `id` - The ID of the scope.
+    ///
+    /// # Returns
+    /// An Option containing a reference to the Scope if found.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // let scope = program.get_scope(scope_id);
+    /// ```
     pub fn get_scope(&self, id: usize) -> Option<&Scope> {
         self.scopes.get(id)
     }
 
+    /// Finds the narrowest scope that contains the given position.
+    ///
+    /// # Arguments
+    /// * `pos` - The position to search for.
+    ///
+    /// # Returns
+    /// An Option containing a reference to the Scope if found.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // let scope = program.find_narrowest_scope(position);
+    /// ```
     pub fn find_narrowest_scope(&self, pos: Position) -> Option<&Scope> {
         self.find_narrowest_scope_recursive(self.root_scope_id, pos)
     }
@@ -38,6 +71,20 @@ impl Program {
         Some(scope)
     }
 
+    /// Finds a variable declaration in the scope that contains the given position.
+    ///
+    /// # Arguments
+    /// * `name` - The name of the variable.
+    /// * `pos` - The position to search for.
+    ///
+    /// # Returns
+    /// An Option containing a reference to the variable's type and identifier.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // let var_decl = program.find_variable_declaration("my_var", position);
+    /// ```
     pub fn find_variable_declaration(
         &self,
         name: &str,

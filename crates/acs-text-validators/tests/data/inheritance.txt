@@ -1,0 +1,5 @@
+inherit
+{
+  mesh-object
+  scriptable-asset
+}

@@ -16,7 +16,6 @@ description.workspace = true
 shadow-rs = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-log = { workspace = true }
 pest = { workspace = true }
 tower-lsp-server = { workspace = true }
 

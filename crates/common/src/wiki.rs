@@ -1,3 +1,11 @@
+/// Returns the correctly cased name for the given wiki kind.
+///
+/// # Examples
+///
+/// ```rust
+/// // let name = get_wiki_kind_name("achievement-category");
+/// // assert_eq!(name, "Achievement-category");
+/// ```
 #[tracing::instrument(skip(kind_name))]
 pub fn get_wiki_kind_name(kind_name: &str) -> String {
     let mapping = [
@@ -53,6 +61,14 @@ pub fn get_wiki_kind_name(kind_name: &str) -> String {
     kind_name.to_string()
 }
 
+/// Returns the correctly cased name for the given wiki container.
+///
+/// # Examples
+///
+/// ```rust
+/// // let name = get_wiki_container_name("achievements");
+/// // assert_eq!(name, "Achievements");
+/// ```
 #[tracing::instrument(skip(container_name))]
 pub fn get_wiki_container_name(container_name: &str) -> String {
     let mapping = [

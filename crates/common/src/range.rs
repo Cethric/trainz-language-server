@@ -2,16 +2,37 @@ use pest::iterators::Pair;
 use pest::{Position as PestPosition, RuleType};
 use tower_lsp_server::ls_types::{Position, Range};
 
+/// Converts a pest Pair to a LSP Range.
+///
+/// # Examples
+///
+/// ```rust
+/// // let range = pair_to_range(&pair);
+/// ```
 #[tracing::instrument(skip(pair))]
 pub fn pair_to_range<Rule: RuleType>(pair: &Pair<Rule>) -> Range {
     span_to_range(&pair.as_span())
 }
 
+/// Converts a pest Span to a LSP Range.
+///
+/// # Examples
+///
+/// ```rust
+/// // let range = span_to_range(&span);
+/// ```
 #[tracing::instrument(skip(span))]
 pub fn span_to_range(span: &pest::Span) -> Range {
     pos_to_range(&span.start_pos(), &span.end_pos())
 }
 
+/// Converts two pest Positions to a LSP Range.
+///
+/// # Examples
+///
+/// ```rust
+/// // let range = pos_to_range(&start, &end);
+/// ```
 #[tracing::instrument(skip(start, end))]
 pub fn pos_to_range(start: &PestPosition, end: &PestPosition) -> Range {
     let (start_line, start_col) = start.line_col();
@@ -28,6 +49,13 @@ pub fn pos_to_range(start: &PestPosition, end: &PestPosition) -> Range {
     }
 }
 
+/// Checks if an item Range is fully contained within a container Range.
+///
+/// # Examples
+///
+/// ```rust
+/// // let is_inside = range_is_inside_range(&container, &item);
+/// ```
 #[tracing::instrument(skip(container, item))]
 pub fn range_is_inside_range(container: &Range, item: &Range) -> bool {
     // Start comparison
@@ -46,6 +74,13 @@ pub fn range_is_inside_range(container: &Range, item: &Range) -> bool {
     true
 }
 
+/// Clamps an item Range to be within the container Range.
+///
+/// # Examples
+///
+/// ```rust
+/// // let clamped = clamp_range(&container, item);
+/// ```
 #[tracing::instrument(skip(container, item))]
 pub fn clamp_range(container: &Range, item: Range) -> Range {
     let mut clamped = item;
@@ -63,6 +98,13 @@ pub fn clamp_range(container: &Range, item: Range) -> Range {
     clamped
 }
 
+/// Combines two Ranges into one that covers both.
+///
+/// # Examples
+///
+/// ```rust
+/// // let combined = combine_ranges(range1, range2);
+/// ```
 #[tracing::instrument(skip(range1, range2))]
 pub fn combine_ranges(range1: Range, range2: Range) -> Range {
     let start = if range1.start.line < range2.start.line

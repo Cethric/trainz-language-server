@@ -3,15 +3,19 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Kuid {
-    pub user_id: i64,
-    pub content_id: i64,
-    pub version: Option<u32>,
+    pub user_id: i32,
+    pub content_id: i32,
+    pub version: Option<u8>,
     pub range: crate::Range,
 }
 
 impl Kuid {
     pub fn can_increment(&self) -> bool {
-        true
+        if let Some(version) = self.version {
+            version < 255
+        } else {
+            true
+        }
     }
 
     pub fn can_decrement(&self) -> bool {
