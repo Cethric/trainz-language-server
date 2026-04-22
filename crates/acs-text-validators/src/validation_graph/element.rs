@@ -24,6 +24,39 @@ impl RuleNodeElement {
     pub fn is_num_array(&self) -> bool {
         self.is_num_array
     }
+
+    #[tracing::instrument(skip(self))]
+    pub fn details(&self) -> Option<String> {
+        if let Some(element) = &self.element
+            && let Some(element) = element.upgrade()
+        {
+            element.details()
+        } else {
+            None
+        }
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn description(&self) -> Option<String> {
+        if let Some(element) = &self.element
+            && let Some(element) = element.upgrade()
+        {
+            element.description()
+        } else {
+            None
+        }
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn documentation(&self, trainz_version: &f64) -> Option<String> {
+        if let Some(element) = &self.element
+            && let Some(element) = element.upgrade()
+        {
+            element.documentation(trainz_version)
+        } else {
+            None
+        }
+    }
 }
 
 impl RuleNodeElement {

@@ -1,10 +1,4 @@
-use anyhow::Result;
-use std::path::Path;
-use tracing::{debug, trace};
-use trainz_ast::acs_text::process::process_acs_text_ast;
-use trainz_ast::acs_text::{AcsText, KeyValuePair, NumericValue, Value};
-use trainz_parser::acs_text::parse_acs_text;
-
+use trainz_ast::acs_text::{KeyValuePair, NumericValue, Value};
 pub trait FromNumericValue: Sized {
     fn from_int(value: i64) -> Self;
     fn from_hex(value: u64) -> Self;
@@ -189,24 +183,4 @@ pub fn parse_as_string(key_value_pair: &KeyValuePair) -> Option<String> {
     } else {
         None
     }
-}
-
-#[tracing::instrument(skip(source))]
-pub(crate) fn parse_source(source: &str) -> Result<AcsText> {
-    trace!("Parsing source: {:?}", source);
-    let pairs = parse_acs_text(&source)?;
-    let processed = process_acs_text_ast(pairs, &source);
-
-    Ok(processed)
-}
-
-#[tracing::instrument(skip(path))]
-pub(crate) async fn parse_file(path: &Path) -> Result<AcsText> {
-    debug!("Parsing {:?}", path);
-    let data = tokio::fs::read(path).await?;
-    let source = String::from_utf8_lossy(&data);
-    let processed = parse_source(&source)?;
-
-    trace!("Parsed {:?} - {:?}", path, processed);
-    Ok(processed)
 }

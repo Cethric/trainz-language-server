@@ -1,7 +1,6 @@
-use crate::util::{
-    parse_as_array_option, parse_as_bool, parse_as_numeric, parse_as_string, parse_file,
-    parse_source,
-};
+use crate::parse_file::parse_file;
+use crate::parse_source::parse_source;
+use crate::util::{parse_as_array_option, parse_as_bool, parse_as_numeric, parse_as_string};
 use anyhow::Result;
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -160,6 +159,172 @@ impl RuleNodeValue {
         }
 
         Ok(())
+    }
+}
+
+impl RuleNodeValue {
+    #[tracing::instrument(skip(self))]
+    pub fn details(&self) -> Option<String> {
+        None
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn description(&self) -> Option<String> {
+        match self {
+            RuleNodeValue::String(_) => Some(String::from("String")),
+            RuleNodeValue::Float(_) => Some(String::from("Float")),
+            RuleNodeValue::Integer(_) => Some(String::from("Integer")),
+            RuleNodeValue::Bool(_) => Some(String::from("Bool")),
+            RuleNodeValue::Rgb(_) => Some(String::from("Rgb")),
+            RuleNodeValue::ComboBox(_) => Some(String::from("ComboBox")),
+            RuleNodeValue::IntComboBox(_) => Some(String::from("IntComboBox")),
+            RuleNodeValue::FloatComboBox(_) => Some(String::from("FloatComboBox")),
+            RuleNodeValue::ListBox(_) => Some(String::from("ListBox")),
+            RuleNodeValue::Kuid(_) => Some(String::from("Kuid")),
+            RuleNodeValue::KuidBrowser(_) => Some(String::from("KuidBrowser")),
+            RuleNodeValue::FilePath(path) => {
+                if let Some(data_type) = &path.data_type {
+                    Some(format!("FilePath({})", data_type))
+                } else {
+                    Some(String::from("FilePath"))
+                }
+            }
+            RuleNodeValue::FloatList(_) => Some(String::from("FloatList")),
+            RuleNodeValue::Vector2(_) => Some(String::from("Vector2")),
+            RuleNodeValue::Vector3(_) => Some(String::from("Vector3")),
+            RuleNodeValue::Vector4(_) => Some(String::from("Vector4")),
+            RuleNodeValue::Vector5(_) => Some(String::from("Vector5")),
+            RuleNodeValue::Vector6(_) => Some(String::from("Vector6")),
+        }
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn documentation(&self) -> Option<String> {
+        match self {
+            RuleNodeValue::String(string) => string
+                .default
+                .as_ref()
+                .map(|string| format!("Default: `{}`", string)),
+            RuleNodeValue::Float(float) => {
+                float.default.map(|float| format!("Default: {:.02}", float))
+            }
+            RuleNodeValue::Integer(integer) => integer
+                .default
+                .map(|integer| format!("Default: `{}`", integer)),
+            RuleNodeValue::Bool(bool) => bool
+                .default
+                .map(|bool| format!("Default: `{}`", if bool { "1" } else { "0" })),
+            RuleNodeValue::Rgb(rgb) => {
+                if let Some((r, g, b)) = rgb.default {
+                    Some(format!("Default: `{},{},{}`", r, g, b))
+                } else {
+                    None
+                }
+            }
+            RuleNodeValue::ComboBox(combo) => {
+                let docs = combo
+                    .default
+                    .as_ref()
+                    .map(|string| format!("Default: `{}`", string))
+                    .unwrap_or(String::from(""));
+                let options = combo.display_options();
+
+                Some(format!("{}\nOptions:\n{}", docs, options))
+            }
+            RuleNodeValue::IntComboBox(combo) => {
+                let docs = combo
+                    .default
+                    .as_ref()
+                    .map(|integer| format!("Default: `{}`", integer))
+                    .unwrap_or(String::from(""));
+                let options = combo.display_options();
+
+                Some(format!("{}\nOptions:\n{}", docs, options))
+            }
+            RuleNodeValue::FloatComboBox(combo) => {
+                let docs = combo
+                    .default
+                    .as_ref()
+                    .map(|float| format!("Default: `{:.02}`", float))
+                    .unwrap_or(String::from(""));
+                let options = combo.display_options();
+
+                Some(format!("{}\nOptions:\n{}", docs, options))
+            }
+            RuleNodeValue::ListBox(list) => {
+                let docs = list
+                    .default
+                    .as_ref()
+                    .map(|integer| format!("Default: `{}`", integer))
+                    .unwrap_or(String::from(""));
+                let options = list.display_options();
+
+                Some(format!("{}\nOptions:\n{}", docs, options))
+            }
+            RuleNodeValue::Kuid(_) => None,
+            RuleNodeValue::KuidBrowser(kuid) => {
+                if let Some((user, content, version)) = kuid.default {
+                    if let Some(version) = version {
+                        Some(format!("`<kuid2:{}:{}:{}>`", user, content, version))
+                    } else {
+                        Some(format!("`<kuid:{}:{}>`", user, content))
+                    }
+                } else {
+                    None
+                }
+            }
+            RuleNodeValue::FilePath(path) => path.default.clone(),
+            RuleNodeValue::FloatList(list) => list.default.as_ref().map(|list| {
+                format!(
+                    "`{}`",
+                    list.iter()
+                        .map(|v| format!("{:.02}", v))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                )
+            }),
+            RuleNodeValue::Vector2(vector) => {
+                if let Some((v0, v1)) = vector.default {
+                    Some(format!("`{:.02},{:.02}`", v0, v1))
+                } else {
+                    None
+                }
+            }
+            RuleNodeValue::Vector3(vector) => {
+                if let Some((v0, v1, v2)) = vector.default {
+                    Some(format!("`{:.02},{:.02},{:.02}`", v0, v1, v2))
+                } else {
+                    None
+                }
+            }
+            RuleNodeValue::Vector4(vector) => {
+                if let Some((v0, v1, v2, v3)) = vector.default {
+                    Some(format!("`{:.02},{:.02},{:.02},{:.02}`", v0, v1, v2, v3))
+                } else {
+                    None
+                }
+            }
+            RuleNodeValue::Vector5(vector) => {
+                if let Some((v0, v1, v2, v3, v4)) = vector.default {
+                    Some(format!(
+                        "`{:.02},{:.02},{:.02},{:.02},{:.02}`",
+                        v0, v1, v2, v3, v4
+                    ))
+                } else {
+                    None
+                }
+            }
+            RuleNodeValue::Vector6(vector) => {
+                if let Some((v0, v1, v2, v3, v4, v5)) = vector.default {
+                    Some(format!(
+                        "`{:.02},{:.02},{:.02},{:.02},{:.02},{:.02}`",
+                        v0, v1, v2, v3, v4, v5
+                    ))
+                } else {
+                    None
+                }
+            }
+        }
     }
 }
 

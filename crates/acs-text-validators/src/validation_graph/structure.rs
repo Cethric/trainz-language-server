@@ -52,6 +52,34 @@ impl RuleNodeStructure {
     pub fn array_elements(&self) -> Vec<Weak<RuleNode>> {
         self.array_elements.clone()
     }
+
+    #[tracing::instrument(skip(self))]
+    pub fn details(&self) -> Option<String> {
+        None
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn description(&self) -> Option<String> {
+        if let Some(tag_array) = &self.tag_array {
+            if let Some(tag_array) = tag_array.upgrade()
+                && let Some(tag_array_description) = tag_array.description()
+            {
+                Some(format!("TagArray({})", tag_array_description))
+            } else {
+                Some(String::from("TagArray"))
+            }
+        } else if self.is_array || !self.array_element_names.is_empty() {
+            Some(format!("Array({})", self.array_element_names.join(" | ")))
+        } else {
+            Some(String::from("Structure"))
+        }
+    }
+
+    #[tracing::instrument(skip(self, _trainz_version))]
+    pub fn documentation(&self, _trainz_version: &f64) -> Option<String> {
+        // TODO - implement documentation
+        None
+    }
 }
 
 impl RuleNodeStructure {

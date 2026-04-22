@@ -10,6 +10,7 @@ use anyhow::Result;
 use async_recursion::async_recursion;
 use rayon::prelude::*;
 use std::collections::HashMap;
+use std::error::Error;
 use std::path::Path;
 use std::sync::{Arc, Weak};
 use tracing::{debug, trace, warn};
@@ -204,6 +205,15 @@ impl RuleNode {
         }
     }
 
+    #[tracing::instrument(skip(self, trainz_build))]
+    pub fn is_supported(&self, trainz_build: f64) -> bool {
+        if let Some(minimum_version) = self.minimum_version {
+            trainz_build >= minimum_version
+        } else {
+            true
+        }
+    }
+
     #[tracing::instrument(skip(self))]
     pub fn obsolete_since(&self) -> Option<f64> {
         self.obsolete
@@ -228,6 +238,63 @@ impl RuleNode {
             );
         }
         inheritance
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn details(&self) -> Option<String> {
+        if let Some(kind) = &self.kind {
+            kind.details()
+        } else {
+            None
+        }
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn description(&self) -> Option<String> {
+        if let Some(kind) = &self.kind {
+            kind.description()
+        } else {
+            None
+        }
+    }
+
+    #[tracing::instrument(skip(self, trainz_version))]
+    pub fn documentation(&self, trainz_version: &f64) -> Option<String> {
+        let obsolete = self.obsolete.and_then(|obsolete| {
+            if obsolete >= *trainz_version {
+                Some(format!("Obsolete since Trainz build {}", obsolete))
+            } else {
+                None
+            }
+        });
+        let required = self.compulsory.and_then(|compulsory| {
+            if compulsory >= *trainz_version {
+                Some(format!("Compulsory since Trainz build {}", compulsory))
+            } else {
+                None
+            }
+        });
+        let minimum_version = self
+            .minimum_version
+            .map(|minimum_version| format!("Minimum Trainz build {}", minimum_version));
+
+        let mut docs: Vec<Option<String>> = vec![
+            obsolete,
+            required,
+            minimum_version,
+            self.description.clone(),
+        ];
+
+        if let Some(kind) = &self.kind {
+            docs.push(kind.documentation(trainz_version));
+        }
+
+        Some(
+            docs.iter()
+                .filter_map(|doc| doc.as_ref().map(|doc| doc.to_string()))
+                .collect::<Vec<String>>()
+                .join("\n\n"),
+        )
     }
 }
 
@@ -283,5 +350,32 @@ impl RuleNodeKind {
         }
 
         Ok(())
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn description(&self) -> Option<String> {
+        match self {
+            RuleNodeKind::Value(value) => value.description(),
+            RuleNodeKind::Element(element) => element.description(),
+            RuleNodeKind::Structure(structure) => structure.description(),
+        }
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn details(&self) -> Option<String> {
+        match self {
+            RuleNodeKind::Value(value) => value.details(),
+            RuleNodeKind::Element(element) => element.details(),
+            RuleNodeKind::Structure(structure) => structure.details(),
+        }
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn documentation(&self, trainz_version: &f64) -> Option<String> {
+        match self {
+            RuleNodeKind::Value(value) => value.documentation(),
+            RuleNodeKind::Element(element) => element.documentation(trainz_version),
+            RuleNodeKind::Structure(structure) => structure.documentation(trainz_version),
+        }
     }
 }
