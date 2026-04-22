@@ -978,9 +978,11 @@ impl LanguageServer for TrainzLanguageServer {
 
         let mut result = None;
         if let Some(file_info) = self.parsed_files.get(&path) {
-            if let ParsedFileType::AcsText(_acs_text) = &file_info.parsed {
+            if let ParsedFileType::AcsText(acs_text) = &file_info.parsed {
+                let graph = self.acs_state.graph.read().await;
                 result = Some(CompletionResponse::Array(acs_text_completions(
-                    _acs_text,
+                    acs_text,
+                    graph.as_ref(),
                     params,
                     self.asset_cache_path.as_deref(),
                 )));

@@ -5,6 +5,7 @@ use std::path::Path;
 use std::sync::{Arc, Weak};
 use tower_lsp_server::ls_types::Diagnostic;
 use tracing::trace;
+use trainz_acs_text_validators::text_util::{get_kind_from_text, get_trainz_build_from_text};
 use trainz_acs_text_validators::{RuleNode, RulesRoot, parse_as_numeric, parse_as_string};
 use trainz_ast::acs_text::{AcsText, KeyValuePair};
 use trainz_ast::{Position, Range};
@@ -37,85 +38,27 @@ pub fn acs_text_diagnostics(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = vec![];
 
-    let kind: Vec<&KeyValuePair> = acs_text
-        .key_value_pairs
-        .par_iter()
-        .filter_map(|kv| {
-            if kv.key.eq_ignore_ascii_case("kind") {
-                Some(kv)
-            } else {
-                None
-            }
-        })
-        .collect();
+    let kind = get_kind_from_text(acs_text);
 
-    if kind.is_empty() {
-        diagnostics.push(Diagnostic {
-            range: Range {
-                start: Position {
-                    line: 0,
-                    character: 0,
-                },
-                end: Position {
-                    line: 0,
-                    character: 0,
-                },
-            },
-            severity: Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR),
-            message: "'kind' is missing".to_string(),
-            source: Some(String::from(DIAGNOSTIC_SOURCE)),
-            ..Default::default()
-        });
-    }
+    if let Some((kind, kind_range, is_multiple)) = kind {
+        if is_multiple {
+            diagnostics.push(Diagnostic {
+                range: kind_range,
+                severity: Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR),
+                message: "Multiple 'kind' tags found".to_string(),
+                source: Some(String::from(DIAGNOSTIC_SOURCE)),
+                ..Default::default()
+            });
+        }
 
-    if kind.len() > 1 {
-        diagnostics.push(Diagnostic {
-            range: Range {
-                start: Position {
-                    line: 0,
-                    character: 0,
-                },
-                end: Position {
-                    line: 0,
-                    character: 0,
-                },
-            },
-            severity: Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR),
-            message: "Multiple 'kind' tags found".to_string(),
-            source: Some(String::from(DIAGNOSTIC_SOURCE)),
-            ..Default::default()
-        });
-    }
-    let kind = kind.first();
+        let trainz_build = get_trainz_build_from_text(acs_text);
 
-    let trainz_build: Vec<&KeyValuePair> = acs_text
-        .key_value_pairs
-        .par_iter()
-        .filter_map(|kv| {
-            if kv.key.eq_ignore_ascii_case("trainz-build") {
-                Some(kv)
-            } else {
-                None
-            }
-        })
-        .collect();
-    let trainz_build: f64 = if let Some(kv) = trainz_build.first()
-        && let Some(version) = parse_as_numeric::<f64>(kv)
-    {
-        version
-    } else {
-        0.0f64
-    };
-
-    if let Some(kind) = kind
-        && let Some(kind_value) = parse_as_string(kind)
-    {
         let validator: Vec<Arc<RuleNode>> = graph
             .get_top_level_nodes()
             .par_iter()
             .filter_map(|node| {
                 if let Some(node) = Weak::upgrade(node)
-                    && node.matches_name(&kind_value)
+                    && node.matches_name(&kind)
                 {
                     Some(node)
                 } else {
@@ -126,9 +69,9 @@ pub fn acs_text_diagnostics(
 
         if validator.is_empty() {
             diagnostics.push(Diagnostic {
-                range: kind.key_range,
+                range: kind_range,
                 severity: Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR),
-                message: format!("Unknown kind '{}'", kind_value),
+                message: format!("Unknown kind '{}'", kind),
                 source: Some(String::from(DIAGNOSTIC_SOURCE)),
                 ..Default::default()
             });
@@ -136,9 +79,9 @@ pub fn acs_text_diagnostics(
 
         if validator.len() > 1 {
             diagnostics.push(Diagnostic {
-                range: kind.key_range,
+                range: kind_range,
                 severity: Some(tower_lsp_server::ls_types::DiagnosticSeverity::WARNING),
-                message: format!("Multiple rules found for kind '{}'", kind_value),
+                message: format!("Multiple rules found for kind '{}'", kind),
                 source: Some(String::from(DIAGNOSTIC_SOURCE)),
                 ..Default::default()
             });
@@ -155,6 +98,23 @@ pub fn acs_text_diagnostics(
                 &base_path,
             ));
         }
+    } else {
+        diagnostics.push(Diagnostic {
+            range: Range {
+                start: Position {
+                    line: 0,
+                    character: 0,
+                },
+                end: Position {
+                    line: 0,
+                    character: 0,
+                },
+            },
+            severity: Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR),
+            message: "'kind' is missing".to_string(),
+            source: Some(String::from(DIAGNOSTIC_SOURCE)),
+            ..Default::default()
+        });
     }
 
     diagnostics
