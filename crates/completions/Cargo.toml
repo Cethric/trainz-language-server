@@ -16,7 +16,6 @@ description.workspace = true
 shadow-rs = { workspace = true }
 tower-lsp-server = { workspace = true }
 tracing = { workspace = true }
-log = { workspace = true }
 rayon = { workspace = true }
 
 trainz-ast = { workspace = true }
@@ -25,6 +24,9 @@ trainz-parser = { workspace = true }
 trainz-common = { workspace = true }
 trainz-tdx = { workspace = true }
 rusqlite = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.10"
 
 [build-dependencies]
 shadow-rs = { version = "1.7" }

@@ -551,29 +551,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
-name = "env_filter"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32e90c2accc4b07a8456ea0debdc2e7587bdd890680d71173a15d4ae604f6eef"
-dependencies = [
- "log",
- "regex",
-]
-
-[[package]]
-name = "env_logger"
-version = "0.11.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0621c04f2196ac3f488dd583365b9c09be011a4ab8b9f37248ffcc8f6198b56a"
-dependencies = [
- "anstream",
- "anstyle",
- "env_filter",
- "jiff",
- "log",
-]
-
-[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1056,30 +1033,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
-name = "jiff"
-version = "0.2.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a3546dc96b6d42c5f24902af9e2538e82e39ad350b0c766eb3fbf2d8f3d8359"
-dependencies = [
- "jiff-static",
- "log",
- "portable-atomic",
- "portable-atomic-util",
- "serde_core",
-]
-
-[[package]]
-name = "jiff-static"
-version = "0.2.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a8c8b344124222efd714b73bb41f8b5120b27a7cc1c75593a6ff768d9d05aa4"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "jobserver"
 version = "0.1.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1404,21 +1357,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "portable-atomic"
-version = "1.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49"
-
-[[package]]
-name = "portable-atomic-util"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "091397be61a01d4be58e7841595bd4bfedb15f1cd54977d79b8271e94ed799a3"
-dependencies = [
- "portable-atomic",
-]
-
-[[package]]
 name = "potential_utf"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1519,9 +1457,9 @@ dependencies = [
 
 [[package]]
 name = "rayon"
-version = "1.11.0"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "368f01d005bf8fd9b1206fb6fa653e6c4a81ceb1466406b81792d87c5677a58f"
+checksum = "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d"
 dependencies = [
  "either",
  "rayon-core",
@@ -1956,9 +1894,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.51.1"
+version = "1.52.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f66bf9585cda4b724d3e78ab34b73fb2bbaba9011b9bfdf69dc836382ea13b8c"
+checksum = "b67dee974fe86fd92cc45b7a95fdd2f99a36a6d7b0d431a231178d3d670bbcc6"
 dependencies = [
  "bytes",
  "libc",
@@ -2047,7 +1985,6 @@ version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
 dependencies = [
- "log",
  "pin-project-lite",
  "tracing-attributes",
  "tracing-core",
@@ -2107,9 +2044,12 @@ dependencies = [
 name = "trainz-acs-text-validators"
 version = "0.1.0"
 dependencies = [
- "log",
+ "anyhow",
+ "async-recursion",
  "rayon",
  "shadow-rs",
+ "tempfile",
+ "tokio",
  "tracing",
  "trainz-ast",
  "trainz-parser",
@@ -2122,7 +2062,6 @@ dependencies = [
  "bson",
  "criterion",
  "hex",
- "log",
  "pest",
  "rayon",
  "serde",
@@ -2138,7 +2077,6 @@ dependencies = [
 name = "trainz-common"
 version = "0.1.0"
 dependencies = [
- "log",
  "pest",
  "shadow-rs",
  "tower-lsp-server",
@@ -2150,10 +2088,10 @@ dependencies = [
 name = "trainz-completions"
 version = "0.1.0"
 dependencies = [
- "log",
  "rayon",
  "rusqlite",
  "shadow-rs",
+ "tempfile",
  "tower-lsp-server",
  "tracing",
  "trainz-acs-text-validators",
@@ -2168,8 +2106,6 @@ name = "trainz-definition"
 version = "0.1.0"
 dependencies = [
  "dashmap 7.0.0-rc2",
- "env_logger",
- "log",
  "rayon",
  "shadow-rs",
  "tempfile",
@@ -2177,6 +2113,7 @@ dependencies = [
  "tracing",
  "trainz-acs-text-validators",
  "trainz-ast",
+ "trainz-common",
  "trainz-parser",
 ]
 
@@ -2184,7 +2121,6 @@ dependencies = [
 name = "trainz-diagnostics"
 version = "0.1.0"
 dependencies = [
- "log",
  "rayon",
  "shadow-rs",
  "tower-lsp-server",
@@ -2201,7 +2137,6 @@ dependencies = [
  "clap",
  "clap-verbosity-flag",
  "clio",
- "log",
  "shadow-rs",
  "tokio",
  "tracing",
@@ -2258,9 +2193,12 @@ dependencies = [
  "criterion",
  "dashmap 7.0.0-rc2",
  "futures",
+ "hex",
  "num_cpus",
  "rayon",
  "rusqlite",
+ "serde_json",
+ "sha2 0.11.0",
  "shadow-rs",
  "tokio",
  "tower-lsp-server",
@@ -2312,7 +2250,6 @@ dependencies = [
 name = "trainz-symboliser"
 version = "0.1.0"
 dependencies = [
- "log",
  "pest",
  "rayon",
  "shadow-rs",

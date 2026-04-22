@@ -561,7 +561,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = "class MyClass { void MyMethod() { MyMethod(); } };";
         let pairs = parse(source).unwrap();
         let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
@@ -583,7 +585,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_superclass() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let super_uri = "file:///super.gs";
         let sub_uri = "file:///sub.gs";
 
@@ -626,7 +630,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_superclass_chain() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let gp_uri = "file:///gp.gs";
         let p_uri = "file:///p.gs";
         let c_uri = "file:///c.gs";
@@ -677,7 +683,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_superclass_member_chain() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let gp_uri = "file:///gp.gs";
         let p_uri = "file:///p.gs";
         let c_uri = "file:///c.gs";
@@ -727,7 +735,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_superclass_name() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = "class Base { }; class Derived isclass Base { };";
         let pairs = parse(source).unwrap();
         let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
@@ -749,7 +759,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_inherited() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let super_uri = "file:///super.gs";
         let sub_uri = "file:///sub.gs";
 
@@ -809,7 +821,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_inherited_deep() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let gp_uri = "file:///gp.gs";
         let p_uri = "file:///p.gs";
         let c_uri = "file:///c.gs";
@@ -887,7 +901,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_inherited_not_current() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let uri = "file:///test.gs";
         let source = "class MyClass isclass MyClass { void SharedMethod() { inherited(); } };";
         // 0123456789012345678901234567890123456789012345678901234567890
@@ -918,7 +934,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_include() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let include_path = "/path/to/Bar.gs";
         let source = format!("include \"{}\"\nclass Foo {{ }};", include_path);
         let pairs = parse(&source).unwrap();
@@ -953,7 +971,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_field_method_call() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = r#"
             class AcsText {
                 void CountTags() { }
@@ -998,7 +1018,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_method_call() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = r#"
             class Str {
                 void Tokens(int pid, string s) { }
@@ -1042,7 +1064,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_chained_method_call() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = r#"
             class Asset {
                 void FindAsset(string name) { }
@@ -1093,7 +1117,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_chained_method_inheritance() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = r#"
             class Base {
                 AcsText GetConfigAcsText() { return null; }
@@ -1140,7 +1166,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_get_named_acs_text_inheritance() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = r#"
             class BaseAcsText {
                 AcsText GetNamedAcsText(string name) { return null; }
@@ -1189,7 +1217,9 @@ mod tests {
 
     #[test]
     fn test_gs_goto_definition_local_var_method_call() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = r#"
 class AcsText {
     public void GetIndexedTagName(int i) {}
@@ -1235,7 +1265,9 @@ class SignalNSW {
 
     #[test]
     fn test_gs_goto_definition_meshtable_resolution() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = r#"
 class AcsText {
     public void GetIndexedTagName(int i) {}
@@ -1282,7 +1314,9 @@ class SignalNSW {
 
     #[test]
     fn test_gs_goto_definition_multilevel_inheritance() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = r#"
 class GrandParent {
     public void GrandMethod() {}
@@ -1334,7 +1368,9 @@ class Test {
 
     #[test]
     fn test_gs_goto_definition_inherited_field_method_call() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = r#"
 class AcsText {
     public void GetIndexedTagName(int i) {}
@@ -1384,7 +1420,9 @@ class SignalNSW isclass BaseClass {
 
     #[test]
     fn test_gs_goto_definition_static_method_call() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = "class Router {\n    static GameObject GetCurrentThreadGameObject() { return null; }\n};\nclass Test {\n    void Run() {\n        GameObject g = Router.GetCurrentThreadGameObject();\n    }\n};";
         let pairs = trainz_ast::gs::process::process_trainz_ast(
             trainz_parser::gs::parse(source).unwrap(),
@@ -1429,7 +1467,9 @@ class SignalNSW isclass BaseClass {
 
     #[test]
     fn test_gs_goto_definition_overload_inheritance() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = r#"
 class A {
     void foo() {}
@@ -1481,7 +1521,9 @@ class C isclass B {
 
     #[test]
     fn test_gs_goto_definition_scoped_search() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source_a = "class A {};";
         let source_b = "class B {};";
 

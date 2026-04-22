@@ -391,7 +391,9 @@ mod tests {
 
     #[test]
     fn test_gs_find_references_class() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let source = "class MyClass { }; class Other { MyClass m; };";
         let pairs = parse(source).unwrap();
         let program = Arc::new(trainz_ast::gs::process::process_trainz_ast(pairs, source));
@@ -426,7 +428,9 @@ mod tests {
 
     #[test]
     fn test_gs_find_references_include() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let bar_path = "/path/to/Bar.gs";
         let source = format!("include \"{}\"\nclass Foo {{ }};", bar_path);
         let pairs = parse(&source).unwrap();
@@ -463,7 +467,9 @@ mod tests {
 
     #[test]
     fn test_gs_find_references_current_file() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let foo_path = "/path/to/Foo.gs";
         let bar_source = format!("include \"{}\"\nclass Bar {{ }};", foo_path);
         let bar_pairs = parse(&bar_source).unwrap();
@@ -524,7 +530,9 @@ mod tests {
 
     #[test]
     fn test_gs_find_references_multiple_includes() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let target_path = "/path/to/Target.gs";
         let target_uri = Uri::from_file_path(target_path).unwrap();
 
@@ -586,7 +594,9 @@ mod tests {
 
     #[test]
     fn test_gs_find_references_nested_includes() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = trainz_common::logging::tracing_subscriber::fmt()
+            .with_test_writer()
+            .try_init();
         let a_path = "/path/to/A.gs";
         let b_path = "/path/to/B.gs";
         let c_path = "/path/to/C.gs";

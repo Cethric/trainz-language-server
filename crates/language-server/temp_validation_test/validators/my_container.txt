@@ -1,0 +1,12 @@
+
+my_container {
+    top-level 1
+    key {
+        type "string"
+        validation "IsValidCategoryEra"
+    }
+    region {
+        type "string"
+        validation "IsValidCategoryRegion"
+    }
+}

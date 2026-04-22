@@ -1,50 +1,24 @@
-use crate::acs_text::find_hover_recursive;
 use rayon::prelude::*;
 use std::collections::HashMap;
 use tower_lsp_server::ls_types::{Hover, MarkupContent, MarkupKind, Position};
-use trainz_acs_text_validators::{ContainerRule, Validators};
 use trainz_ast::acs_text::value::Value;
 
-#[tracing::instrument(skip(script_resolver))]
+#[tracing::instrument(skip(value, position, base_path, script_resolver, trainz_build_version))]
 pub fn find_hover_in_value(
     value: &Value,
     position: Position,
-    validators: &Validators,
-    rule: Option<&ContainerRule>,
     base_path: Option<&std::path::Path>,
     script_resolver: Option<&dyn trainz_definition::acs_text::definitions::ScriptResolver>,
     trainz_build_version: Option<f64>,
-    path: Vec<String>,
 ) -> Option<Hover> {
     match value {
         Value::Container(container_kv, _, _) => {
-            let mut next_validator = None;
-            let mut next_path = path.clone();
-
-            if let Some(rule) = rule {
-                next_path.push(rule.key.clone());
-
-                if let Some(kind_name) = &rule.kind {
-                    next_validator = validators
-                        .containers
-                        .par_iter()
-                        .find_first(|v| v.container_name.eq_ignore_ascii_case(kind_name));
-                } else if let Some(type_name) = &rule.type_name {
-                    next_validator = validators
-                        .containers
-                        .par_iter()
-                        .find_first(|v| v.container_name.eq_ignore_ascii_case(type_name));
-                }
-            }
-            find_hover_recursive(
+            crate::acs_text::acs_text_hover_recursive_wrapper::acs_text_hover_recursive_wrapper(
                 container_kv,
                 position,
-                validators,
-                next_validator,
                 base_path,
                 script_resolver,
                 trainz_build_version,
-                next_path,
             )
         }
         _ => None,

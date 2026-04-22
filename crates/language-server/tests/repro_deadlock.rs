@@ -3,12 +3,12 @@ use tokio::time::{Duration, timeout};
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{LanguageServer, LspService};
 use trainz_common::language_id::GAME_SCRIPT_LANGUAGE_ID;
-use trainz_language_server::state::GameScriptLanguageServer;
+use trainz_language_server::state::TrainzLanguageServer;
 
 #[tokio::test]
 async fn test_circular_include_deadlock() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
     let temp_dir = std::env::current_dir()
         .unwrap()

@@ -15,7 +15,6 @@ description.workspace = true
 shadow-rs = { workspace = true }
 tower-lsp-server = { workspace = true }
 tracing = { workspace = true }
-log = { workspace = true }
 rayon = { workspace = true }
 
 trainz-ast = { workspace = true }

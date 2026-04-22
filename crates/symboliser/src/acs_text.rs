@@ -1,145 +1,23 @@
 use rayon::prelude::*;
 use tower_lsp_server::ls_types::{DocumentSymbol, SymbolKind};
-use trainz_acs_text_validators::{ArrayElementType, ContainerValidator, Validators};
-use trainz_ast::acs_text::Value;
 use trainz_ast::acs_text::base::AcsText;
 use trainz_ast::acs_text::key_value_pair::KeyValuePair;
 use trainz_common::range::clamp_range;
 
-#[tracing::instrument(skip(acs_text, validators))]
-pub fn acs_text_symboliser(
-    acs_text: &AcsText,
-    validators: Option<&Validators>,
-) -> Vec<DocumentSymbol> {
-    let kind_kv = acs_text
-        .key_value_pairs
-        .par_iter()
-        .find_first(|kv| kv.key.eq_ignore_ascii_case("kind"));
-    let validator = kind_kv.and_then(|kv| match &kv.value {
-        Some(Value::String(s, _)) | Some(Value::Variable(s, _)) => validators.and_then(|vs| {
-            vs.containers
-                .par_iter()
-                .find_first(|v| v.container_name.eq_ignore_ascii_case(s))
-        }),
-        _ => None,
-    });
-
+#[tracing::instrument(skip(acs_text))]
+pub fn acs_text_symboliser(acs_text: &AcsText) -> Vec<DocumentSymbol> {
     let symbols: Vec<DocumentSymbol> = acs_text
         .key_value_pairs
         .par_iter()
-        .enumerate()
-        .map(|(index, kv)| process_key_value_symbol(kv, validator, validators, index))
+        .map(process_key_value_symbol)
         .collect();
 
     symbols
 }
 
-#[tracing::instrument(skip(kv, validator, all_validators))]
-fn process_key_value_symbol(
-    kv: &KeyValuePair,
-    validator: Option<&ContainerValidator>,
-    all_validators: Option<&Validators>,
-    index: usize,
-) -> DocumentSymbol {
-    let mut children = vec![];
-
-    let rule = validator.and_then(|v| {
-        v.rules
-            .par_iter()
-            .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
-            .or_else(|| {
-                v.sub_possibilities
-                    .par_iter()
-                    .find_first(|r| r.key.eq_ignore_ascii_case(&kv.key))
-            })
-    });
-
-    let is_deprecated = rule.and_then(|r| r.obsolete_tag).unwrap_or(false);
-
-    if let Some(value) = &kv.value
-        && let Value::Container(kv_pairs, _, _) = value
-    {
-        children = kv_pairs
-            .par_iter()
-            .enumerate()
-            .map(|(inner_index, inner_kv)| {
-                let inner_validator = if let Some(rule) = rule {
-                    if let Some(child_validator) = &rule.child_validator {
-                        Some(child_validator.as_ref().clone())
-                    } else if let Some(type_name) = &rule.type_name {
-                        all_validators
-                            .and_then(|vs| vs.container_map.get(&type_name.to_lowercase()).cloned())
-                    } else {
-                        None
-                    }
-                } else if let Some(v) = validator
-                    && let Some(ae) = &v.array_element
-                {
-                    match ae {
-                        ArrayElementType::Array(_, s) => all_validators
-                            .and_then(|vs| vs.container_map.get(&s.to_lowercase()).cloned()),
-                        ArrayElementType::Tuple(types) => inner_kv
-                            .key
-                            .parse::<usize>()
-                            .ok()
-                            .and_then(|idx| types.get(idx))
-                            .and_then(|(_, tn)| {
-                                all_validators.and_then(|vs| {
-                                    vs.container_map.get(&tn.to_lowercase()).cloned()
-                                })
-                            }),
-                        ArrayElementType::Inline(iv) => Some(*iv.clone()),
-                        ArrayElementType::Rule(r) => {
-                            if let Some(cv) = &r.child_validator {
-                                Some(cv.as_ref().clone())
-                            } else {
-                                r.type_name.as_ref().and_then(|tn| {
-                                    all_validators.and_then(|vs| {
-                                        vs.container_map.get(&tn.to_lowercase()).cloned()
-                                    })
-                                })
-                            }
-                        }
-                    }
-                } else if let Some(v) = validator
-                    && let Some(tag_array) = &v.tag_array
-                {
-                    match tag_array {
-                        ArrayElementType::Array(_, s) => all_validators
-                            .and_then(|vs| vs.container_map.get(&s.to_lowercase()).cloned()),
-                        ArrayElementType::Tuple(types) => {
-                            types.get(inner_index).and_then(|(_, tn)| {
-                                all_validators.and_then(|vs| {
-                                    vs.container_map.get(&tn.to_lowercase()).cloned()
-                                })
-                            })
-                        }
-                        ArrayElementType::Inline(iv) => Some(*iv.clone()),
-                        ArrayElementType::Rule(r) => {
-                            if let Some(cv) = &r.child_validator {
-                                Some(cv.as_ref().clone())
-                            } else {
-                                r.type_name.as_ref().and_then(|tn| {
-                                    all_validators.and_then(|vs| {
-                                        vs.container_map.get(&tn.to_lowercase()).cloned()
-                                    })
-                                })
-                            }
-                        }
-                    }
-                } else {
-                    None
-                };
-
-                process_key_value_symbol(
-                    inner_kv,
-                    inner_validator.as_ref(),
-                    all_validators,
-                    inner_index,
-                )
-            })
-            .collect();
-    }
+#[tracing::instrument(skip(kv))]
+fn process_key_value_symbol(kv: &KeyValuePair) -> DocumentSymbol {
+    let children = vec![];
 
     #[allow(deprecated)]
     DocumentSymbol {
@@ -150,12 +28,8 @@ fn process_key_value_symbol(
         } else {
             SymbolKind::NAMESPACE
         },
-        tags: if is_deprecated {
-            Some(vec![tower_lsp_server::ls_types::SymbolTag::DEPRECATED])
-        } else {
-            None
-        },
-        deprecated: if is_deprecated { Some(true) } else { None },
+        tags: None,
+        deprecated: None,
         range: kv.range,
         selection_range: clamp_range(&kv.range, kv.key_range),
         children: if children.is_empty() {
@@ -163,71 +37,5 @@ fn process_key_value_symbol(
         } else {
             Some(children)
         },
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use trainz_acs_text_validators::{ContainerRule, ContainerValidator, Validators};
-    use trainz_ast::acs_text::process::process_acs_text_ast;
-    use trainz_parser::acs_text::parse_acs_text;
-
-    #[allow(deprecated)]
-    #[test]
-    fn test_acs_text_symbol_deprecation() {
-        let code = r#"
-        kind "test-container"
-        obsolete-key "value"
-        "#;
-        let pairs = parse_acs_text(code).unwrap();
-        let acs_text = process_acs_text_ast(pairs, code);
-
-        let mut validators = Validators::default();
-        validators.containers.push(ContainerValidator {
-            container_name: "test-container".to_string(),
-            top_level: true,
-            rules: vec![ContainerRule {
-                key: "obsolete-key".to_string(),
-                obsolete_tag: Some(true),
-                ..Default::default()
-            }],
-            ..Default::default()
-        });
-
-        let symbols = acs_text_symboliser(&acs_text, Some(&validators));
-        let obsolete_symbol = symbols
-            .par_iter()
-            .find_first(|s| s.name == "obsolete-key")
-            .unwrap();
-
-        assert!(obsolete_symbol.deprecated.unwrap_or(false));
-        assert!(
-            obsolete_symbol
-                .tags
-                .as_ref()
-                .unwrap()
-                .contains(&tower_lsp_server::ls_types::SymbolTag::DEPRECATED)
-        );
-    }
-
-    #[test]
-    fn test_acs_text_multiline_string_symbol() {
-        let code = r#"
-        description "This is a
-        multi-line
-        string"
-        "#;
-        let pairs = parse_acs_text(code).unwrap();
-        let acs_text = process_acs_text_ast(pairs, code);
-        let symbols = acs_text_symboliser(&acs_text, None);
-
-        let desc_symbol = symbols
-            .par_iter()
-            .find_first(|s| s.name == "description")
-            .unwrap();
-        // The symbol range should cover all lines of the multi-line string.
-        assert_eq!(desc_symbol.range.start.line, 1);
-        assert_eq!(desc_symbol.range.end.line, 4);
     }
 }

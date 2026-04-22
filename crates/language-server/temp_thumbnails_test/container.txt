@@ -1,0 +1,34 @@
+
+thumbnails
+{
+  icon thumbnails
+  menu-token "$ccp_thumbnails_menu-name"
+  description "" 
+  unique 1
+  default-amount 1
+  kind "structure"
+  array-element
+  {
+    container-type0 "thumbnails-element"
+  }
+  validation
+  {
+    UniqueNames
+  } 
+}
+
+thumbnails-element
+{
+  image
+  {
+    type "string"
+  }
+  width
+  {
+    type "numeric"
+  }
+  height
+  {
+    type "numeric"
+  }
+}

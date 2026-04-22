@@ -2,12 +2,12 @@ use std::fs;
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{LanguageServer, LspService};
 use trainz_common::language_id::GAME_SCRIPT_LANGUAGE_ID;
-use trainz_language_server::state::GameScriptLanguageServer;
+use trainz_language_server::state::TrainzLanguageServer;
 
 #[tokio::test]
 async fn test_hover_same_line_comment() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -75,7 +75,7 @@ async fn test_hover_same_line_comment() {
 #[tokio::test]
 async fn test_hover_both_comments() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -132,7 +132,7 @@ async fn test_hover_both_comments() {
 #[tokio::test]
 async fn test_hover_local_var_comment() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -189,7 +189,7 @@ async fn test_hover_local_var_comment() {
 #[tokio::test]
 async fn test_hover_method_comment() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -245,7 +245,7 @@ async fn test_hover_method_comment() {
 #[tokio::test]
 async fn test_hover_block_comment_same_line() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -301,7 +301,7 @@ async fn test_hover_block_comment_same_line() {
 #[tokio::test]
 async fn test_hover_param_comment() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -357,7 +357,7 @@ async fn test_hover_param_comment() {
 #[tokio::test]
 async fn test_hover_param_no_preceding_comment() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -415,7 +415,7 @@ async fn test_hover_param_no_preceding_comment() {
 #[tokio::test]
 async fn test_hover_multiline_parm_comment() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -484,7 +484,7 @@ class Test {
 #[tokio::test]
 async fn test_hover_multiline_desc_comment() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -550,7 +550,7 @@ class Test {
 #[tokio::test]
 async fn test_hover_multiline_other_tags() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -633,7 +633,7 @@ class Test {
 #[tokio::test]
 async fn test_hover_documentation_at_top() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
 
     let temp_dir = std::env::current_dir()

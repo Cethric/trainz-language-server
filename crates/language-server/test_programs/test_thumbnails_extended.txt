@@ -1,0 +1,11 @@
+thumbnails {
+  0 {
+    image "icon/icon.jpg"
+    width "invalid_width"
+    height 180
+  }
+  1 {
+    image "main.jpg"
+    width 800
+  }
+}

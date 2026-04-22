@@ -1,5 +1,5 @@
 use crate::process::guard::ProcessingGuard;
-use crate::state::{GameScriptLanguageServer, ParsedFile, ParsedFileType};
+use crate::state::{ParsedFile, ParsedFileType, TrainzLanguageServer};
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
 use tower_lsp_server::{Bounded, NotCancellable, OngoingProgress};
@@ -17,7 +17,7 @@ pub trait ProcessAcsText {
     ) -> impl Future<Output = ()> + Send;
 }
 
-impl ProcessAcsText for GameScriptLanguageServer {
+impl ProcessAcsText for TrainzLanguageServer {
     #[tracing::instrument(skip(self, content, progress))]
     async fn process_acs_text_file(
         &self,
@@ -43,7 +43,7 @@ impl ProcessAcsText for GameScriptLanguageServer {
     }
 }
 
-impl GameScriptLanguageServer {
+impl TrainzLanguageServer {
     #[tracing::instrument(skip(self, content, progress))]
     async fn process_acs_text_file_inner(
         &self,

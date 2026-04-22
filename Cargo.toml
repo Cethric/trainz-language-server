@@ -32,7 +32,7 @@ description = "Language Server Protocol implementation for the GS (Game Script) 
 [workspace.dependencies]
 # External dependencies
 shadow-rs = { version = "1.7", default-features = false }
-tokio = { version = "1.51", features = ["full"] }
+tokio = { version = "1.52", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = [] }
 bson = { version = "3.1", features = ["chrono-0_4", "serde"] }
@@ -40,13 +40,11 @@ sha2 = { version = "0.11", features = [] }
 hex = { version = "0.4", features = [] }
 thiserror = { version = "2.0", features = [] }
 anyhow = { version = "1.0", features = [] }
-log = { version = "0.4", features = [] }
-env_logger = { version = "0.11", features = [] }
-tracing = { version = "0.1", features = ["log"] }
+tracing = { version = "0.1", features = ["valuable", "async-await"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 async-trait = { version = "0.1", features = [] }
 tempfile = { version = "3.27", features = [] }
-rayon = { version = "1.11", features = [] }
+rayon = { version = "1.12", features = [] }
 chrono = { version = "0.4", features = ["serde"] }
 pest = { version = "2.8", features = ["pretty-print"] }
 tower-lsp-server = { version = "0.23", features = [] }
@@ -58,6 +56,8 @@ dashmap = { version = "7.0.0-rc2", features = ["rayon", "serde", "typesize"] }
 walkdir = { version = "2.5", features = [] }
 rusqlite = { version = "0.39", features = ["bundled"] }
 futures = { version = "0.3", features = [] }
+async-recursion = { version = "1.1", features = [] }
+
 
 # Internal workspace dependencies
 trainz-ast = { path = "crates/ast", version = "0.1.0" }

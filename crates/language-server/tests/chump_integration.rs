@@ -1,13 +1,13 @@
 // use std::fs;
 // use tower_lsp_server::ls_types::*;
 // use tower_lsp_server::LanguageServer;
-// use trainz_language_server::state::{GameScriptLanguageServer, ParsedFileType};
+// use trainz_language_server::state::{TrainzLanguageServer, ParsedFileType};
 // use trainz_tdx::TdxValue;
 //
 // #[tokio::test]
 // async fn test_chump_indexing() {
 //     let (service, _) = tower_lsp_server::LspService::new(|client| {
-//         GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+//         TrainzLanguageServer::new(client, None, vec![], "test-version", None, None)
 //     });
 //
 //     let temp_dir = std::env::current_dir()

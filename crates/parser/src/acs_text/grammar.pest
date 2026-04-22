@@ -7,7 +7,7 @@ block_comment = _{ "/*" ~ (block_comment | !"*/" ~ ANY)* ~ "*/" }
 
 COMMENT = _{ line_comment | block_comment }
 
-acs_text = _{ SOI ~ newline* ~ (key_value_pair | error_recovery_acs_text)* ~ newline* ~ EOI }
+acs_text                = _{ SOI ~ newline* ~ (key_value_pair | error_recovery_acs_text)* ~ newline* ~ EOI }
 error_recovery_acs_text = _{ !key ~ !brace_close ~ !EOI ~ ANY }
 
 key_value_pair = { #tag = key ~ value? ~ newline* }
@@ -16,7 +16,7 @@ key = @{ (ASCII_ALPHANUMERIC | "/" | "_" | "-" | ".")+ }
 
 value = { (string_value | array_value | numeric_value | variable_value | kuid_value | container_value) ~ newline? }
 
-variable = @{ (ASCII_ALPHANUMERIC | "/" | "_" | "-" | "$" | " " | "&" | "(" | ")" | "." | ",")+ }
+variable = @{ (ASCII_ALPHANUMERIC | "/" | "_" | "-" | "$" | " " | "&" | "(" | ")" | "." | "," | ":")+ }
 
 variable_value = @{ #tag = variable }
 
@@ -33,7 +33,7 @@ numeric_value = { float | hex | integer }
 
 array_value = { numeric_value ~ ("," ~ numeric_value)+ }
 
-string_value = { double_quote ~ string ~ double_quote }
+string_value =  { double_quote ~ string ~ double_quote }
 string       = @{ (!(double_quote | "\\") ~ ANY)* ~ (escape ~ string)? }
 
 escape  = @{ "\\" ~ (double_quote | "\\" | "/" | "b" | "f" | "n" | "r" | "t" | unicode) }

@@ -2,12 +2,12 @@ use std::fs;
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{LanguageServer, LspService};
 use trainz_common::language_id::GAME_SCRIPT_LANGUAGE_ID;
-use trainz_language_server::state::GameScriptLanguageServer;
+use trainz_language_server::state::TrainzLanguageServer;
 
 #[tokio::test]
 async fn test_hover_method_call_signature() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
 
     let temp_dir = std::env::current_dir()
@@ -77,7 +77,7 @@ async fn test_hover_method_call_signature() {
 #[tokio::test]
 async fn test_hover_cross_file_method_call() {
     let (service, _) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test-version", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test-version", None, None, None)
     });
 
     let temp_dir = std::env::current_dir()

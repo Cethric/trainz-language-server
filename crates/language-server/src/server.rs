@@ -1,9 +1,7 @@
 use crate::process::acs_binary::ProcessAcsBinary;
 use crate::process::acs_text::ProcessAcsText;
 use crate::process::gs::ProcessGS;
-use crate::state::{
-    GameScriptLanguageServer, ParsedFile, ParsedFileType, RecursiveIncludeResolver,
-};
+use crate::state::{ParsedFile, ParsedFileType, RecursiveIncludeResolver, TrainzLanguageServer};
 use dashmap::DashMap;
 use ls_types::CodeActionProviderCapability;
 use rayon::prelude::*;
@@ -38,7 +36,6 @@ use tower_lsp_server::ls_types::{
 };
 use tower_lsp_server::{LanguageServer, ls_types};
 use tracing::{debug, error, trace};
-use trainz_acs_text_validators::load_validators;
 use trainz_common::language_id::{ACS_TEXT_LANGUAGE_ID, GAME_SCRIPT_LANGUAGE_ID};
 use trainz_completions::acs_text::acs_text_completions;
 use trainz_definition::acs_text::definitions::{ScriptResolver, acs_text_goto_definition};
@@ -49,12 +46,11 @@ use trainz_diagnostics::gs;
 use trainz_folding::acs_text::acs_text_folding_range;
 use trainz_folding::gs::trainz_folding_range;
 use trainz_hover::acs_text::acs_text_hover;
-use trainz_hover::gs::trainz_hover;
 use trainz_semantic_tokens::acs_text::acs_text_semantic_tokens;
 use trainz_semantic_tokens::gs::semantic_tokens;
 use trainz_symboliser::acs_text::acs_text_symboliser;
 
-impl LanguageServer for GameScriptLanguageServer {
+impl LanguageServer for TrainzLanguageServer {
     #[tracing::instrument(skip(self, params))]
     async fn initialize(
         &self,
@@ -180,7 +176,7 @@ impl LanguageServer for GameScriptLanguageServer {
                 },
             }),
             completion_provider: Some(CompletionOptions {
-                resolve_provider: Some(true),
+                resolve_provider: Some(false),
                 trigger_characters: None,
                 all_commit_characters: None,
                 work_done_progress_options: WorkDoneProgressOptions {
@@ -217,7 +213,7 @@ impl LanguageServer for GameScriptLanguageServer {
                 work_done_progress_options: WorkDoneProgressOptions {
                     work_done_progress: Some(true),
                 },
-                resolve_provider: Some(true),
+                resolve_provider: Some(false),
             })),
             references_provider: Some(OneOf::Right(ReferenceOptions {
                 work_done_progress_options: WorkDoneProgressOptions {
@@ -250,20 +246,6 @@ impl LanguageServer for GameScriptLanguageServer {
             ..Default::default()
         };
 
-        if let Some(validation_path) = &self.validation_path {
-            if let Some(progress) = &progress {
-                progress.report_with_message("Loading validators", 50).await;
-            }
-            debug!("Loading validators from {:?}", validation_path);
-            let validators =
-                load_validators(validation_path, self.extensions_overrides_path.as_deref());
-            if let Some(progress) = &progress {
-                progress.report_with_message("Loaded validators", 75).await;
-            }
-            let _ = self.validators.set(validators);
-            debug!("Validators loaded");
-        }
-
         if let Some(progress) = progress {
             progress.finish().await;
         }
@@ -280,6 +262,8 @@ impl LanguageServer for GameScriptLanguageServer {
 
     #[tracing::instrument(skip(self))]
     async fn initialized(&self, _: InitializedParams) {
+        self.acs_state.load_graph().await;
+
         self.discover_projects().await;
 
         self.client
@@ -633,20 +617,17 @@ impl LanguageServer for GameScriptLanguageServer {
                     };
                     gs::trainz_diagnostics(&path, program, &resolver, &resolver)
                 }
-                ParsedFileType::AcsText(acs_text) => {
-                    if let Some(validators) = self.validators.get() {
-                        acs_text_diagnostics(acs_text, validators, Some(&document_path))
-                    } else if let Some(validation_path) = &self.validation_path {
-                        // Fallback if not yet initialized or failed to load
-                        let validators = load_validators(
-                            validation_path,
-                            self.extensions_overrides_path.as_deref(),
-                        );
-                        acs_text_diagnostics(acs_text, &validators, Some(&document_path))
-                    } else {
-                        vec![]
-                    }
-                }
+                ParsedFileType::AcsText(acs_text) => tokio::task::block_in_place(move || {
+                    tokio::runtime::Handle::current().block_on(async move {
+                        if let guard = self.acs_state.graph.read().await
+                            && let Some(graph) = guard.as_ref()
+                        {
+                            acs_text_diagnostics(acs_text, graph, Some(&document_path))
+                        } else {
+                            vec![]
+                        }
+                    })
+                }),
                 ParsedFileType::AcsBinary(_) => vec![],
             });
 
@@ -741,14 +722,21 @@ impl LanguageServer for GameScriptLanguageServer {
             };
 
         if semantic_tokens_lock.get().is_none() {
-            let validators = self.validators.get().cloned();
-            let tokens = tokio::task::spawn_blocking(move || {
+            let tokens = tokio::task::block_in_place(move || {
                 let (mut raw_tokens, src) = match &parsed_file_type {
                     ParsedFileType::GameScript(program) => {
                         (semantic_tokens(program), Some(program.src.as_str()))
                     }
                     ParsedFileType::AcsText(acs_text) => (
-                        acs_text_semantic_tokens(acs_text, validators.as_ref()),
+                        tokio::runtime::Handle::current().block_on(async move {
+                            if let guard = self.acs_state.graph.read().await
+                                && let Some(graph) = guard.as_ref()
+                            {
+                                acs_text_semantic_tokens(acs_text, graph)
+                            } else {
+                                vec![]
+                            }
+                        }),
                         Some(acs_text.src.as_str()),
                     ),
                     ParsedFileType::AcsBinary(_) => (vec![], None),
@@ -757,12 +745,7 @@ impl LanguageServer for GameScriptLanguageServer {
                     trainz_semantic_tokens::comments::comments_semantic_tokens(&comments);
                 raw_tokens.append(&mut comment_tokens);
                 trainz_semantic_tokens::process_raw_tokens(raw_tokens, src)
-            })
-            .await
-            .map_err(|e| {
-                error!("Error in semantic_tokens_full: {:?}", e);
-                Error::internal_error()
-            })?;
+            });
             let _ = semantic_tokens_lock.set(tokens);
         }
 
@@ -835,7 +818,6 @@ impl LanguageServer for GameScriptLanguageServer {
             };
 
         if document_symbols_lock.get().is_none() {
-            let validators = self.validators.get().cloned();
             let parsed_files_clone = self.parsed_files.clone();
             let symbols = tokio::task::spawn_blocking(move || match &parsed_file_type {
                 ParsedFileType::GameScript(program) => {
@@ -845,9 +827,7 @@ impl LanguageServer for GameScriptLanguageServer {
                     };
                     trainz_symboliser::gs::trainz_symboliser(program, &resolver)
                 }
-                ParsedFileType::AcsText(acs_text) => {
-                    acs_text_symboliser(acs_text, validators.as_ref())
-                }
+                ParsedFileType::AcsText(acs_text) => acs_text_symboliser(acs_text),
                 ParsedFileType::AcsBinary(_) => vec![],
             })
             .await
@@ -999,24 +979,11 @@ impl LanguageServer for GameScriptLanguageServer {
         let mut result = None;
         if let Some(file_info) = self.parsed_files.get(&path) {
             if let ParsedFileType::AcsText(_acs_text) = &file_info.parsed {
-                let validators = if let Some(v) = self.validators.get() {
-                    Some(v.clone())
-                } else if let Some(vp) = &self.validation_path {
-                    let v = load_validators(vp, self.extensions_overrides_path.as_deref());
-                    self.validators.set(v.clone()).ok();
-                    Some(v)
-                } else {
-                    None
-                };
-
-                if let Some(validators) = validators {
-                    result = Some(CompletionResponse::Array(acs_text_completions(
-                        _acs_text,
-                        params,
-                        &validators,
-                        self.asset_cache_path.as_deref(),
-                    )));
-                }
+                result = Some(CompletionResponse::Array(acs_text_completions(
+                    _acs_text,
+                    params,
+                    self.asset_cache_path.as_deref(),
+                )));
             } else if let ParsedFileType::GameScript(_program) = &file_info.parsed {
                 result = Some(CompletionResponse::Array(
                     trainz_completions::gs::trainz_completions(_program, params),
@@ -1211,7 +1178,6 @@ impl LanguageServer for GameScriptLanguageServer {
                     }
                 }
                 ParsedFileType::AcsText(acs_text) => {
-                    let validators = self.validators.get().cloned().unwrap_or_default();
                     let base_path = document_path.parent();
 
                     let resolver = AcsTextScriptResolver {
@@ -1226,7 +1192,6 @@ impl LanguageServer for GameScriptLanguageServer {
                             .text_document
                             .uri
                             .clone(),
-                        &validators,
                         base_path,
                         Some(&resolver),
                     ) {
@@ -1279,31 +1244,15 @@ impl LanguageServer for GameScriptLanguageServer {
                             .report_with_message("Searching AcsText file", 25)
                             .await;
                     }
-                    if let Some(validators) = self.validators.get() {
-                        hover_result = acs_text_hover(
-                            acs_text,
-                            params.clone(),
-                            validators,
-                            path.parent(),
-                            Some(&AcsTextScriptResolver {
-                                parsed_files: &self.parsed_files,
-                            }),
-                        );
-                    } else if let Some(validation_path) = &self.validation_path {
-                        let validators = load_validators(
-                            validation_path,
-                            self.extensions_overrides_path.as_deref(),
-                        );
-                        hover_result = acs_text_hover(
-                            acs_text,
-                            params.clone(),
-                            &validators,
-                            path.parent(),
-                            Some(&AcsTextScriptResolver {
-                                parsed_files: &self.parsed_files,
-                            }),
-                        );
-                    }
+
+                    hover_result = acs_text_hover(
+                        acs_text,
+                        params.clone(),
+                        path.parent(),
+                        Some(&AcsTextScriptResolver {
+                            parsed_files: &self.parsed_files,
+                        }),
+                    );
 
                     if hover_result.is_some() {
                         if let Some(progress) = progress {
@@ -1322,7 +1271,7 @@ impl LanguageServer for GameScriptLanguageServer {
                         current_program: program,
                         parsed_files: &self.parsed_files,
                     };
-                    hover_result = trainz_hover(
+                    hover_result = trainz_hover::gs::trainz_hover(
                         program,
                         &resolver,
                         &resolver,
@@ -1379,8 +1328,12 @@ impl LanguageServer for GameScriptLanguageServer {
                             current_program: program,
                             parsed_files: &self.parsed_files,
                         };
-                        hover_result =
-                            trainz_hover(program, &resolver, &resolver, target_range.start);
+                        hover_result = trainz_hover::gs::trainz_hover(
+                            program,
+                            &resolver,
+                            &resolver,
+                            target_range.start,
+                        );
                         if let Some(hr) = &mut hover_result {
                             hr.range = origin_range;
                         }

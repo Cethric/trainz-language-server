@@ -31,6 +31,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/language-server/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/tdx/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/tdx/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/acs-text-validators/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/parser/examples" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/lsp/target" />
       <excludeFolder url="file://$MODULE_DIR$/crates/parser/target" />

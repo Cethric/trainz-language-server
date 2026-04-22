@@ -1,7 +1,7 @@
 use crate::process::acs_binary::ProcessAcsBinary;
 use crate::process::acs_text::ProcessAcsText;
 use crate::process::gs::ProcessGS;
-use crate::state::{GameScriptLanguageServer, ParsedFileType, Project, RecursiveIncludeResolver};
+use crate::state::{ParsedFileType, Project, RecursiveIncludeResolver, TrainzLanguageServer};
 use dashmap::DashSet;
 use futures::StreamExt;
 use rayon::prelude::*;
@@ -12,7 +12,7 @@ use tower_lsp_server::ls_types::{MessageType, ProgressToken};
 use tracing::{info, trace};
 use walkdir::WalkDir;
 
-impl GameScriptLanguageServer {
+impl TrainzLanguageServer {
     pub async fn discover_projects(&self) {
         let workspace_folders = self.workspace_folders();
 
@@ -179,7 +179,6 @@ impl GameScriptLanguageServer {
             .await;
 
         // Compute symbols for all project files to enable workspace search
-        let validators = self.validators.get();
         self.parsed_files
             .iter()
             .par_bridge()
@@ -200,7 +199,7 @@ impl GameScriptLanguageServer {
                             trainz_symboliser::gs::trainz_symboliser(program, &resolver)
                         }
                         ParsedFileType::AcsText(acs_text) => {
-                            trainz_symboliser::acs_text::acs_text_symboliser(acs_text, validators)
+                            trainz_symboliser::acs_text::acs_text_symboliser(acs_text)
                         }
                         ParsedFileType::AcsBinary(_) => vec![],
                     });

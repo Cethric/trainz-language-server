@@ -20,7 +20,6 @@ clio = { workspace = true }
 clap-verbosity-flag = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-log = { workspace = true }
 
 trainz-ast = { workspace = true }
 trainz-common = { workspace = true }

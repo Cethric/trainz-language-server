@@ -4,13 +4,9 @@ use tokio::runtime::Runtime;
 use tower_lsp_server::LspService;
 use tower_lsp_server::ls_types::ProgressToken;
 use trainz_language_server::process::acs_text::ProcessAcsText;
-use trainz_language_server::state::GameScriptLanguageServer;
+use trainz_language_server::state::TrainzLanguageServer;
 
-async fn bench_process_acs_text_file(
-    server: &GameScriptLanguageServer,
-    path: PathBuf,
-    content: &str,
-) {
+async fn bench_process_acs_text_file(server: &TrainzLanguageServer, path: PathBuf, content: &str) {
     let progress = server
         .client
         .progress(ProgressToken::String("bench".to_string()), "Benchmarking")
@@ -28,7 +24,7 @@ async fn bench_process_acs_text_file(
 fn criterion_benchmark(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let (service, _socket) = LspService::new(|client| {
-        GameScriptLanguageServer::new(client, None, vec![], "test", None, None)
+        TrainzLanguageServer::new(client, None, vec![], "test", None, None, None)
     });
     let server = service.inner();
 

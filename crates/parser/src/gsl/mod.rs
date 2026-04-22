@@ -12,6 +12,7 @@ pub struct GslLibrary {
 }
 
 impl GslLibrary {
+    /// Creates a new GslLibrary.
     pub fn new(name: String, symbols: Vec<String>) -> Self {
         Self { name, symbols }
     }

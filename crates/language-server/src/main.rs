@@ -6,7 +6,7 @@ use tokio::main;
 use tower_lsp_server::{LspService, Server};
 use tracing::{debug, info};
 use trainz_common::logging::{BoxMakeWriter, setup_logger};
-use trainz_language_server::state::GameScriptLanguageServer;
+use trainz_language_server::state::TrainzLanguageServer;
 
 pub mod process;
 pub mod state;
@@ -47,6 +47,10 @@ struct Args {
     #[arg(long, env = "TRAINZ_LANGUAGE_SERVER_ASSET_CACHE")]
     asset_cache: Option<PathBuf>,
 
+    /// Path to the TDX asset cache directory
+    #[arg(long, env = "TRAINZ_LANGUAGE_SERVER_TDX_CACHE")]
+    tdx_cache: Option<PathBuf>,
+
     /// Path to a folder for defining extensions overrides
     #[arg(long, env = "TRAINZ_LANGUAGE_SERVER_EXTENSIONS_OVERRIDES")]
     extensions_overrides: Option<PathBuf>,
@@ -67,7 +71,7 @@ async fn main() {
     } else {
         BoxMakeWriter::new(std::io::stderr)
     };
-    setup_logger(Some(args.verbosity.into()), Some(writer));
+    setup_logger(Some(args.verbosity.to_string()), Some(writer));
 
     info!(
         "Launching Trainz Language Server v{} - {:?}",
@@ -77,15 +81,17 @@ async fn main() {
     let validation_path = args.validation_path;
     let search_paths = args.search_paths;
     let asset_cache = args.asset_cache;
+    let tdx_cache = args.tdx_cache;
     let extensions_overrides = args.extensions_overrides;
 
     let (service, socket) = LspService::build(|client| {
-        GameScriptLanguageServer::new(
+        TrainzLanguageServer::new(
             client,
             validation_path,
             search_paths.clone(),
             PKG_VERSION,
             asset_cache,
+            tdx_cache,
             extensions_overrides,
         )
     })

@@ -3,14 +3,14 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
-use tokio::sync::Semaphore;
+use tokio::sync::{RwLock, Semaphore};
 use tower_lsp_server::Client;
 use tower_lsp_server::ls_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, Diagnostic, DocumentSymbol, FoldingRange,
     SemanticToken, TextEdit, Uri, WorkspaceEdit,
 };
-use tracing::{info, trace};
-use trainz_acs_text_validators::Validators;
+use tracing::{error, info, trace, warn};
+use trainz_acs_text_validators::{RulesRoot, load_validators};
 use trainz_ast::acs_text::{AcsText, Kuid};
 use trainz_ast::cache::AstCache;
 use trainz_ast::gs::Program;
@@ -116,13 +116,48 @@ impl Clone for ParsedFile {
 }
 
 #[derive(Debug)]
-pub struct GameScriptLanguageServer {
-    pub client: Client,
+pub struct GameScriptState {
     pub search_paths: Vec<PathBuf>,
+}
+
+#[derive(Debug)]
+pub struct ACSState {
     pub validation_path: Option<PathBuf>,
-    pub asset_cache_path: Option<PathBuf>,
     pub extensions_overrides_path: Option<PathBuf>,
-    pub validators: Arc<OnceLock<Validators>>,
+    pub graph: RwLock<Option<RulesRoot>>,
+}
+
+impl ACSState {
+    pub async fn load_graph(&self) {
+        if let Some(validation_path) = &self.validation_path {
+            let extension_overrides_path =
+                if let Some(extensions_overrides_path) = &self.extensions_overrides_path {
+                    Some(extensions_overrides_path.as_path())
+                } else {
+                    None
+                };
+            let graph = load_validators(&validation_path, extension_overrides_path).await;
+            if let Ok(graph) = graph {
+                let mut guard = self.graph.write().await;
+                info!(
+                    "Loaded {} top level nodes",
+                    graph.get_top_level_nodes().len()
+                );
+                guard.replace(graph);
+            } else if let Err(err) = graph {
+                error!("Failed to load validators: {}", err)
+            }
+        } else {
+            warn!("No validation path specified");
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct TrainzLanguageServer {
+    pub client: Client,
+    pub asset_cache_path: Option<PathBuf>,
+    pub tdx_cache_path: Option<PathBuf>,
     pub parsed_files: DashMap<String, ParsedFile>,
     pub counts: DashMap<String, AtomicUsize>,
     pub currently_processing: DashSet<String>,
@@ -131,31 +166,32 @@ pub struct GameScriptLanguageServer {
     pub projects: DashMap<PathBuf, Arc<Project>>,
     pub version: String,
     pub processing_semaphore: Semaphore,
+    pub gs_state: GameScriptState,
+    pub acs_state: ACSState,
 }
 
-impl GameScriptLanguageServer {
+impl TrainzLanguageServer {
     pub fn new(
         client: Client,
         validation_path: Option<PathBuf>,
         search_paths: Vec<PathBuf>,
         version: &str,
         asset_cache_path: Option<PathBuf>,
+        tdx_cache_path: Option<PathBuf>,
         extensions_overrides_path: Option<PathBuf>,
     ) -> Self {
-        info!("Create GameScriptLanguageServer {}", version);
+        info!("Create TrainzLanguageServer {}", version);
 
         trace!("Search paths {:?}", search_paths);
         trace!("Validation path {:?}", validation_path);
         trace!("Asset cache path {:?}", asset_cache_path);
+        trace!("TDX cache path {:?}", tdx_cache_path);
         trace!("Extensions overrides path {:?}", extensions_overrides_path);
 
         Self {
             client,
-            search_paths,
-            validation_path,
             asset_cache_path,
-            extensions_overrides_path,
-            validators: Arc::new(OnceLock::new()),
+            tdx_cache_path,
             parsed_files: DashMap::new(),
             counts: DashMap::new(),
             currently_processing: DashSet::new(),
@@ -164,6 +200,12 @@ impl GameScriptLanguageServer {
             projects: DashMap::new(),
             version: String::from(version),
             processing_semaphore: Semaphore::new(num_cpus::get()),
+            gs_state: GameScriptState { search_paths },
+            acs_state: ACSState {
+                validation_path,
+                extensions_overrides_path,
+                graph: RwLock::new(None),
+            },
         }
     }
 

@@ -1,5 +1,5 @@
 use crate::process::guard::ProcessingGuard;
-use crate::state::{GameScriptLanguageServer, ParsedFile, ParsedFileType};
+use crate::state::{ParsedFile, ParsedFileType, TrainzLanguageServer};
 use async_recursion::async_recursion;
 use rayon::iter::*;
 use std::fs;
@@ -23,7 +23,7 @@ pub trait ProcessGS {
     ) -> impl Future<Output = ()> + Send;
 }
 
-impl ProcessGS for GameScriptLanguageServer {
+impl ProcessGS for TrainzLanguageServer {
     #[tracing::instrument(skip(self, path, content, workspace_folders, changed, progress))]
     async fn process_gs_file(
         &self,
@@ -79,7 +79,7 @@ fn find_include_path(
         .next()
 }
 
-impl GameScriptLanguageServer {
+impl TrainzLanguageServer {
     #[async_recursion]
     #[tracing::instrument(skip(self, include, workspace_folders, progress))]
     async fn process_gs_include(
@@ -202,7 +202,7 @@ impl GameScriptLanguageServer {
                         &include.name,
                         base_path,
                         workspace_folders,
-                        &self.search_paths,
+                        &self.gs_state.search_paths,
                     );
                 }
 

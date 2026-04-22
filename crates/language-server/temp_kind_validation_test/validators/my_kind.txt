@@ -1,0 +1,7 @@
+
+my_kind {
+    top-level 1
+    key {
+        type "string"
+    }
+}

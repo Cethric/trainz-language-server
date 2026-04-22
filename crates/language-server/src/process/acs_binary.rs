@@ -1,10 +1,11 @@
 use crate::process::guard::ProcessingGuard;
-use crate::state::{GameScriptLanguageServer, ParsedFile, ParsedFileType};
+use crate::state::{ParsedFile, ParsedFileType, TrainzLanguageServer};
+use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
 use tower_lsp_server::{Bounded, NotCancellable, OngoingProgress};
 use tracing::{error, trace};
-use trainz_tdx::TdxReader;
+use trainz_tdx::{TdxReader, TdxValue};
 
 pub trait ProcessAcsBinary {
     fn process_acs_binary_file(
@@ -16,7 +17,7 @@ pub trait ProcessAcsBinary {
     ) -> impl Future<Output = ()> + Send;
 }
 
-impl ProcessAcsBinary for GameScriptLanguageServer {
+impl ProcessAcsBinary for TrainzLanguageServer {
     #[tracing::instrument(skip(self, content, progress))]
     async fn process_acs_binary_file(
         &self,
@@ -42,7 +43,7 @@ impl ProcessAcsBinary for GameScriptLanguageServer {
     }
 }
 
-impl GameScriptLanguageServer {
+impl TrainzLanguageServer {
     #[tracing::instrument(skip(self, content, progress))]
     async fn process_acs_binary_file_inner(
         &self,
@@ -62,6 +63,22 @@ impl GameScriptLanguageServer {
             match reader.parse_all() {
                 Ok(results) => {
                     trace!("File parsed {:?}", path);
+
+                    // Capture asset dependencies
+                    let kuids = TdxValue::find_kuids(&results);
+                    if let Some(tdx_cache) = &self.tdx_cache_path {
+                        let path_hash = {
+                            let mut hasher = Sha256::new();
+                            hasher.update(path_str.as_bytes());
+                            hex::encode(hasher.finalize())
+                        };
+
+                        let cache_file = tdx_cache.join(format!("{}.json", path_hash));
+                        if let Ok(json) = serde_json::to_string(&kuids) {
+                            let _ = std::fs::create_dir_all(tdx_cache);
+                            let _ = std::fs::write(cache_file, json);
+                        }
+                    }
 
                     self.parsed_files.insert(
                         path_str.to_string(),

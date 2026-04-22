@@ -1,8 +1,14 @@
 use crate::acs_text::acs_text_semantic_tokens;
 use rayon::prelude::*;
+use std::collections::HashMap;
 use tower_lsp_server::ls_types::SemanticTokenType;
+use trainz_acs_text_validators::RulesRoot;
 use trainz_ast::acs_text::process::process_acs_text_ast;
 use trainz_parser::acs_text::parse_acs_text;
+
+fn empty_graph() -> RulesRoot {
+    RulesRoot::new(HashMap::new(), vec![])
+}
 
 #[test]
 fn test_acs_text_semantic_tokens() {
@@ -15,7 +21,8 @@ fn test_acs_text_semantic_tokens() {
     "#;
     let pairs = parse_acs_text(code).unwrap();
     let acs_text = process_acs_text_ast(pairs, code);
-    let tokens = crate::process_raw_tokens(acs_text_semantic_tokens(&acs_text, None), Some(code));
+    let graph = empty_graph();
+    let tokens = crate::process_raw_tokens(acs_text_semantic_tokens(&acs_text, &graph), Some(code));
 
     // We expect tokens for `container` (keyword/string?), `key` (keyword), `"value"` (string), `number` (keyword), `42` (number).
     assert!(!tokens.is_empty());
@@ -26,7 +33,8 @@ fn test_acs_text_token_lengths() {
     let code = "multi_digit 123456\nfloat_val 12.345f\nstring_val \"hello world\"\nkuid_val <KUID:123456:7890>\nvar_val $(my_variable)";
     let pairs = parse_acs_text(code).unwrap();
     let acs_text = process_acs_text_ast(pairs, code);
-    let tokens = crate::process_raw_tokens(acs_text_semantic_tokens(&acs_text, None), Some(code));
+    let graph = empty_graph();
+    let tokens = crate::process_raw_tokens(acs_text_semantic_tokens(&acs_text, &graph), Some(code));
 
     let type_number = crate::legend::get_token_type(SemanticTokenType::NUMBER);
     let type_string = crate::legend::get_token_type(SemanticTokenType::STRING);
@@ -93,7 +101,8 @@ fn test_acs_text_multiline_string_semantic_tokens() {
     "#;
     let pairs = parse_acs_text(code).unwrap();
     let acs_text = process_acs_text_ast(pairs, code);
-    let tokens = crate::process_raw_tokens(acs_text_semantic_tokens(&acs_text, None), Some(code));
+    let graph = empty_graph();
+    let tokens = crate::process_raw_tokens(acs_text_semantic_tokens(&acs_text, &graph), Some(code));
     let type_string = crate::legend::get_token_type(SemanticTokenType::STRING);
 
     // We expect 3 tokens for the string literal, one for each line.
@@ -128,47 +137,12 @@ fn test_acs_text_multiline_string_semantic_tokens() {
 }
 
 #[test]
-fn test_acs_text_semantic_tokens_deprecation() {
-    use tower_lsp_server::ls_types::SemanticTokenModifier;
-    use trainz_acs_text_validators::{ContainerRule, ContainerValidator, Validators};
-
-    let code = r#"
-    kind "test-container"
-    obsolete-key "value"
-    "#;
-    let pairs = parse_acs_text(code).unwrap();
-    let acs_text = process_acs_text_ast(pairs, code);
-
-    let mut validators = Validators::default();
-    validators.containers.push(ContainerValidator {
-        container_name: "test-container".to_string(),
-        top_level: true,
-        rules: vec![ContainerRule {
-            key: "obsolete-key".to_string(),
-            obsolete_tag: Some(true),
-            ..Default::default()
-        }],
-        ..Default::default()
-    });
-
-    let raw_tokens = acs_text_semantic_tokens(&acs_text, Some(&validators));
-    let obsolete_token = raw_tokens
-        .par_iter()
-        .find_first(|(_r, _t, m)| m.contains(&SemanticTokenModifier::DEPRECATED));
-
-    assert!(
-        obsolete_token.is_some(),
-        "Expected to find a token with DEPRECATED modifier. Tokens: {:?}",
-        raw_tokens
-    );
-}
-
-#[test]
 fn test_acs_text_utf16_semantic_tokens() {
     let code = "key \"💩\""; // 💩 is 1 char, 2 UTF-16 units
     let pairs = parse_acs_text(code).unwrap();
     let acs_text = process_acs_text_ast(pairs, code);
-    let tokens = crate::process_raw_tokens(acs_text_semantic_tokens(&acs_text, None), Some(code));
+    let graph = empty_graph();
+    let tokens = crate::process_raw_tokens(acs_text_semantic_tokens(&acs_text, &graph), Some(code));
     let type_string = crate::legend::get_token_type(SemanticTokenType::STRING);
 
     // \"💩\" should have length 4 (2 for quotes + 2 for 💩)

@@ -16,17 +16,16 @@ description.workspace = true
 shadow-rs = { workspace = true }
 tower-lsp-server = { workspace = true }
 tracing = { workspace = true }
-log = { workspace = true }
 rayon = { workspace = true }
 dashmap = { workspace = true }
 
 trainz-ast = { workspace = true }
 trainz-acs-text-validators = { workspace = true }
+trainz-common = { workspace = true }
 
 [build-dependencies]
 shadow-rs = { version = "1.7" }
 
 [dev-dependencies]
 trainz-parser = { workspace = true }
-env_logger = { workspace = true }
 tempfile = { workspace = true }

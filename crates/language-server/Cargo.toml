@@ -24,7 +24,7 @@ futures = { workspace = true }
 dashmap = { workspace = true }
 walkdir = { workspace = true }
 rusqlite = { workspace = true }
-async-recursion = { version = "1.1", features = [] }
+async-recursion = { workspace = true }
 
 clap = { workspace = true }
 clap-verbosity-flag = { workspace = true }
@@ -41,6 +41,9 @@ trainz-completions = { workspace = true }
 trainz-definition = { workspace = true }
 trainz-hover = { workspace = true }
 trainz-tdx = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
 num_cpus = "1.17.0"
 
 [dev-dependencies]

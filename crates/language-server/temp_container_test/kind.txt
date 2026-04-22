@@ -1,0 +1,11 @@
+imagelist
+{
+  element
+  {
+    kind "Structure"
+  }
+  my-container
+  {
+    kind "Structure"
+  }
+}

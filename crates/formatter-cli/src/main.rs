@@ -44,7 +44,7 @@ async fn main() {
     } else {
         BoxMakeWriter::new(std::io::stderr)
     };
-    setup_logger(Some(args.verbosity.into()), Some(writer));
+    setup_logger(Some(args.verbosity.to_string()), Some(writer));
 
     let mut source = "".to_string();
     let read = args.input.read_to_string(&mut source).unwrap_or(0);
