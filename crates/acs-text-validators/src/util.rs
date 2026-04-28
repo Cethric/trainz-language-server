@@ -1,7 +1,63 @@
 use trainz_ast::acs_text::{KeyValuePair, NumericValue, Value};
 pub trait FromNumericValue: Sized {
+    /// Converts an integer value.
+    ///
+    /// # Arguments
+    ///
+    /// * `value`: The integer value to convert.
+    ///
+    /// # Returns
+    ///
+    /// The converted value.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// # use trainz_acs_text_validators::util::FromNumericValue;
+    /// #
+    /// # let val = <i64 as FromNumericValue>::from_int(10);
+    /// # assert_eq!(val, 10);
+    /// ```
     fn from_int(value: i64) -> Self;
+
+    /// Converts a hexadecimal value.
+    ///
+    /// # Arguments
+    ///
+    /// * `value`: The hexadecimal value to convert.
+    ///
+    /// # Returns
+    ///
+    /// The converted value.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// # use trainz_acs_text_validators::util::FromNumericValue;
+    /// #
+    /// # let val = <u64 as FromNumericValue>::from_hex(0x10);
+    /// # assert_eq!(val, 16);
+    /// ```
     fn from_hex(value: u64) -> Self;
+
+    /// Converts a floating-point value.
+    ///
+    /// # Arguments
+    ///
+    /// * `value`: The floating-point value to convert.
+    ///
+    /// # Returns
+    ///
+    /// The converted value.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// # use trainz_acs_text_validators::util::FromNumericValue;
+    /// #
+    /// # let val = <f64 as FromNumericValue>::from_float(10.5);
+    /// # assert_eq!(val, 10.5);
+    /// ```
     fn from_float(value: f64) -> Self;
 }
 
@@ -90,11 +146,49 @@ impl FromNumericValue for u8 {
     }
 }
 
+/// Parses a key-value pair as a boolean value.
+///
+/// # Arguments
+///
+/// * `key_value_pair`: The key-value pair to parse.
+///
+/// # Returns
+///
+/// A boolean value. Returns `false` if parsing fails.
+///
+/// # Example
+///
+/// ```
+/// use trainz_ast::acs_text::{KeyValuePair, Value};
+/// use trainz_acs_text_validators::util::parse_as_bool;
+///
+/// let kvp = KeyValuePair::default(); // Simplified example
+/// let val = parse_as_bool(&kvp);
+/// ```
 #[tracing::instrument(skip(key_value_pair))]
 pub fn parse_as_bool(key_value_pair: &KeyValuePair) -> bool {
     parse_as_numeric::<bool>(key_value_pair).unwrap_or(false)
 }
 
+/// Parses a `NumericValue` into a specified type.
+///
+/// # Arguments
+///
+/// * `numeric_value`: The `NumericValue` to parse.
+///
+/// # Returns
+///
+/// An `Option<T>` containing the parsed value, or `None` if parsing fails.
+///
+/// # Example
+///
+/// ```
+/// use trainz_ast::acs_text::NumericValue;
+/// use trainz_acs_text_validators::util::parse_numeric_value;
+///
+/// let numeric_val = NumericValue::Int(1);
+/// let val: Option<i64> = parse_numeric_value(&numeric_val);
+/// ```
 #[tracing::instrument(skip(numeric_value))]
 pub fn parse_numeric_value<T>(numeric_value: &NumericValue) -> Option<T>
 where
@@ -107,6 +201,30 @@ where
     }
 }
 
+/// Parses a key-value pair as a numeric value.
+///
+/// # Arguments
+///
+/// * `key_value_pair`: The key-value pair to parse.
+///
+/// # Returns
+///
+/// An `Option<T>` containing the parsed value, or `None` if parsing fails or is not numeric.
+///
+/// # Example
+///
+/// ```
+/// # use trainz_ast::acs_text::KeyValuePair;
+/// # use trainz_ast::{Position, Range};
+/// # use trainz_acs_text_validators::parse_as_numeric;
+/// # let kvp = KeyValuePair {
+/// #     key: "mykey".to_string(),
+/// #     value: None,
+/// #     key_range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// #     range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// # };
+/// # let val: Option<i64> = parse_as_numeric(&kvp);
+/// ```
 #[tracing::instrument(skip(key_value_pair))]
 pub fn parse_as_numeric<T>(key_value_pair: &KeyValuePair) -> Option<T>
 where
@@ -119,6 +237,30 @@ where
     }
 }
 
+/// Parses a key-value pair as a list of numeric values.
+///
+/// # Arguments
+///
+/// * `key_value_pair`: The key-value pair to parse.
+///
+/// # Returns
+///
+/// An `Option<Vec<Option<T>>>` containing the parsed values, or `None` if parsing fails or is not an array.
+///
+/// # Example
+///
+/// ```
+/// # use trainz_ast::acs_text::KeyValuePair;
+/// # use trainz_ast::{Position, Range};
+/// # use trainz_acs_text_validators::parse_as_numeric_list;
+/// # let kvp = KeyValuePair {
+/// #     key: "mykey".to_string(),
+/// #     value: None,
+/// #     key_range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// #     range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// # };
+/// # let list: Option<Vec<Option<i64>>> = parse_as_numeric_list(&kvp);
+/// ```
 #[tracing::instrument(skip(key_value_pair))]
 pub fn parse_as_numeric_list<T>(key_value_pair: &KeyValuePair) -> Option<Vec<Option<T>>>
 where
@@ -174,6 +316,25 @@ where
     }
 }
 
+/// Parses a key-value pair as a string value.
+///
+/// # Arguments
+///
+/// * `key_value_pair`: The key-value pair to parse.
+///
+/// # Returns
+///
+/// An `Option<String>` containing the parsed value, or `None` if parsing fails.
+///
+/// # Example
+///
+/// ```
+/// use trainz_ast::acs_text::KeyValuePair;
+/// use trainz_acs_text_validators::util::parse_as_string;
+///
+/// let kvp = KeyValuePair::default(); // Simplified example
+/// let val = parse_as_string(&kvp);
+/// ```
 #[tracing::instrument(skip(key_value_pair))]
 pub fn parse_as_string(key_value_pair: &KeyValuePair) -> Option<String> {
     if let Some(Value::String(value, _)) = &key_value_pair.value {

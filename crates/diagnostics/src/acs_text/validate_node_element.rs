@@ -2,7 +2,7 @@ use crate::acs_text::validate_rule_node::validate_rule_node;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::path::Path;
 use tower_lsp_server::ls_types::Diagnostic;
-use tracing::{debug, warn};
+use tracing::warn;
 use trainz_acs_text_validators::validation_graph::element::RuleNodeElement;
 use trainz_ast::acs_text::KeyValuePair;
 

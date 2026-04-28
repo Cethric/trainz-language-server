@@ -149,21 +149,73 @@ impl RuleNode {
         Ok(())
     }
 
+    /// Returns the name of the rule node.
+    ///
+    /// # Returns
+    ///
+    /// A `String` representing the name of the rule node.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::node::RuleNode;
+    /// # // Assuming a valid RuleNode instance 'node' exists
+    /// # // let name = node.name();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn name(&self) -> String {
         self.name.clone()
     }
 
+    /// Returns the kind of the rule node.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<&RuleNodeKind>` containing the kind of the rule node, or `None` if it does not have a specific kind.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::node::RuleNode;
+    /// # // Assuming a valid RuleNode instance 'node' exists
+    /// # // let kind = node.kind();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn kind(&self) -> Option<&RuleNodeKind> {
         self.kind.as_ref()
     }
 
+    /// Returns whether this rule node is a top-level node.
+    ///
+    /// # Returns
+    ///
+    /// `true` if this rule node is a top-level node, `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::node::RuleNode;
+    /// # // Assuming a valid RuleNode instance 'node' exists
+    /// # // let is_top_level = node.is_top_level();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn is_top_level(&self) -> bool {
         self.top_level
     }
 
+    /// Returns whether this rule node is a container node.
+    ///
+    /// # Returns
+    ///
+    /// `true` if this rule node is a container node, `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::node::RuleNode;
+    /// # // Assuming a valid RuleNode instance 'node' exists
+    /// # // let is_container = node.is_container();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn is_container(&self) -> bool {
         if let Some(kind) = &self.kind {
@@ -173,6 +225,19 @@ impl RuleNode {
         }
     }
 
+    /// Returns whether this rule node is an element node.
+    ///
+    /// # Returns
+    ///
+    /// `true` if this rule node is an element node, `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::node::RuleNode;
+    /// # // Assuming a valid RuleNode instance 'node' exists
+    /// # // let is_element = node.is_element();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn is_element(&self) -> bool {
         if let Some(kind) = &self.kind {
@@ -182,6 +247,19 @@ impl RuleNode {
         }
     }
 
+    /// Returns whether this rule node is a value node.
+    ///
+    /// # Returns
+    ///
+    /// `true` if this rule node is a value node, `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::node::RuleNode;
+    /// # // Assuming a valid RuleNode instance 'node' exists
+    /// # // let is_value = node.is_value();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn is_value(&self) -> bool {
         if let Some(kind) = &self.kind {
@@ -191,11 +269,45 @@ impl RuleNode {
         }
     }
 
+    /// Checks if the rule node name matches the given name, ignoring case.
+    ///
+    /// # Arguments
+    ///
+    /// * `name`: The name to match against.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the names match, `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::node::RuleNode;
+    /// # // Assuming a valid RuleNode instance 'node' exists
+    /// # // let matches = node.matches_name("kind");
+    /// ```
     #[tracing::instrument(skip(self, name))]
     pub fn matches_name(&self, name: &str) -> bool {
         self.name.eq_ignore_ascii_case(name)
     }
 
+    /// Checks if the rule node name is near the given name, using Levenshtein distance.
+    ///
+    /// # Arguments
+    ///
+    /// * `name`: The name to check against.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the names are similar, `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::node::RuleNode;
+    /// # // Assuming a valid RuleNode instance 'node' exists
+    /// # // let is_near = node.near_name("kind");
+    /// ```
     #[tracing::instrument(skip(self, name))]
     pub fn near_name(&self, name: &str) -> bool {
         let search_name = name.to_uppercase();
@@ -208,6 +320,23 @@ impl RuleNode {
         }
     }
 
+    /// Returns whether this rule node is compulsory for the given Trainz build.
+    ///
+    /// # Arguments
+    ///
+    /// * `trainz_build`: The Trainz build version to check.
+    ///
+    /// # Returns
+    ///
+    /// `true` if this rule node is compulsory, `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::node::RuleNode;
+    /// # // Assuming a valid RuleNode instance 'node' exists
+    /// # // let is_compulsory = node.is_compulsory(3.7);
+    /// ```
     #[tracing::instrument(skip(self, trainz_build))]
     pub fn is_compulsory(&self, trainz_build: f64) -> bool {
         if let Some(compulsory) = self.compulsory {
@@ -217,6 +346,23 @@ impl RuleNode {
         }
     }
 
+    /// Returns whether this rule node is obsolete for the given Trainz build.
+    ///
+    /// # Arguments
+    ///
+    /// * `trainz_build`: The Trainz build version to check.
+    ///
+    /// # Returns
+    ///
+    /// `true` if this rule node is obsolete, `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::node::RuleNode;
+    /// # // Assuming a valid RuleNode instance 'node' exists
+    /// # // let is_obsolete = node.is_obsolete(&3.7);
+    /// ```
     #[tracing::instrument(skip(self, trainz_build))]
     pub fn is_obsolete(&self, trainz_build: &f64) -> bool {
         if let Some(obsolete) = self.obsolete {
@@ -226,6 +372,23 @@ impl RuleNode {
         }
     }
 
+    /// Returns whether this rule node is supported for the given Trainz version.
+    ///
+    /// # Arguments
+    ///
+    /// * `trainz_build`: The Trainz build version to check.
+    ///
+    /// # Returns
+    ///
+    /// `true` if this rule node is supported, `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::node::RuleNode;
+    /// # // Assuming a valid RuleNode instance 'node' exists
+    /// # // let is_supported = node.is_supported(3.7);
+    /// ```
     #[tracing::instrument(skip(self, trainz_build))]
     pub fn is_supported(&self, trainz_build: f64) -> bool {
         if let Some(minimum_version) = self.minimum_version {
@@ -235,11 +398,21 @@ impl RuleNode {
         }
     }
 
+    /// Returns the Trainz build version since which this rule node became obsolete.
+    ///
+    /// # Returns
+    ///
+    /// `Option<f64>` containing the obsolete version, or `None` if not obsolete.
     #[tracing::instrument(skip(self))]
     pub fn obsolete_since(&self) -> Option<f64> {
         self.obsolete
     }
 
+    /// Returns the inherited rule nodes.
+    ///
+    /// # Returns
+    ///
+    /// A `Vec<Arc<RuleNode>>` containing the inherited rule nodes.
     #[tracing::instrument(skip(self))]
     pub fn inheritance(&self) -> Vec<Arc<RuleNode>> {
         trace!("Flattening inheritance for {:?}", self);
@@ -261,6 +434,11 @@ impl RuleNode {
         inheritance
     }
 
+    /// Returns the details of the rule node.
+    ///
+    /// # Returns
+    ///
+    /// `Option<String>` containing the details of the rule node.
     #[tracing::instrument(skip(self))]
     pub fn details(&self) -> Option<String> {
         if let Some(kind) = &self.kind {
@@ -270,6 +448,11 @@ impl RuleNode {
         }
     }
 
+    /// Returns the description of the rule node.
+    ///
+    /// # Returns
+    ///
+    /// `Option<String>` containing the description of the rule node.
     #[tracing::instrument(skip(self))]
     pub fn description(&self) -> Option<String> {
         if let Some(kind) = &self.kind {
@@ -279,6 +462,15 @@ impl RuleNode {
         }
     }
 
+    /// Returns the documentation for the rule node, considering the given Trainz version.
+    ///
+    /// # Arguments
+    ///
+    /// * `trainz_version`: The Trainz version to use for documentation.
+    ///
+    /// # Returns
+    ///
+    /// `Option<String>` containing the documentation.
     #[tracing::instrument(skip(self, trainz_version))]
     pub fn documentation(&self, trainz_version: &f64) -> Option<String> {
         let obsolete = self.obsolete.and_then(|obsolete| {

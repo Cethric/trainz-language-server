@@ -17,6 +17,24 @@ pub struct RulesRoot {
 }
 
 impl RulesRoot {
+    /// Retrieves a rule node by its path in the `AcsText`.
+    ///
+    /// # Arguments
+    ///
+    /// * `acs_text`: The `AcsText` to search in.
+    /// * `path`: The path of `KeyValuePair`s to the node.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<Arc<RuleNode>>` containing the node, or `None` if not found.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::root::RulesRoot;
+    /// # // Assuming a valid RulesRoot instance 'root' and AcsText instance 'acs_text'
+    /// # // let node = root.get_node_by_path(Some(&acs_text), &[]);
+    /// ```
     #[tracing::instrument(skip(self, acs_text, path))]
     pub fn get_node_by_path(
         &self,
@@ -182,6 +200,24 @@ impl RulesRoot {
         Ok(())
     }
 
+    /// Retrieves a rule node from a path, along with inheritance information.
+    ///
+    /// # Arguments
+    ///
+    /// * `kind`: The kind of rule node to look for.
+    /// * `path`: The path of `KeyValuePair`s to the node.
+    ///
+    /// # Returns
+    ///
+    /// `Option<(bool, Vec<Arc<RuleNode>>)>` containing success status and inherited rule nodes, or `None` if not found.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::root::RulesRoot;
+    /// # // Assuming a valid RulesRoot instance 'root'
+    /// # // let result = root.get_rule_from_path("kind", &[]);
+    /// ```
     #[tracing::instrument(skip(self, kind, path))]
     pub fn get_rule_from_path(
         &self,
@@ -373,11 +409,45 @@ impl RulesRoot {
         }
     }
 
+    /// Retrieves a rule node by its name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name`: The name of the rule to retrieve.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<Arc<RuleNode>>` containing the rule node, or `None` if not found.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::root::RulesRoot;
+    /// # // Assuming a valid RulesRoot instance 'root'
+    /// # // let rule = root.get_rule("name");
+    /// ```
     #[tracing::instrument(skip(self, name))]
     pub fn get_rule(&self, name: &str) -> Option<Arc<RuleNode>> {
         self.rules.get(name).cloned()
     }
 
+    /// Finds a node by its name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name`: The name of the node to find.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<Arc<RuleNode>>` containing the node, or `None` if not found.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::root::RulesRoot;
+    /// # // Assuming a valid RulesRoot instance 'root'
+    /// # // let node = root.find_node_by_name("name");
+    /// ```
     #[tracing::instrument(skip(self, name))]
     pub fn find_node_by_name(&self, name: &str) -> Option<Arc<RuleNode>> {
         self.get_rule(name).or_else(|| {
@@ -388,6 +458,19 @@ impl RulesRoot {
         })
     }
 
+    /// Returns the top-level nodes.
+    ///
+    /// # Returns
+    ///
+    /// A `Vec<Weak<RuleNode>>` containing the top-level nodes.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::root::RulesRoot;
+    /// # // Assuming a valid RulesRoot instance 'root' exists
+    /// # // let nodes = root.get_top_level_nodes();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn get_top_level_nodes(&self) -> Vec<Weak<RuleNode>> {
         self.top_level_nodes.clone()
@@ -395,6 +478,24 @@ impl RulesRoot {
 }
 
 impl RulesRoot {
+    /// Creates a new `RulesRoot`.
+    ///
+    /// # Arguments
+    ///
+    /// * `rules`: A map of rule names to rule nodes.
+    /// * `top_level_nodes`: A vector of weak references to top-level rule nodes.
+    ///
+    /// # Returns
+    ///
+    /// A new `RulesRoot` instance.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::root::RulesRoot;
+    /// # use std::collections::HashMap;
+    /// # let root = RulesRoot::new(HashMap::new(), vec![]);
+    /// ```
     pub fn new(
         rules: HashMap<String, Arc<RuleNode>>,
         top_level_nodes: Vec<Weak<RuleNode>>,

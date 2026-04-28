@@ -1,0 +1,268 @@
+warning: unreachable pattern
+   --> crates/acs-text-validators/src/validation_graph/node.rs:521:25
+    |
+520 |                         Validator::Unknown(name, _) => Some(format!("- {}", name)),
+    |                         --------------------------- matches all the relevant values
+521 |                         _ => None,
+    |                         ^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `parent` is never read
+  --> crates/acs-text-validators/src/validation_graph/node.rs:28:5
+   |
+20 | pub struct RuleNode {
+   |            -------- field in this struct
+...
+28 |     parent: Option<Weak<RuleNode>>,
+   |     ^^^^^^
+   |
+   = note: `RuleNode` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `filter` and `categories` are never read
+   --> crates/acs-text-validators/src/validation_graph/value.rs:952:5
+    |
+950 | pub struct RuleNodeValueKuidBrowser {
+    |            ------------------------ fields in this struct
+951 |     default: Option<(i32, i32, Option<u8>)>,
+952 |     filter: Option<String>,
+    |     ^^^^^^
+953 |     categories: Option<Vec<String>>,
+    |     ^^^^^^^^^^
+    |
+    = note: `RuleNodeValueKuidBrowser` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: `trainz-acs-text-validators` (lib) generated 3 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+   Doc-tests trainz_acs_text_validators
+
+running 48 tests
+test crates/acs-text-validators/src/util.rs - util::parse_as_bool (line 161) ... FAILED
+test crates/acs-text-validators/src/util.rs - util::FromNumericValue::from_hex (line 35) ... FAILED
+test crates/acs-text-validators/src/util.rs - util::parse_as_string (line 331) ... FAILED
+test crates/acs-text-validators/src/text_util.rs - text_util::get_trainz_build_from_text (line 85) ... FAILED
+test crates/acs-text-validators/src/text_util.rs - text_util::get_kind_from_text (line 18) ... FAILED
+test crates/acs-text-validators/src/util.rs - util::parse_numeric_value (line 185) ... FAILED
+test crates/acs-text-validators/src/util.rs - util::FromNumericValue::from_float (line 55) ... FAILED
+test crates/acs-text-validators/src/load_validators.rs - load_validators::load_validators (line 22) ... ok
+test crates/acs-text-validators/src/util.rs - util::FromNumericValue::from_int (line 15) ... FAILED
+test crates/acs-text-validators/src/validation_graph/element.rs - validation_graph::element::RuleNodeElement::details (line 62) ... ok
+test crates/acs-text-validators/src/validation_graph/element.rs - validation_graph::element::RuleNodeElement::description (line 86) ... ok
+test crates/acs-text-validators/src/validation_graph/element.rs - validation_graph::element::RuleNodeElement::documentation (line 114) ... ok
+test crates/acs-text-validators/src/validation_graph/element.rs - validation_graph::element::RuleNodeElement::element (line 28) ... ok
+test crates/acs-text-validators/src/util.rs - util::parse_as_numeric_list (line 252) ... ok
+test crates/acs-text-validators/src/text_util.rs - text_util::get_kind_from_kvp (line 42) ... ok
+test crates/acs-text-validators/src/util.rs - util::parse_as_numeric (line 216) ... ok
+test crates/acs-text-validators/src/validation_graph/element.rs - validation_graph::element::RuleNodeElement::is_num_array (line 45) ... ok
+test crates/acs-text-validators/src/validation_graph/node.rs - validation_graph::node::RuleNode::is_compulsory (line 335) ... ok
+test crates/acs-text-validators/src/validation_graph/node.rs - validation_graph::node::RuleNode::is_container (line 214) ... ok
+test crates/acs-text-validators/src/validation_graph/node.rs - validation_graph::node::RuleNode::is_element (line 236) ... ok
+test crates/acs-text-validators/src/validation_graph/node.rs - validation_graph::node::RuleNode::is_top_level (line 196) ... ok
+test crates/acs-text-validators/src/validation_graph/node.rs - validation_graph::node::RuleNode::is_obsolete (line 361) ... ok
+test crates/acs-text-validators/src/validation_graph/node.rs - validation_graph::node::RuleNode::is_supported (line 387) ... ok
+test crates/acs-text-validators/src/validation_graph/node.rs - validation_graph::node::RuleNode::is_value (line 258) ... ok
+test crates/acs-text-validators/src/validation_graph/node.rs - validation_graph::node::RuleNode::kind (line 178) ... ok
+test crates/acs-text-validators/src/validation_graph/node.rs - validation_graph::node::RuleNode::matches_name (line 284) ... ok
+test crates/acs-text-validators/src/validation_graph/node.rs - validation_graph::node::RuleNode::name (line 160) ... ok
+test crates/acs-text-validators/src/validation_graph/node.rs - validation_graph::node::RuleNode::near_name (line 306) ... ok
+test crates/acs-text-validators/src/validation_graph/root.rs - validation_graph::root::RulesRoot::find_node_by_name (line 446) ... ok
+test crates/acs-text-validators/src/validation_graph/root.rs - validation_graph::root::RulesRoot::get_node_by_path (line 33) ... ok
+test crates/acs-text-validators/src/validation_graph/root.rs - validation_graph::root::RulesRoot::get_rule (line 424) ... ok
+test crates/acs-text-validators/src/validation_graph/root.rs - validation_graph::root::RulesRoot::get_rule_from_path (line 216) ... ok
+test crates/acs-text-validators/src/validation_graph/root.rs - validation_graph::root::RulesRoot::get_top_level_nodes (line 469) ... ok
+test crates/acs-text-validators/src/validation_graph/root.rs - validation_graph::root::RulesRoot::new (line 494) ... ok
+test crates/acs-text-validators/src/validation_graph/structure.rs - validation_graph::structure::RuleNodeStructure::array_elements (line 153) ... ok
+test crates/acs-text-validators/src/validation_graph/transform_key_value_to_root_node.rs - validation_graph::transform_key_value_to_root_node::transform_key_value_to_root_node (line 15) ... FAILED
+test crates/acs-text-validators/src/validation_graph/structure.rs - validation_graph::structure::RuleNodeStructure::array_elements_as_vec (line 174) ... ok
+test crates/acs-text-validators/src/validation_graph/structure.rs - validation_graph::structure::RuleNodeStructure::array_elements_map (line 192) ... ok
+test crates/acs-text-validators/src/validation_graph/structure.rs - validation_graph::structure::RuleNodeStructure::get_element_by_key (line 132) ... ok
+test crates/acs-text-validators/src/validation_graph/structure.rs - validation_graph::structure::RuleNodeStructure::get_possibility (line 92) ... ok
+test crates/acs-text-validators/src/validation_graph/structure.rs - validation_graph::structure::RuleNodeStructure::is_array (line 52) ... ok
+test crates/acs-text-validators/src/validation_graph/structure.rs - validation_graph::structure::RuleNodeStructure::possibilities (line 70) ... ok
+test crates/acs-text-validators/src/validation_graph/structure.rs - validation_graph::structure::RuleNodeStructure::tag_array (line 110) ... ok
+test crates/acs-text-validators/src/validation_graph/structure.rs - validation_graph::structure::RuleNodeStructure::unique (line 34) ... ok
+test crates/acs-text-validators/src/validation_graph/validation.rs - validation_graph::validation::Validator (line 5) ... ok
+test crates/acs-text-validators/src/validation_graph/value.rs - validation_graph::value::RuleNodeValue::description (line 192) ... ok
+test crates/acs-text-validators/src/validation_graph/value.rs - validation_graph::value::RuleNodeValue::details (line 174) ... ok
+test crates/acs-text-validators/src/validation_graph/value.rs - validation_graph::value::RuleNodeValue::documentation (line 235) ... ok
+
+failures:
+
+---- crates/acs-text-validators/src/util.rs - util::parse_as_bool (line 161) stdout ----
+error[E0603]: module `util` is private
+   --> crates/acs-text-validators/src/util.rs:164:33
+    |
+164 | use trainz_acs_text_validators::util::parse_as_bool;
+    |                                 ^^^^ private module
+    |
+note: the module `util` is defined here
+   --> crates/acs-text-validators/src/lib.rs:3:1
+    |
+  3 | pub(crate) mod util;
+    | ^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no function or associated item named `default` found for struct `KeyValuePair` in the current scope
+   --> crates/acs-text-validators/src/util.rs:166:25
+    |
+166 | let kvp = KeyValuePair::default(); // Simplified example
+    |                         ^^^^^^^ function or associated item not found in `KeyValuePair`
+
+error: aborting due to 2 previous errors
+
+Some errors have detailed explanations: E0599, E0603.
+For more information about an error, try `rustc --explain E0599`.
+Couldn't compile the test.
+---- crates/acs-text-validators/src/util.rs - util::FromNumericValue::from_hex (line 35) stdout ----
+error[E0603]: module `util` is private
+  --> crates/acs-text-validators/src/util.rs:37:33
+   |
+37 | use trainz_acs_text_validators::util::FromNumericValue;
+   |                                 ^^^^  ---------------- trait `FromNumericValue` is not publicly re-exported
+   |                                 |
+   |                                 private module
+   |
+note: the module `util` is defined here
+  --> crates/acs-text-validators/src/lib.rs:3:1
+   |
+ 3 | pub(crate) mod util;
+   | ^^^^^^^^^^^^^^^^^^^
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0603`.
+Couldn't compile the test.
+---- crates/acs-text-validators/src/util.rs - util::parse_as_string (line 331) stdout ----
+error[E0603]: module `util` is private
+   --> crates/acs-text-validators/src/util.rs:334:33
+    |
+334 | use trainz_acs_text_validators::util::parse_as_string;
+    |                                 ^^^^ private module
+    |
+note: the module `util` is defined here
+   --> crates/acs-text-validators/src/lib.rs:3:1
+    |
+  3 | pub(crate) mod util;
+    | ^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no function or associated item named `default` found for struct `KeyValuePair` in the current scope
+   --> crates/acs-text-validators/src/util.rs:336:25
+    |
+336 | let kvp = KeyValuePair::default(); // Simplified example
+    |                         ^^^^^^^ function or associated item not found in `KeyValuePair`
+
+error: aborting due to 2 previous errors
+
+Some errors have detailed explanations: E0599, E0603.
+For more information about an error, try `rustc --explain E0599`.
+Couldn't compile the test.
+---- crates/acs-text-validators/src/text_util.rs - text_util::get_trainz_build_from_text (line 85) stdout ----
+error[E0599]: no function or associated item named `default` found for struct `AcsText` in the current scope
+  --> crates/acs-text-validators/src/text_util.rs:90:25
+   |
+90 | let acs_text = AcsText::default(); // Simplified example
+   |                         ^^^^^^^ function or associated item not found in `AcsText`
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0599`.
+Couldn't compile the test.
+---- crates/acs-text-validators/src/text_util.rs - text_util::get_kind_from_text (line 18) stdout ----
+error[E0599]: no function or associated item named `default` found for struct `AcsText` in the current scope
+  --> crates/acs-text-validators/src/text_util.rs:23:25
+   |
+23 | let acs_text = AcsText::default(); // Simplified example
+   |                         ^^^^^^^ function or associated item not found in `AcsText`
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0599`.
+Couldn't compile the test.
+---- crates/acs-text-validators/src/util.rs - util::parse_numeric_value (line 185) stdout ----
+error[E0603]: module `util` is private
+   --> crates/acs-text-validators/src/util.rs:188:33
+    |
+188 | use trainz_acs_text_validators::util::parse_numeric_value;
+    |                                 ^^^^ private module
+    |
+note: the module `util` is defined here
+   --> crates/acs-text-validators/src/lib.rs:3:1
+    |
+  3 | pub(crate) mod util;
+    | ^^^^^^^^^^^^^^^^^^^
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0603`.
+Couldn't compile the test.
+---- crates/acs-text-validators/src/util.rs - util::FromNumericValue::from_float (line 55) stdout ----
+error[E0603]: module `util` is private
+  --> crates/acs-text-validators/src/util.rs:57:33
+   |
+57 | use trainz_acs_text_validators::util::FromNumericValue;
+   |                                 ^^^^  ---------------- trait `FromNumericValue` is not publicly re-exported
+   |                                 |
+   |                                 private module
+   |
+note: the module `util` is defined here
+  --> crates/acs-text-validators/src/lib.rs:3:1
+   |
+ 3 | pub(crate) mod util;
+   | ^^^^^^^^^^^^^^^^^^^
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0603`.
+Couldn't compile the test.
+---- crates/acs-text-validators/src/util.rs - util::FromNumericValue::from_int (line 15) stdout ----
+error[E0603]: module `util` is private
+  --> crates/acs-text-validators/src/util.rs:17:33
+   |
+17 | use trainz_acs_text_validators::util::FromNumericValue;
+   |                                 ^^^^  ---------------- trait `FromNumericValue` is not publicly re-exported
+   |                                 |
+   |                                 private module
+   |
+note: the module `util` is defined here
+  --> crates/acs-text-validators/src/lib.rs:3:1
+   |
+ 3 | pub(crate) mod util;
+   | ^^^^^^^^^^^^^^^^^^^
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0603`.
+Couldn't compile the test.
+---- crates/acs-text-validators/src/validation_graph/transform_key_value_to_root_node.rs - validation_graph::transform_key_value_to_root_node::transform_key_value_to_root_node (line 15) stdout ----
+error[E0603]: module `transform_key_value_to_root_node` is private
+  --> crates/acs-text-validators/src/validation_graph/transform_key_value_to_root_node.rs:18:51
+   |
+18 | use trainz_acs_text_validators::validation_graph::transform_key_value_to_root_node::transform_key_value_to_root_node;
+   |                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ private module
+   |
+note: the module `transform_key_value_to_root_node` is defined here
+  --> crates/acs-text-validators/src/validation_graph/mod.rs:5:1
+   |
+ 5 | pub(crate) mod transform_key_value_to_root_node;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0603`.
+Couldn't compile the test.
+
+failures:
+    crates/acs-text-validators/src/text_util.rs - text_util::get_kind_from_text (line 18)
+    crates/acs-text-validators/src/text_util.rs - text_util::get_trainz_build_from_text (line 85)
+    crates/acs-text-validators/src/util.rs - util::FromNumericValue::from_float (line 55)
+    crates/acs-text-validators/src/util.rs - util::FromNumericValue::from_hex (line 35)
+    crates/acs-text-validators/src/util.rs - util::FromNumericValue::from_int (line 15)
+    crates/acs-text-validators/src/util.rs - util::parse_as_bool (line 161)
+    crates/acs-text-validators/src/util.rs - util::parse_as_string (line 331)
+    crates/acs-text-validators/src/util.rs - util::parse_numeric_value (line 185)
+    crates/acs-text-validators/src/validation_graph/transform_key_value_to_root_node.rs - validation_graph::transform_key_value_to_root_node::transform_key_value_to_root_node (line 15)
+
+test result: FAILED. 39 passed; 9 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.96s
+
+all doctests ran in 7.20s; merged doctests compilation took 0.23s
+error: doctest failed, to rerun pass `-p trainz-acs-text-validators --doc`

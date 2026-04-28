@@ -18,7 +18,25 @@ use trainz_ast::acs_text::{KeyValuePair, Value};
 /// * `base_path` - Optional base path for file resolution during validation.
 ///
 /// # Returns
+///
 /// An `Option<Vec<Diagnostic>>` containing any errors or warnings found, if any.
+///
+/// # Example
+///
+/// ```
+/// # use trainz_acs_text_validators::validation_graph::structure::RuleNodeStructure;
+/// # use trainz_ast::acs_text::KeyValuePair;
+/// # use trainz_ast::{Position, Range};
+/// # // Assuming a valid RuleNodeStructure instance 'structure'
+/// # let structure = RuleNodeStructure::default();
+/// # let kv = KeyValuePair {
+/// #     key: "mykey".to_string(),
+/// #     value: None,
+/// #     key_range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// #     range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// # };
+/// # // let diags = trainz_diagnostics::acs_text::validate_node_structure::validate_node_structure(&structure, &kv, 2.0, &None);
+/// ```
 pub fn validate_node_structure(
     structure: &RuleNodeStructure,
     key_value_pair: &KeyValuePair,

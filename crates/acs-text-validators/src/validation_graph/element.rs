@@ -17,14 +17,53 @@ pub struct RuleNodeElement {
 }
 
 impl RuleNodeElement {
+    /// Returns the weak reference to the element.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<Weak<RuleNode>>` to the element, if it exists.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::element::RuleNodeElement;
+    /// # // Assuming a valid RuleNodeElement instance 'element'
+    /// # // let weak_node = element.element();
+    /// ```
     pub fn element(&self) -> Option<Weak<RuleNode>> {
         self.element.clone()
     }
 
+    /// Returns whether this element is a numeric array.
+    ///
+    /// # Returns
+    ///
+    /// `true` if it's a numeric array, `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::element::RuleNodeElement;
+    /// # // Assuming a valid RuleNodeElement instance 'element'
+    /// # // let is_num = element.is_num_array();
+    /// ```
     pub fn is_num_array(&self) -> bool {
         self.is_num_array
     }
 
+    /// Returns the details of the element.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<String>` containing the details, if available.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::element::RuleNodeElement;
+    /// # // Assuming a valid RuleNodeElement instance 'element'
+    /// # // let details = element.details();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn details(&self) -> Option<String> {
         if let Some(element) = &self.element
@@ -36,6 +75,19 @@ impl RuleNodeElement {
         }
     }
 
+    /// Returns the description of the element.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<String>` containing the description, if available.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::element::RuleNodeElement;
+    /// # // Assuming a valid RuleNodeElement instance 'element'
+    /// # // let description = element.description();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn description(&self) -> Option<String> {
         if let Some(element) = &self.element
@@ -47,6 +99,24 @@ impl RuleNodeElement {
         }
     }
 
+    /// Returns the documentation for the element.
+    ///
+    /// # Arguments
+    ///
+    /// * `trainz_version`: The Trainz version to use for documentation.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<String>` containing the documentation, if available.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::element::RuleNodeElement;
+    /// # // Assuming a valid RuleNodeElement instance 'element'
+    /// # // let version = 2.0;
+    /// # // let doc = element.documentation(&version);
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn documentation(&self, trainz_version: &f64) -> Option<String> {
         if let Some(element) = &self.element

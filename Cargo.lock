@@ -2145,6 +2145,7 @@ dependencies = [
 name = "trainz-language-server"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-recursion",
  "clap",
  "clap-verbosity-flag",

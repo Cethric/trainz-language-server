@@ -29,7 +29,19 @@ mod validate_rule_node;
 /// * `base_path` - Optional base path for file resolution during validation.
 ///
 /// # Returns
+///
 /// A `Vec<Diagnostic>` containing any errors or warnings found.
+///
+/// # Example
+///
+/// ```
+/// # use trainz_ast::acs_text::AcsText;
+/// # use trainz_acs_text_validators::RulesRoot;
+/// # use std::collections::HashMap;
+/// # let acs_text = AcsText::default();
+/// # let graph = RulesRoot::new(HashMap::new(), vec![]);
+/// # // let diags = trainz_diagnostics::acs_text::acs_text_diagnostics(&acs_text, &graph, None);
+/// ```
 #[tracing::instrument(skip(acs_text, graph, base_path))]
 pub fn acs_text_diagnostics(
     acs_text: &AcsText,

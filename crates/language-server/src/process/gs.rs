@@ -258,7 +258,7 @@ impl TrainzLanguageServer {
 
                 includes.extend(parsed_arc.includes.clone());
             } else if let Err(e) = pairs {
-                error!("Failed to parse file: {:?} {:#?}", path_str.to_string(), e)
+                error!("Failed to parse file: {:?} {:#}", path_str.to_string(), e)
             }
         } else {
             unreachable!("path is not a string");

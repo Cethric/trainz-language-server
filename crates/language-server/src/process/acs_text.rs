@@ -98,7 +98,7 @@ impl TrainzLanguageServer {
                     },
                 );
             } else if let Err(e) = pairs {
-                error!("Failed to parse file: {:?}", e)
+                error!("Failed to parse file: {:#}", e)
             }
         } else {
             unreachable!("path is not a string");

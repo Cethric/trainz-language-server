@@ -16,6 +16,28 @@ fn key_value_pair_value_range(key_value_pair: &KeyValuePair) -> Range {
 }
 
 /// Generates a diagnostic for a missing value for a required key.
+///
+/// # Arguments
+///
+/// * `key_value_pair` - The `KeyValuePair` that is missing its value.
+///
+/// # Returns
+///
+/// A `Diagnostic` indicating the error.
+///
+/// # Example
+///
+/// ```
+/// # use trainz_ast::acs_text::KeyValuePair;
+/// # use trainz_ast::{Position, Range};
+/// # let kv = KeyValuePair {
+/// #     key: "mykey".to_string(),
+/// #     value: None,
+/// #     key_range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// #     range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// # };
+/// # let diag = trainz_diagnostics::acs_text::common::missing_key(&kv);
+/// ```
 #[tracing::instrument(skip(key_value_pair))]
 pub fn missing_key(key_value_pair: &KeyValuePair) -> Diagnostic {
     Diagnostic {
@@ -43,6 +65,30 @@ fn value_to_type(value: &Option<Value>) -> String {
 }
 
 /// Generates a diagnostic for a type mismatch in a `KeyValuePair`.
+///
+/// # Arguments
+///
+/// * `value_type` - The expected value type.
+/// * `got` - The actual value type received.
+/// * `key_value_pair` - The `KeyValuePair` causing the mismatch.
+///
+/// # Returns
+///
+/// A `Diagnostic` indicating the error.
+///
+/// # Example
+///
+/// ```
+/// # use trainz_ast::acs_text::KeyValuePair;
+/// # use trainz_ast::{Position, Range};
+/// # let kv = KeyValuePair {
+/// #     key: "mykey".to_string(),
+/// #     value: None,
+/// #     key_range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// #     range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// # };
+/// # let diag = trainz_diagnostics::acs_text::common::expected_value_type_for_key_but_got("string", "numeric", &kv);
+/// ```
 #[tracing::instrument(skip(value_type, key_value_pair))]
 pub fn expected_value_type_for_key_but_got(
     value_type: &str,
@@ -62,6 +108,29 @@ pub fn expected_value_type_for_key_but_got(
 }
 
 /// Generates a diagnostic for a type mismatch in a `KeyValuePair`, automatically resolving the got type.
+///
+/// # Arguments
+///
+/// * `value_type` - The expected value type.
+/// * `key_value_pair` - The `KeyValuePair` causing the mismatch.
+///
+/// # Returns
+///
+/// A `Diagnostic` indicating the error.
+///
+/// # Example
+///
+/// ```
+/// # use trainz_ast::acs_text::KeyValuePair;
+/// # use trainz_ast::{Position, Range};
+/// # let kv = KeyValuePair {
+/// #     key: "mykey".to_string(),
+/// #     value: None,
+/// #     key_range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// #     range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// # };
+/// # let diag = trainz_diagnostics::acs_text::common::expected_value_type_for_key("string", &kv);
+/// ```
 #[tracing::instrument(skip(value_type, key_value_pair))]
 pub fn expected_value_type_for_key(value_type: &str, key_value_pair: &KeyValuePair) -> Diagnostic {
     expected_value_type_for_key_but_got(
@@ -72,6 +141,30 @@ pub fn expected_value_type_for_key(value_type: &str, key_value_pair: &KeyValuePa
 }
 
 /// Generates a diagnostic for an invalid value item in a `KeyValuePair`.
+///
+/// # Arguments
+///
+/// * `values` - The expected values.
+/// * `value` - The actual value received.
+/// * `key_value_pair` - The `KeyValuePair` causing the invalid value.
+///
+/// # Returns
+///
+/// A `Diagnostic` indicating the error.
+///
+/// # Example
+///
+/// ```
+/// # use trainz_ast::acs_text::KeyValuePair;
+/// # use trainz_ast::{Position, Range};
+/// # let kv = KeyValuePair {
+/// #     key: "mykey".to_string(),
+/// #     value: None,
+/// #     key_range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// #     range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// # };
+/// # let diag = trainz_diagnostics::acs_text::common::expected_value_item_for_key_but_got("value1, value2", "value3", &kv);
+/// ```
 #[tracing::instrument(skip(values, value, key_value_pair))]
 pub fn expected_value_item_for_key_but_got(
     values: &str,
@@ -91,12 +184,58 @@ pub fn expected_value_item_for_key_but_got(
 }
 
 /// Generates a diagnostic for an invalid value item in a `KeyValuePair` with unknown value.
+///
+/// # Arguments
+///
+/// * `values` - The expected values.
+/// * `key_value_pair` - The `KeyValuePair` causing the invalid value.
+///
+/// # Returns
+///
+/// A `Diagnostic` indicating the error.
+///
+/// # Example
+///
+/// ```
+/// # use trainz_ast::acs_text::KeyValuePair;
+/// # use trainz_ast::{Position, Range};
+/// # let kv = KeyValuePair {
+/// #     key: "mykey".to_string(),
+/// #     value: None,
+/// #     key_range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// #     range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// # };
+/// # let diag = trainz_diagnostics::acs_text::common::expected_value_item_for_key("value1, value2", &kv);
+/// ```
 #[tracing::instrument(skip(values, key_value_pair))]
 pub fn expected_value_item_for_key(values: &str, key_value_pair: &KeyValuePair) -> Diagnostic {
     expected_value_item_for_key_but_got(values, "unknown", key_value_pair)
 }
 
 /// Generates a hint diagnostic indicating a key is obsolete.
+///
+/// # Arguments
+///
+/// * `key_value_pair` - The `KeyValuePair` causing the warning.
+/// * `obsolete_since` - The Trainz version since which the key is obsolete.
+///
+/// # Returns
+///
+/// A `Diagnostic` indicating the hint.
+///
+/// # Example
+///
+/// ```
+/// # use trainz_ast::acs_text::KeyValuePair;
+/// # use trainz_ast::{Position, Range};
+/// # let kv = KeyValuePair {
+/// #     key: "mykey".to_string(),
+/// #     value: None,
+/// #     key_range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// #     range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
+/// # };
+/// # let diag = trainz_diagnostics::acs_text::common::key_is_obsolete(&kv, 2.0);
+/// ```
 #[tracing::instrument(skip(key_value_pair, obsolete_since))]
 pub fn key_is_obsolete(key_value_pair: &KeyValuePair, obsolete_since: f64) -> Diagnostic {
     Diagnostic {

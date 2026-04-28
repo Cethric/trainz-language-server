@@ -6,6 +6,29 @@ use std::collections::HashMap;
 use std::path::Path;
 use tracing::{debug, warn};
 
+/// Loads the validation rules from the specified validation path.
+///
+/// # Arguments
+///
+/// * `validation_path`: The path to the directory containing validation files (`kind.txt`, `inheritance.txt`, `container.txt`).
+/// * `extensions_overrides_path`: An optional path to extensions overrides.
+///
+/// # Returns
+///
+/// A `Result<RulesRoot>` containing the loaded `RulesRoot` if successful, otherwise an error.
+///
+/// # Example
+///
+/// ```
+/// use std::path::Path;
+/// use trainz_acs_text_validators::load_validators;
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let validation_path = Path::new("path/to/validation/rules");
+/// let rules = load_validators(validation_path, None).await?;
+/// # Ok(())
+/// # }
+/// ```
 #[tracing::instrument(skip(validation_path, extensions_overrides_path))]
 pub async fn load_validators(
     validation_path: &Path,

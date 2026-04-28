@@ -28,6 +28,8 @@ async-recursion = { workspace = true }
 clap = { workspace = true }
 clap-verbosity-flag = { workspace = true }
 
+anyhow = { workspace = true }
+
 trainz-ast = { workspace = true }
 trainz-parser = { workspace = true }
 trainz-folding = { workspace = true }

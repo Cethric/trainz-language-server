@@ -23,31 +23,117 @@ pub struct RuleNodeStructure {
 }
 
 impl RuleNodeStructure {
+    /// Returns whether this structure is unique.
+    ///
+    /// # Returns
+    ///
+    /// `true` if it's unique, `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::structure::RuleNodeStructure;
+    /// # // Assuming a valid RuleNodeStructure instance 'structure'
+    /// # // let is_unique = structure.unique();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn unique(&self) -> bool {
         self.unique
     }
 
+    /// Returns whether this structure is an array.
+    ///
+    /// # Returns
+    ///
+    /// `true` if it's an array, `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::structure::RuleNodeStructure;
+    /// # // Assuming a valid RuleNodeStructure instance 'structure'
+    /// # // let is_array = structure.is_array();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn is_array(&self) -> bool {
         self.is_array
     }
 
+    /// Returns the possibilities for this structure.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the map of possibilities.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::structure::RuleNodeStructure;
+    /// # // Assuming a valid RuleNodeStructure instance 'structure'
+    /// # // let possibilities = structure.possibilities();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn possibilities(&self) -> &HashMap<String, Weak<RuleNode>> {
         &self.possibilities
     }
 
+    /// Returns a specific possibility by name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name`: The name of the possibility.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<Weak<RuleNode>>` if found, `None` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::structure::RuleNodeStructure;
+    /// # // Assuming a valid RuleNodeStructure instance 'structure'
+    /// # // let possibility = structure.get_possibility("name");
+    /// ```
     #[tracing::instrument(skip(self, name))]
     pub fn get_possibility(&self, name: &str) -> Option<Weak<RuleNode>> {
         self.possibilities.get(name).cloned()
     }
 
+    /// Returns the tag array, if it exists.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<Weak<RuleNode>>` if found, `None` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::structure::RuleNodeStructure;
+    /// # // Assuming a valid RuleNodeStructure instance 'structure'
+    /// # // let tag_array = structure.tag_array();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn tag_array(&self) -> Option<Weak<RuleNode>> {
         self.tag_array.clone()
     }
 
+    /// Returns an element by key.
+    ///
+    /// # Arguments
+    ///
+    /// * `key`: The key of the element.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<Weak<RuleNode>>` if found, `None` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::structure::RuleNodeStructure;
+    /// # // Assuming a valid RuleNodeStructure instance 'structure'
+    /// # // let element = structure.get_element_by_key("key");
+    /// ```
     #[tracing::instrument(skip(self, key))]
     pub fn get_element_by_key(&self, key: &str) -> Option<Weak<RuleNode>> {
         self.array_elements
@@ -56,6 +142,19 @@ impl RuleNodeStructure {
             .map(|(_, node)| node.clone())
     }
 
+    /// Returns the list of array elements.
+    ///
+    /// # Returns
+    ///
+    /// A `Vec<Weak<RuleNode>>` containing the elements.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::structure::RuleNodeStructure;
+    /// # // Assuming a valid RuleNodeStructure instance 'structure'
+    /// # // let elements = structure.array_elements();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn array_elements(&self) -> Vec<Weak<RuleNode>> {
         self.array_elements
@@ -64,11 +163,37 @@ impl RuleNodeStructure {
             .collect()
     }
 
+    /// Returns the array elements as a vector of (key, node) pairs.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the vector of (key, node) pairs.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::structure::RuleNodeStructure;
+    /// # // Assuming a valid RuleNodeStructure instance 'structure'
+    /// # // let elements_vec = structure.array_elements_as_vec();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn array_elements_as_vec(&self) -> &Vec<(String, Weak<RuleNode>)> {
         &self.array_elements
     }
 
+    /// Returns the map of array elements.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the map of elements.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::structure::RuleNodeStructure;
+    /// # // Assuming a valid RuleNodeStructure instance 'structure'
+    /// # // let elements_map = structure.array_elements_map();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn array_elements_map(&self) -> &HashMap<String, String> {
         &self.array_elements_map

@@ -163,11 +163,37 @@ impl RuleNodeValue {
 }
 
 impl RuleNodeValue {
+    /// Returns the details of the value node.
+    ///
+    /// # Returns
+    ///
+    /// `Option<String>` containing the details, or `None` if not available.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::value::RuleNodeValue;
+    /// # // Assuming a valid RuleNodeValue instance 'value'
+    /// # // let details = value.details();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn details(&self) -> Option<String> {
         None
     }
 
+    /// Returns the description of the value node.
+    ///
+    /// # Returns
+    ///
+    /// `Option<String>` containing the description, or `None` if not available.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::value::RuleNodeValue;
+    /// # // Assuming a valid RuleNodeValue instance 'value'
+    /// # // let description = value.description();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn description(&self) -> Option<String> {
         match self {
@@ -198,6 +224,19 @@ impl RuleNodeValue {
         }
     }
 
+    /// Returns the documentation for the value node.
+    ///
+    /// # Returns
+    ///
+    /// `Option<String>` containing the documentation, or `None` if not available.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use trainz_acs_text_validators::validation_graph::value::RuleNodeValue;
+    /// # // Assuming a valid RuleNodeValue instance 'value'
+    /// # // let documentation = value.documentation();
+    /// ```
     #[tracing::instrument(skip(self))]
     pub fn documentation(&self) -> Option<String> {
         match self {
