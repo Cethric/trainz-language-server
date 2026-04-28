@@ -334,6 +334,13 @@ pub struct RuleNodeValueString {
 }
 
 impl RuleNodeValueString {
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&String> {
+        self.default.as_ref()
+    }
+}
+
+impl RuleNodeValueString {
     #[tracing::instrument(skip(entries))]
     pub(crate) fn new(entries: &Vec<KeyValuePair>) -> Self {
         let mut default: Option<String> = None;
@@ -349,6 +356,13 @@ impl RuleNodeValueString {
 #[derive(Debug, Clone)]
 pub struct RuleNodeValueFloat {
     default: Option<f64>,
+}
+
+impl RuleNodeValueFloat {
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&f64> {
+        self.default.as_ref()
+    }
 }
 
 impl RuleNodeValueFloat {
@@ -370,6 +384,13 @@ pub struct RuleNodeValueInteger {
 }
 
 impl RuleNodeValueInteger {
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&i64> {
+        self.default.as_ref()
+    }
+}
+
+impl RuleNodeValueInteger {
     #[tracing::instrument(skip(entries))]
     fn new(entries: &Vec<KeyValuePair>) -> Self {
         let mut default: Option<i64> = None;
@@ -388,6 +409,13 @@ pub struct RuleNodeValueBool {
 }
 
 impl RuleNodeValueBool {
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&bool> {
+        self.default.as_ref()
+    }
+}
+
+impl RuleNodeValueBool {
     #[tracing::instrument(skip(entries))]
     fn new(entries: &Vec<KeyValuePair>) -> Self {
         let mut default: Option<bool> = None;
@@ -403,6 +431,13 @@ impl RuleNodeValueBool {
 #[derive(Debug, Clone)]
 pub struct RuleNodeValueRgb {
     default: Option<(u8, u8, u8)>,
+}
+
+impl RuleNodeValueRgb {
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&(u8, u8, u8)> {
+        self.default.as_ref()
+    }
 }
 
 impl RuleNodeValueRgb {
@@ -457,6 +492,11 @@ impl RuleNodeValueComboBox {
     }
 
     #[tracing::instrument(skip(self))]
+    pub fn options(&self) -> &HashMap<String, Option<String>> {
+        &self.options
+    }
+
+    #[tracing::instrument(skip(self))]
     pub fn display_options(&self) -> String {
         self.options
             .par_iter()
@@ -478,6 +518,11 @@ impl RuleNodeValueComboBox {
             .map(|(key, _)| key.to_string())
             .collect::<Vec<String>>()
             .join(", ")
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&String> {
+        self.default.as_ref()
     }
 }
 
@@ -582,6 +627,15 @@ impl RuleNodeValueIntComboBox {
             .collect::<Vec<String>>()
             .join(", ")
     }
+
+    #[tracing::instrument(skip(self))]
+    pub fn options(&self) -> &HashMap<u64, Option<String>> {
+        &self.options
+    }
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&u64> {
+        self.default.as_ref()
+    }
 }
 
 impl RuleNodeValueIntComboBox {
@@ -589,11 +643,7 @@ impl RuleNodeValueIntComboBox {
     fn build_options(key_value_pairs: Vec<KeyValuePair>) -> HashMap<u64, Option<String>> {
         let mut options: HashMap<u64, Option<String>> = HashMap::new();
         for entry in key_value_pairs {
-            let description = if let Some(value) = parse_as_string(&entry) {
-                Some(value)
-            } else {
-                None
-            };
+            let description = parse_as_string(&entry);
             if let Ok(value) = entry.key.parse::<u64>() {
                 options.insert(value, description);
             }
@@ -687,6 +737,15 @@ impl RuleNodeValueFloatComboBox {
             .collect::<Vec<String>>()
             .join(", ")
     }
+
+    #[tracing::instrument(skip(self))]
+    pub fn options(&self) -> &HashMap<String, Option<String>> {
+        &self.options
+    }
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&f64> {
+        self.default.as_ref()
+    }
 }
 
 impl RuleNodeValueFloatComboBox {
@@ -694,11 +753,7 @@ impl RuleNodeValueFloatComboBox {
     fn build_options(key_value_pairs: Vec<KeyValuePair>) -> HashMap<String, Option<String>> {
         let mut options: HashMap<String, Option<String>> = HashMap::new();
         for entry in key_value_pairs {
-            let description = if let Some(value) = parse_as_string(&entry) {
-                Some(value)
-            } else {
-                None
-            };
+            let description = parse_as_string(&entry);
             options.insert(entry.key.clone(), description);
         }
 
@@ -791,6 +846,16 @@ impl RuleNodeValueListBox {
             .collect::<Vec<String>>()
             .join(", ")
     }
+
+    #[tracing::instrument(skip(self))]
+    pub fn options(&self) -> &HashMap<String, Option<String>> {
+        &self.options
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&String> {
+        self.default.as_ref()
+    }
 }
 
 impl RuleNodeValueListBox {
@@ -850,6 +915,13 @@ pub struct RuleNodeValueKuidBrowser {
 }
 
 impl RuleNodeValueKuidBrowser {
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&(i32, i32, Option<u8>)> {
+        self.default.as_ref()
+    }
+}
+
+impl RuleNodeValueKuidBrowser {
     #[tracing::instrument(skip(entries))]
     fn new(entries: &Vec<KeyValuePair>) -> Self {
         let mut default: Option<(i32, i32, Option<u8>)> = None;
@@ -892,6 +964,13 @@ pub struct RuleNodeValueFilePath {
 }
 
 impl RuleNodeValueFilePath {
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&String> {
+        self.default.as_ref()
+    }
+}
+
+impl RuleNodeValueFilePath {
     #[tracing::instrument(skip(entries))]
     fn new(entries: &Vec<KeyValuePair>) -> Self {
         let mut default: Option<String> = None;
@@ -916,6 +995,13 @@ pub struct RuleNodeValueFloatList {
 }
 
 impl RuleNodeValueFloatList {
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&Vec<f64>> {
+        self.default.as_ref()
+    }
+}
+
+impl RuleNodeValueFloatList {
     #[tracing::instrument(skip(entries))]
     fn new(entries: &Vec<KeyValuePair>) -> Self {
         let mut default: Option<Vec<f64>> = None;
@@ -933,6 +1019,13 @@ impl RuleNodeValueFloatList {
 #[derive(Debug, Clone)]
 pub struct RuleNodeValueVector2 {
     default: Option<(f64, f64)>,
+}
+
+impl RuleNodeValueVector2 {
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&(f64, f64)> {
+        self.default.as_ref()
+    }
 }
 
 impl RuleNodeValueVector2 {
@@ -963,6 +1056,13 @@ pub struct RuleNodeValueVector3 {
 }
 
 impl RuleNodeValueVector3 {
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&(f64, f64, f64)> {
+        self.default.as_ref()
+    }
+}
+
+impl RuleNodeValueVector3 {
     #[tracing::instrument(skip(entries))]
     fn new(entries: &Vec<KeyValuePair>) -> Self {
         let mut default: Option<(f64, f64, f64)> = None;
@@ -987,6 +1087,13 @@ impl RuleNodeValueVector3 {
 #[derive(Debug, Clone)]
 pub struct RuleNodeValueVector4 {
     default: Option<(f64, f64, f64, f64)>,
+}
+
+impl RuleNodeValueVector4 {
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&(f64, f64, f64, f64)> {
+        self.default.as_ref()
+    }
 }
 
 impl RuleNodeValueVector4 {
@@ -1017,6 +1124,13 @@ pub struct RuleNodeValueVector5 {
 }
 
 impl RuleNodeValueVector5 {
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&(f64, f64, f64, f64, f64)> {
+        self.default.as_ref()
+    }
+}
+
+impl RuleNodeValueVector5 {
     #[tracing::instrument(skip(entries))]
     fn new(entries: &Vec<KeyValuePair>) -> Self {
         let mut default: Option<(f64, f64, f64, f64, f64)> = None;
@@ -1041,6 +1155,13 @@ impl RuleNodeValueVector5 {
 #[derive(Debug, Clone)]
 pub struct RuleNodeValueVector6 {
     default: Option<(f64, f64, f64, f64, f64, f64)>,
+}
+
+impl RuleNodeValueVector6 {
+    #[tracing::instrument(skip(self))]
+    pub fn default(&self) -> Option<&(f64, f64, f64, f64, f64, f64)> {
+        self.default.as_ref()
+    }
 }
 
 impl RuleNodeValueVector6 {

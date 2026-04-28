@@ -1,59 +1,60 @@
-use crate::acs_text::find_kv_at_recursive;
-use crate::acs_text::util::is_in_range;
-use crate::acs_text::value::find_hover_in_value;
 use std::path::Path;
-use tower_lsp_server::ls_types::{Hover, HoverParams};
-use trainz_ast::acs_text::{AcsText, Value};
+use std::sync::Arc;
+use tower_lsp_server::ls_types::{Hover, HoverContents, HoverParams, MarkedString};
+use trainz_acs_text_validators::text_util::{get_kind_from_text, get_trainz_build_from_text};
+use trainz_acs_text_validators::{RuleNode, RulesRoot};
+use trainz_ast::acs_text::{AcsText, KeyValuePair};
 
-#[tracing::instrument(skip(acs_text, params, base_path, script_resolver))]
+#[tracing::instrument(skip(acs_text, graph, params, _base_path, _script_resolver))]
 pub fn acs_text_hover(
     acs_text: &AcsText,
+    graph: &RulesRoot,
     params: HoverParams,
-    base_path: Option<&Path>,
-    script_resolver: Option<&dyn trainz_definition::acs_text::definitions::ScriptResolver>,
+    _base_path: Option<&Path>,
+    _script_resolver: Option<&dyn trainz_definition::acs_text::definitions::ScriptResolver>,
 ) -> Option<Hover> {
-    let position = params.text_document_position_params.position;
+    let container_path =
+        acs_text.get_kvp_to_position(params.text_document_position_params.position);
+    let last_item = container_path.last();
 
-    let kv = find_kv_at_recursive::find_kv_at_recursive(&acs_text.key_value_pairs, position);
+    if let Some((kind, _, _)) = get_kind_from_text(acs_text)
+        && let Some((found, chain)) = graph.get_rule_from_path(&kind, &container_path)
+    {
+        let trainz_build = get_trainz_build_from_text(acs_text);
 
-    if let Some(kv) = kv {
-        if let Some(value) = &kv.value
-            && is_in_range(position, &value.range())
-        {
-            // Find trainz-build version in current scope or parent
-            // (Old logic for trainz-build is still useful)
-            let trainz_build_version = acs_text
-                .key_value_pairs
-                .iter()
-                .find(|kv| kv.key.eq_ignore_ascii_case("trainz-build"))
-                .and_then(|kv| match &kv.value {
-                    Some(Value::Numeric(trainz_ast::acs_text::NumericValue::Float(f), _)) => {
-                        Some(*f)
-                    }
-                    Some(Value::Numeric(trainz_ast::acs_text::NumericValue::Int(i), _)) => {
-                        Some(*i as f64)
-                    }
-                    Some(Value::String(s, _)) => s.parse::<f64>().ok(),
-                    _ => None,
-                });
-
-            // Value hover (KUID, Script, Image, etc.)
-
-            let hover = find_hover_in_value(
-                value,
-                position,
-                base_path,
-                script_resolver,
-                trainz_build_version,
-            );
-
-            if hover.is_some() {
-                return hover;
-            }
-
-            return None;
+        if found && let Some(rule) = chain.last() {
+            build_hover_item(last_item, rule, trainz_build)
+        } else if !found {
+            chain
+                .last()
+                .and_then(|node| build_hover_item(last_item, node, trainz_build))
+        } else {
+            None
         }
+    } else {
+        None
     }
+}
 
-    None
+fn build_hover_item(
+    key_value_pair: Option<&KeyValuePair>,
+    rule: &Arc<RuleNode>,
+    trainz_build: f64,
+) -> Option<Hover> {
+    key_value_pair.map(|kvp| {
+        let mut contents: Vec<MarkedString> = vec![];
+        if let Some(details) = rule.details() {
+            contents.push(MarkedString::String(details.to_string()));
+        }
+        if let Some(description) = rule.description() {
+            contents.push(MarkedString::String(description.to_string()));
+        }
+        if let Some(documentation) = rule.documentation(&trainz_build) {
+            contents.push(MarkedString::String(documentation.to_string()));
+        }
+        Hover {
+            contents: HoverContents::Array(contents),
+            range: Some(kvp.key_range),
+        }
+    })
 }

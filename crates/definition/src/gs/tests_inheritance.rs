@@ -7,7 +7,9 @@ use trainz_parser::parse;
 
 #[test]
 fn test_gs_goto_definition_chained_method_inheritance() {
-    let _ = trainz_common::logging::tracing_subscriber::fmt().with_test_writer().try_init();
+    let _ = trainz_common::logging::tracing_subscriber::fmt()
+        .with_test_writer()
+        .try_init();
     let source = r#"
         class Base {
             AcsText GetConfigAcsText() { return null; }

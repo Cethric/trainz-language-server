@@ -18,8 +18,12 @@ use trainz_ast::acs_text::{AcsText, KeyValuePair};
 /// ```
 #[tracing::instrument(skip(acs_text))]
 pub fn get_kind_from_text(acs_text: &AcsText) -> Option<(String, Range, bool)> {
-    let kinds: Vec<&KeyValuePair> = acs_text
-        .key_value_pairs
+    get_kind_from_kvp(&acs_text.key_value_pairs)
+}
+
+#[tracing::instrument(skip(key_value_pairs))]
+pub fn get_kind_from_kvp(key_value_pairs: &[KeyValuePair]) -> Option<(String, Range, bool)> {
+    let kinds: Vec<&KeyValuePair> = key_value_pairs
         .par_iter()
         .filter_map(|kv| {
             if kv.key.eq_ignore_ascii_case("kind") {
@@ -41,6 +45,20 @@ pub fn get_kind_from_text(acs_text: &AcsText) -> Option<(String, Range, bool)> {
     }
 }
 
+///
+///
+/// # Arguments
+///
+/// * `acs_text`:
+///
+/// returns: f64
+///
+/// # Examples
+///
+/// ```
+///
+/// ```
+#[tracing::instrument(skip(acs_text))]
 pub fn get_trainz_build_from_text(acs_text: &AcsText) -> f64 {
     let trainz_build: Vec<&KeyValuePair> = acs_text
         .key_value_pairs

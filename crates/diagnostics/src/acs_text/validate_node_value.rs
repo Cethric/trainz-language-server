@@ -5,7 +5,7 @@ use crate::acs_text::common::{
 use rayon::prelude::*;
 use std::path::Path;
 use tower_lsp_server::ls_types::Diagnostic;
-use tracing::{debug, trace};
+use tracing::trace;
 use trainz_acs_text_validators::validation_graph::value::RuleNodeValue;
 use trainz_acs_text_validators::{
     parse_as_numeric, parse_as_numeric_list, parse_as_string, parse_numeric_value,
@@ -30,7 +30,6 @@ pub(crate) fn validate_node_value(
     _trainz_build: f64,
     _base_path: &Option<&Path>,
 ) -> Option<Vec<Diagnostic>> {
-    debug!("Validating node value for key: {:?}", key_value_pair.key);
     trace!(
         "Validating node value for key: {:?}, value: {:?}",
         key_value_pair.key, key_value_pair.value
@@ -197,7 +196,7 @@ pub(crate) fn validate_node_value(
                 )])
             } else {
                 if let Some(parsed) = parse_as_numeric_list::<f64>(key_value_pair) {
-                    debug!("Parsed float list: {:?}", parsed);
+                    trace!("Parsed float list: {:?}", parsed);
                     let base_len = parsed.len();
                     if base_len != parsed.par_iter().filter_map(|v| *v).count() {
                         Some(vec![expected_value_type_for_key(

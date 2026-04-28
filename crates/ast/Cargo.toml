@@ -5,7 +5,7 @@ edition.workspace = true
 build = "build.rs"
 
 [dependencies]
-shadow-rs = { workspace = true }
+shadow-rs = { workspace = true, features = ["metadata"] }
 pest = { workspace = true }
 tower-lsp-server = { workspace = true }
 rayon = { workspace = true }
@@ -21,4 +21,4 @@ tracing = { workspace = true }
 criterion = { workspace = true }
 
 [build-dependencies]
-shadow-rs = { version = "1.7" }
+shadow-rs = { workspace = true, features = ["build", "git2"] }

@@ -6,8 +6,8 @@ use std::sync::{Arc, Weak};
 use tower_lsp_server::ls_types::Diagnostic;
 use tracing::trace;
 use trainz_acs_text_validators::text_util::{get_kind_from_text, get_trainz_build_from_text};
-use trainz_acs_text_validators::{RuleNode, RulesRoot, parse_as_numeric, parse_as_string};
-use trainz_ast::acs_text::{AcsText, KeyValuePair};
+use trainz_acs_text_validators::{RuleNode, RulesRoot};
+use trainz_ast::acs_text::AcsText;
 use trainz_ast::{Position, Range};
 
 mod acs_text_validator;

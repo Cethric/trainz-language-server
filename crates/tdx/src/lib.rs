@@ -5,6 +5,10 @@ pub mod error;
 pub mod reader;
 pub mod value;
 
+use shadow_rs::shadow;
+
+shadow!(build);
+
 pub use error::TdxError;
 pub use reader::TdxReader;
 pub use value::TdxValue;

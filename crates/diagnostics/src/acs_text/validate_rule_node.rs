@@ -32,7 +32,7 @@ pub(crate) fn validate_rule_node(
             rule_node.name(),
             key_value_pair.key
         );
-        let mut diagnostics: Vec<Diagnostic> = if rule_node.is_obsolete(trainz_build) {
+        let mut diagnostics: Vec<Diagnostic> = if rule_node.is_obsolete(&trainz_build) {
             vec![key_is_obsolete(
                 key_value_pair,
                 rule_node.obsolete_since().unwrap_or(0.0f64),

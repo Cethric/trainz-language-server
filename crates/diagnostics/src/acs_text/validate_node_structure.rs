@@ -3,7 +3,8 @@ use crate::acs_text::validate_rule_node::validate_rule_node;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::path::Path;
 use tower_lsp_server::ls_types::Diagnostic;
-use tracing::{debug, trace, warn};
+use tracing::trace;
+use trainz_acs_text_validators::parse_as_string;
 use trainz_acs_text_validators::validation_graph::structure::RuleNodeStructure;
 use trainz_ast::acs_text::{KeyValuePair, Value};
 
@@ -26,8 +27,27 @@ pub fn validate_node_structure(
 ) -> Option<Vec<Diagnostic>> {
     if let Some(value) = &key_value_pair.value {
         if let Value::Container(entries, _, _) = value {
-            let diagnostics = structure
-                .array_elements()
+            let mut elements_to_validate = structure.array_elements();
+
+            for entry in entries {
+                // Check if entry key is a discriminator
+                if let Some(_node_name) = structure.array_elements_map().get(&entry.key) {
+                    if let Some(node) = structure.get_element_by_key(&entry.key) {
+                        elements_to_validate = vec![node];
+                        break;
+                    }
+                }
+                // Check if entry value is a discriminator
+                else if let Some(value) = parse_as_string(entry)
+                    && let Some(_node_name) = structure.array_elements_map().get(&value)
+                    && let Some(node) = structure.get_element_by_key(&value)
+                {
+                    elements_to_validate = vec![node];
+                    break;
+                }
+            }
+
+            let diagnostics = elements_to_validate
                 .par_iter()
                 .filter_map(|element| element.upgrade())
                 .map(|element| element.inheritance())
@@ -69,10 +89,6 @@ pub fn validate_node_structure(
             }
 
             if let Some(tag_array) = structure.tag_array() {
-                debug!(
-                    "Validating node kind for structure with tag array {}",
-                    key_value_pair.key
-                );
                 trace!(
                     "Validating node kind for structure with tag array {} - {:?} -> {:?}",
                     key_value_pair.key,
@@ -129,7 +145,7 @@ pub fn validate_node_structure(
                             Some(diagnostics)
                         }
                     } else {
-                        warn!("No validation found for: {:?}", entry.key);
+                        trace!("No validation found for: {:?}", entry.key);
                         None
                     }
                 })

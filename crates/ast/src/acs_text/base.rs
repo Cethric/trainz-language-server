@@ -1,6 +1,8 @@
+use crate::Position;
 use crate::acs_text::Kuid;
 use crate::acs_text::Value;
 use crate::acs_text::key_value_pair::KeyValuePair;
+use crate::find::position_in_range;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -11,6 +13,63 @@ pub struct AcsText {
 }
 
 impl AcsText {
+    pub fn get_text_at(&self, position: Position) -> Option<String> {
+        let lines: Vec<&str> = self.src.split('\n').collect();
+        if position.line as usize >= lines.len() {
+            return None;
+        }
+        let mut line = lines[position.line as usize];
+        if line.ends_with('\r') {
+            line = &line[..line.len() - 1];
+        }
+
+        if line.is_empty() {
+            return None;
+        }
+
+        let char_pos = position.character as usize;
+        let bytes = line.as_bytes();
+
+        let mut idx = if char_pos >= bytes.len() {
+            bytes.len() - 1
+        } else {
+            char_pos
+        };
+
+        // If idx is whitespace, look left then right
+        if bytes[idx].is_ascii_whitespace() {
+            let mut left = idx;
+            while left > 0 && bytes[left - 1].is_ascii_whitespace() {
+                left -= 1;
+            }
+            if left > 0 {
+                idx = left - 1;
+            } else {
+                let mut right = idx;
+                while right < bytes.len() && bytes[right].is_ascii_whitespace() {
+                    right += 1;
+                }
+                if right < bytes.len() {
+                    idx = right;
+                } else {
+                    return None;
+                }
+            }
+        }
+
+        // Now idx should be on a non-whitespace character
+        let mut start = idx;
+        while start > 0 && !bytes[start - 1].is_ascii_whitespace() {
+            start -= 1;
+        }
+        let mut end = idx;
+        while end < bytes.len() && !bytes[end].is_ascii_whitespace() {
+            end += 1;
+        }
+
+        Some(line[start..end].to_string())
+    }
+
     pub fn find_all_kuids(&self) -> Vec<Kuid> {
         let mut kuids = Vec::new();
         for kvp in &self.key_value_pairs {
@@ -19,7 +78,7 @@ impl AcsText {
         kuids
     }
 
-    pub fn find_kuid_at(&self, pos: crate::Position) -> Option<Kuid> {
+    pub fn find_kuid_at(&self, pos: Position) -> Option<Kuid> {
         for kvp in &self.key_value_pairs {
             if let Some(kuid) = self.find_kuid_at_kvp(kvp, pos) {
                 return Some(kuid);
@@ -28,17 +87,103 @@ impl AcsText {
         None
     }
 
-    fn find_kuid_at_kvp(&self, kvp: &KeyValuePair, pos: crate::Position) -> Option<Kuid> {
+    pub fn find_container_at(&self, pos: Position) -> Option<&Value> {
+        for kvp in &self.key_value_pairs {
+            if let Some(val) = self.find_container_at_kvp(kvp, pos) {
+                return Some(val);
+            }
+        }
+        None
+    }
+
+    pub fn get_kvp_to_position(&self, position: Position) -> Vec<KeyValuePair> {
+        let mut path = Vec::new();
+
+        for top_kvp in &self.key_value_pairs {
+            if position_in_range(position, top_kvp.range) {
+                let mut current = top_kvp;
+                path.push(current.clone());
+
+                while let Some(Value::Container(inner_kvps, _, _)) = &current.value {
+                    let mut found_inner = None;
+                    for inner_kvp in inner_kvps {
+                        if position_in_range(position, inner_kvp.range) {
+                            found_inner = Some(inner_kvp);
+                            break;
+                        }
+                    }
+
+                    if let Some(found) = found_inner {
+                        path.push(found.clone());
+                        current = found;
+                    } else {
+                        break;
+                    }
+                }
+
+                return path;
+            }
+        }
+        path
+    }
+
+    pub fn get_path_to_container_at(&self, pos: Position) -> Vec<KeyValuePair> {
+        let mut path = Vec::new();
+        for kvp in &self.key_value_pairs {
+            if let Some(p) = self.get_path_to_container_at_kvp(kvp, pos, &mut path) {
+                return p;
+            }
+        }
+        path
+    }
+
+    fn get_path_to_container_at_kvp(
+        &self,
+        kvp: &KeyValuePair,
+        pos: Position,
+        path: &mut Vec<KeyValuePair>,
+    ) -> Option<Vec<KeyValuePair>> {
+        if let Some(value) = &kvp.value
+            && position_in_range(pos, value.range())
+            && let Value::Container(kvps, _, _) = value
+        {
+            path.push(kvp.clone());
+            for inner_kvp in kvps {
+                if let Some(p) = self.get_path_to_container_at_kvp(inner_kvp, pos, path) {
+                    return Some(p);
+                }
+            }
+            return Some(path.clone());
+        }
+        None
+    }
+
+    fn find_container_at_kvp<'a>(&self, kvp: &'a KeyValuePair, pos: Position) -> Option<&'a Value> {
+        if let Some(value) = &kvp.value
+            && position_in_range(pos, value.range())
+            && let Value::Container(kvps, _, _) = value
+        {
+            for inner_kvp in kvps {
+                if let Some(inner_val) = self.find_container_at_kvp(inner_kvp, pos) {
+                    return Some(inner_val);
+                }
+            }
+            return Some(value);
+        }
+        None
+    }
+
+    fn find_kuid_at_kvp(&self, kvp: &KeyValuePair, pos: Position) -> Option<Kuid> {
         if let Some(value) = &kvp.value {
             return self.find_kuid_at_value(value, pos);
         }
         None
     }
 
-    fn find_kuid_at_value(&self, value: &Value, pos: crate::Position) -> Option<Kuid> {
+    fn find_kuid_at_value(&self, value: &Value, pos: Position) -> Option<Kuid> {
         match value {
             Value::Kuid(kuid, range) => {
-                if crate::find::position_in_range(pos, *range) {
+                if position_in_range(pos, *range) {
                     return Some(kuid.clone());
                 }
             }
@@ -70,115 +215,5 @@ impl AcsText {
             }
             _ => {}
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::Position;
-
-    #[test]
-    fn test_kuid_version_logic() {
-        let mut kuid = Kuid {
-            user_id: 123,
-            content_id: 456,
-            version: None,
-            range: crate::Range::default(),
-        };
-
-        assert!(kuid.can_increment());
-        assert!(!kuid.can_decrement());
-        assert_eq!(kuid.to_string(), "<kuid:123:456>");
-
-        kuid.increment();
-        assert_eq!(kuid.version, Some(2));
-        assert!(kuid.can_decrement());
-        assert_eq!(kuid.to_string(), "<kuid2:123:456:2>");
-
-        kuid.decrement();
-        assert_eq!(kuid.version, Some(1));
-        assert!(!kuid.can_decrement());
-        assert_eq!(kuid.to_string(), "<kuid2:123:456:1>");
-
-        kuid.increment();
-        assert_eq!(kuid.version, Some(2));
-    }
-
-    #[test]
-    fn test_acs_text_find_kuids() {
-        let kuid1 = Kuid {
-            user_id: 1,
-            content_id: 1,
-            version: None,
-            range: crate::Range {
-                start: Position {
-                    line: 0,
-                    character: 10,
-                },
-                end: Position {
-                    line: 0,
-                    character: 20,
-                },
-            },
-        };
-
-        let kuid2 = Kuid {
-            user_id: 1,
-            content_id: 1,
-            version: Some(2),
-            range: crate::Range {
-                start: Position {
-                    line: 1,
-                    character: 10,
-                },
-                end: Position {
-                    line: 1,
-                    character: 20,
-                },
-            },
-        };
-
-        let r1 = kuid1.range;
-        let r2 = kuid2.range;
-
-        let acs_text = AcsText {
-            key_value_pairs: vec![
-                KeyValuePair {
-                    key: "k1".to_string(),
-                    key_range: crate::Range::default(),
-                    value: Some(Value::Kuid(kuid1, r1)),
-                    range: crate::Range::default(),
-                },
-                KeyValuePair {
-                    key: "k2".to_string(),
-                    key_range: crate::Range::default(),
-                    value: Some(Value::Kuid(kuid2, r2)),
-                    range: crate::Range::default(),
-                },
-            ],
-            range: crate::Range::default(),
-            src: "".to_string(),
-        };
-
-        let kuids = acs_text.find_all_kuids();
-        assert_eq!(kuids.len(), 2);
-
-        // Find at cursor
-        let found = acs_text.find_kuid_at(Position {
-            line: 0,
-            character: 15,
-        });
-        assert!(found.is_some());
-        let found = found.unwrap();
-        assert_eq!(found.user_id, 1);
-        assert_eq!(found.content_id, 1);
-        assert_eq!(found.version, None);
-
-        let found_none = acs_text.find_kuid_at(Position {
-            line: 0,
-            character: 25,
-        });
-        assert!(found_none.is_none());
     }
 }

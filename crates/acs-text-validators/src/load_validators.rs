@@ -1,6 +1,7 @@
 use crate::RulesRoot;
 use crate::parse_file::parse_file;
 use crate::validation_graph::transform_key_value_to_root_node::transform_key_value_to_root_node;
+use anyhow::{Error, Result};
 use std::collections::HashMap;
 use std::path::Path;
 use tracing::{debug, warn};
@@ -9,11 +10,11 @@ use tracing::{debug, warn};
 pub async fn load_validators(
     validation_path: &Path,
     extensions_overrides_path: Option<&Path>,
-) -> anyhow::Result<RulesRoot> {
+) -> Result<RulesRoot> {
     debug!("Loading Validation Rules from {:?}", validation_path);
 
     if !validation_path.exists() || !validation_path.is_dir() {
-        return Err(anyhow::Error::msg(format!(
+        return Err(Error::msg(format!(
             "Validation path does not exist or is not a directory: {:?}",
             validation_path
         )));
@@ -32,7 +33,7 @@ pub async fn load_validators(
     {
         warn!("Unable to find validation rules");
 
-        return Err(anyhow::Error::msg(format!(
+        return Err(Error::msg(format!(
             "Unable to find validation rules at {:?}",
             validation_path
         )));

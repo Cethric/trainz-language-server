@@ -4,6 +4,9 @@ pub mod kuid;
 pub mod process;
 pub mod value;
 
+#[cfg(test)]
+mod tests;
+
 pub use base::AcsText;
 pub use key_value_pair::KeyValuePair;
 pub use kuid::Kuid;

@@ -27,7 +27,6 @@ pub(crate) fn validate_node_element(
     if let Some(node_rule) = element.element()
         && let Some(node_rule) = node_rule.upgrade()
     {
-        debug!("Validating element: {:?}", node_rule);
         let rules = node_rule.inheritance();
 
         // TODO handle element.is_num_array()

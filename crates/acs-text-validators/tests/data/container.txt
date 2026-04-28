@@ -3,3 +3,117 @@ levels
   icon levels
   kind "Structure"
 }
+
+thumbnails
+{
+	icon thumbnails
+	menu-token "$ccp_thumbnails_menu-name"
+	description "" 
+	unique 1
+	default-amount 1
+	kind "structure"
+  array-element
+  {
+    kind-value-A "thumbnails-element"
+    kind-value-B "conditions"
+  }
+  validation
+  {
+    UniqueNames
+  } 
+}
+
+thumbnails-element
+{
+  icon thumbnails-element
+  menu-token "$ccp_thumbnails-element_menu-name"
+  description ""
+  kind "array"
+  subpossibilities
+  {
+    image
+    {
+      kind value
+      type filepathedit
+      datatype "image"
+      compulsory 3.4
+    }
+    width
+    {
+      kind value
+      type int
+      compulsory 3.4
+    }
+    height
+    {
+      kind value
+      type int
+      compulsory 3.4
+    }
+    example
+    {
+      kind element
+      element-type "conditions"
+    }
+  }
+}
+
+conditions
+{
+  icon conditions
+  description "The conditions container is where the conditions for an achievement are specified"
+  menu-token "$ccp_achievements-conditions"
+  unique 1
+  kind "structure"
+  TagArray
+  {
+    menu-token "$ccp_achievements-condition"
+    kind value
+    type float
+    compulsory 0
+  }
+  validation
+  {
+    UniqueNames
+  }
+}
+
+effects
+{
+  icon effects
+  description "Effects container"
+  kind "structure"
+  array-element
+  {
+    name-id "name-id-element"
+    helper "helper-element"
+  }
+}
+
+name-id-element
+{
+  icon name-id-element
+  kind "structure"
+  subpossibilities
+  {
+    kind
+    {
+      kind value
+      type string
+    }
+  }
+}
+
+helper-element
+{
+  icon helper-element
+  kind "structure"
+  subpossibilities
+  {
+    kind
+    {
+      kind value
+      type string
+    }
+  }
+}

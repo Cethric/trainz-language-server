@@ -31,7 +31,7 @@ description = "Language Server Protocol implementation for the GS (Game Script) 
 
 [workspace.dependencies]
 # External dependencies
-shadow-rs = { version = "1.7", default-features = false }
+shadow-rs = { version = "2.0", default-features = false }
 tokio = { version = "1.52", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = [] }
@@ -57,6 +57,7 @@ walkdir = { version = "2.5", features = [] }
 rusqlite = { version = "0.39", features = ["bundled"] }
 futures = { version = "0.3", features = [] }
 async-recursion = { version = "1.1", features = [] }
+stringmetrics = { version = "2.2", features = [] }
 
 
 # Internal workspace dependencies

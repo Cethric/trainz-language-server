@@ -13,14 +13,13 @@ license.workspace = true
 description.workspace = true
 
 [dependencies]
-shadow-rs = { workspace = true }
+shadow-rs = { workspace = true, features = ["metadata"] }
 thiserror = { workspace = true }
 pest = { workspace = true }
 pest_derive = { version = "2.8" }
 lazy_static = { version = "1.5", features = [] }
-tracing = {workspace = true}
+tracing = { workspace = true }
 serde = { workspace = true }
-hex = { workspace = true }
 
 [build-dependencies]
-shadow-rs = { version = "1.7" }
+shadow-rs = { workspace = true, features = ["build", "git2"] }

@@ -11,9 +11,9 @@ use std::sync::Arc;
 use tower_lsp_server::jsonrpc::Error;
 use tower_lsp_server::ls_types::{
     CodeAction, CodeActionKind, CodeActionOptions, CodeActionOrCommand, CodeActionParams,
-    CodeActionResponse, CompletionOptions, CompletionOptionsCompletionItem, CompletionParams,
-    CompletionResponse, CreateFilesParams, DefinitionOptions, DeleteFilesParams, Diagnostic,
-    DiagnosticOptions, DiagnosticServerCapabilities, DidChangeConfigurationParams,
+    CodeActionResponse, CompletionItem, CompletionOptions, CompletionOptionsCompletionItem,
+    CompletionParams, CompletionResponse, CreateFilesParams, DefinitionOptions, DeleteFilesParams,
+    Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities, DidChangeConfigurationParams,
     DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams,
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentDiagnosticParams,
     DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentFilter, DocumentLink,
@@ -176,7 +176,7 @@ impl LanguageServer for TrainzLanguageServer {
                 },
             }),
             completion_provider: Some(CompletionOptions {
-                resolve_provider: Some(false),
+                resolve_provider: Some(true),
                 trigger_characters: None,
                 all_commit_characters: None,
                 work_done_progress_options: WorkDoneProgressOptions {
@@ -272,6 +272,14 @@ impl LanguageServer for TrainzLanguageServer {
                 "Trainz Language Server has been initialised",
             )
             .await;
+
+        if let Err(result) = self.client.semantic_tokens_refresh().await {
+            error!("Semantic tokens refresh failed: {:?}", result);
+        }
+
+        if let Err(result) = self.client.workspace_diagnostic_refresh().await {
+            error!("Workspace diagnostic refresh failed: {:?}", result);
+        }
     }
 
     #[tracing::instrument(skip(self))]
@@ -980,12 +988,14 @@ impl LanguageServer for TrainzLanguageServer {
         if let Some(file_info) = self.parsed_files.get(&path) {
             if let ParsedFileType::AcsText(acs_text) = &file_info.parsed {
                 let graph = self.acs_state.graph.read().await;
-                result = Some(CompletionResponse::Array(acs_text_completions(
-                    acs_text,
-                    graph.as_ref(),
-                    params,
-                    self.asset_cache_path.as_deref(),
-                )));
+                if let Some(graph) = graph.as_ref() {
+                    result = Some(CompletionResponse::Array(acs_text_completions(
+                        acs_text,
+                        graph,
+                        params,
+                        self.asset_cache_path.as_deref(),
+                    )));
+                }
             } else if let ParsedFileType::GameScript(_program) = &file_info.parsed {
                 result = Some(CompletionResponse::Array(
                     trainz_completions::gs::trainz_completions(_program, params),
@@ -998,6 +1008,15 @@ impl LanguageServer for TrainzLanguageServer {
         }
 
         Ok(result)
+    }
+
+    #[tracing::instrument(skip(self, params))]
+    async fn completion_resolve(
+        &self,
+        params: CompletionItem,
+    ) -> tower_lsp_server::jsonrpc::Result<CompletionItem> {
+        trace!("Completion Resolve {:?}", params);
+        Ok(params)
     }
 
     #[tracing::instrument(skip(self, params))]
@@ -1247,14 +1266,18 @@ impl LanguageServer for TrainzLanguageServer {
                             .await;
                     }
 
-                    hover_result = acs_text_hover(
-                        acs_text,
-                        params.clone(),
-                        path.parent(),
-                        Some(&AcsTextScriptResolver {
-                            parsed_files: &self.parsed_files,
-                        }),
-                    );
+                    let graph = self.acs_state.graph.read().await;
+                    if let Some(graph) = &*graph {
+                        hover_result = acs_text_hover(
+                            acs_text,
+                            graph,
+                            params.clone(),
+                            path.parent(),
+                            Some(&AcsTextScriptResolver {
+                                parsed_files: &self.parsed_files,
+                            }),
+                        );
+                    }
 
                     if hover_result.is_some() {
                         if let Some(progress) = progress {

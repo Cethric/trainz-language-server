@@ -18,8 +18,8 @@ pub struct RuleNodeStructure {
     possibilities: HashMap<String, Weak<RuleNode>>,
     tag_array: Option<Weak<RuleNode>>,
     is_array: bool,
-    array_element_names: Vec<String>,
-    array_elements: Vec<Weak<RuleNode>>,
+    array_elements_map: HashMap<String, String>,
+    array_elements: Vec<(String, Weak<RuleNode>)>,
 }
 
 impl RuleNodeStructure {
@@ -48,9 +48,30 @@ impl RuleNodeStructure {
         self.tag_array.clone()
     }
 
+    #[tracing::instrument(skip(self, key))]
+    pub fn get_element_by_key(&self, key: &str) -> Option<Weak<RuleNode>> {
+        self.array_elements
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, node)| node.clone())
+    }
+
     #[tracing::instrument(skip(self))]
     pub fn array_elements(&self) -> Vec<Weak<RuleNode>> {
-        self.array_elements.clone()
+        self.array_elements
+            .iter()
+            .map(|(_, node)| node.clone())
+            .collect()
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn array_elements_as_vec(&self) -> &Vec<(String, Weak<RuleNode>)> {
+        &self.array_elements
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn array_elements_map(&self) -> &HashMap<String, String> {
+        &self.array_elements_map
     }
 
     #[tracing::instrument(skip(self))]
@@ -68,8 +89,15 @@ impl RuleNodeStructure {
             } else {
                 Some(String::from("TagArray"))
             }
-        } else if self.is_array || !self.array_element_names.is_empty() {
-            Some(format!("Array({})", self.array_element_names.join(" | ")))
+        } else if self.is_array || !self.array_elements_map.is_empty() {
+            Some(format!(
+                "Array({})",
+                self.array_elements_map
+                    .values()
+                    .cloned()
+                    .collect::<Vec<String>>()
+                    .join(" | ")
+            ))
         } else {
             Some(String::from("Structure"))
         }
@@ -90,23 +118,28 @@ impl RuleNodeStructure {
             unsafe { &mut *ptr }.update_inheritance(root);
         });
 
-        self.array_elements = self
-            .array_element_names
-            .par_iter()
-            .filter_map(|name| {
+        let mut elements: Vec<_> = self.array_elements_map.iter().collect();
+        elements.sort_by_key(|(key, _)| *key);
+        self.array_elements = elements
+            .into_iter()
+            .filter_map(|(key, name)| {
                 if let Some(rule) = root.get_rule(name) {
-                    Some(Arc::downgrade(&rule))
+                    Some((key.clone(), Arc::downgrade(&rule)))
                 } else {
                     warn!("Array element not found: {}", name);
                     None
                 }
             })
-            .collect::<Vec<Weak<RuleNode>>>();
+            .collect::<Vec<(String, Weak<RuleNode>)>>();
 
-        if self.array_elements.len() != self.array_element_names.len() {
+        if self.array_elements.len() != self.array_elements_map.len() {
             warn!(
                 "Unable to find all array elements: {}",
-                self.array_element_names.join(",")
+                self.array_elements_map
+                    .values()
+                    .cloned()
+                    .collect::<Vec<String>>()
+                    .join(",")
             )
         }
     }
@@ -145,7 +178,7 @@ impl RuleNodeStructure {
         let mut possibilities: HashMap<String, Weak<RuleNode>> = HashMap::new();
         let mut values: HashMap<String, Arc<RuleNode>> = HashMap::new();
         let mut tag_array: Option<Weak<RuleNode>> = None;
-        let mut array_element_names: Vec<String> = Vec::new();
+        let mut array_elements_map: HashMap<String, String> = HashMap::new();
 
         for entry in entries {
             if entry.key.eq_ignore_ascii_case("unique") {
@@ -223,12 +256,11 @@ impl RuleNodeStructure {
             if entry.key.eq_ignore_ascii_case(ARRAY_ELEMENT_KEY)
                 && let Some(Value::Container(container_kv, _, _)) = &entry.value
             {
-                array_element_names.par_extend(
-                    container_kv
-                        .par_iter()
-                        .filter_map(parse_as_string)
-                        .collect::<Vec<String>>(),
-                );
+                for kv in container_kv {
+                    if let Some(element_name) = parse_as_string(kv) {
+                        array_elements_map.insert(kv.key.clone(), element_name);
+                    }
+                }
             }
         }
 
@@ -238,7 +270,7 @@ impl RuleNodeStructure {
             values,
             tag_array,
             is_array,
-            array_element_names,
+            array_elements_map,
             array_elements: vec![],
         }
     }

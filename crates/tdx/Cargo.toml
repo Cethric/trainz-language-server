@@ -11,10 +11,9 @@ license.workspace = true
 description.workspace = true
 
 [dependencies]
+shadow-rs = { workspace = true, features = ["metadata"] }
 thiserror = { workspace = true }
-anyhow = { workspace = true }
 serde = { workspace = true }
-trainz-common = { workspace = true }
 
-[dev-dependencies]
-criterion = { workspace = true }
+[build-dependencies]
+shadow-rs = { workspace = true, features = ["build", "git2"] }

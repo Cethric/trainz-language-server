@@ -22,7 +22,7 @@ The project is organized as a Cargo workspace with the following crates:
 - `crates/ast`: Abstract Syntax Tree definitions
 - `crates/common`: Common types and utilities
 - `crates/parser`: GS and AcsText grammar parsing using `pest`
-- `crates/lsp`: LSP server implementation
+- `crates/language-server`: LSP server implementation
 - `crates/diagnostics`: Diagnostics and error reporting
 - `crates/formatter`: Code formatting logic
 - `crates/formatter-cli`: CLI tool for the formatter
@@ -32,7 +32,8 @@ The project is organized as a Cargo workspace with the following crates:
 - `crates/folding`: Folding range support
 - `crates/hover`: Hover information support
 - `crates/definition`: Goto definition support
-- `crates/util`: General utilities
+- `crates/acs-text-validators`: Validators for AcsText files
+- `crates/tdx`: TDX format handling
 
 ## Commands
 - **Build**: `cargo build`

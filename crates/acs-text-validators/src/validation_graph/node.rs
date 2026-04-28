@@ -10,9 +10,9 @@ use anyhow::Result;
 use async_recursion::async_recursion;
 use rayon::prelude::*;
 use std::collections::HashMap;
-use std::error::Error;
 use std::path::Path;
 use std::sync::{Arc, Weak};
+use stringmetrics::levenshtein_limit;
 use tracing::{debug, trace, warn};
 use trainz_ast::acs_text::{KeyValuePair, Value};
 
@@ -182,9 +182,30 @@ impl RuleNode {
         }
     }
 
+    #[tracing::instrument(skip(self))]
+    pub fn is_value(&self) -> bool {
+        if let Some(kind) = &self.kind {
+            matches!(kind, RuleNodeKind::Value(_))
+        } else {
+            false
+        }
+    }
+
     #[tracing::instrument(skip(self, name))]
     pub fn matches_name(&self, name: &str) -> bool {
         self.name.eq_ignore_ascii_case(name)
+    }
+
+    #[tracing::instrument(skip(self, name))]
+    pub fn near_name(&self, name: &str) -> bool {
+        let search_name = name.to_uppercase();
+        let normalised_name = self.name.to_uppercase();
+
+        if normalised_name.starts_with(&search_name) {
+            true
+        } else {
+            levenshtein_limit(&normalised_name, &search_name, 4) < 4
+        }
     }
 
     #[tracing::instrument(skip(self, trainz_build))]
@@ -197,9 +218,9 @@ impl RuleNode {
     }
 
     #[tracing::instrument(skip(self, trainz_build))]
-    pub fn is_obsolete(&self, trainz_build: f64) -> bool {
+    pub fn is_obsolete(&self, trainz_build: &f64) -> bool {
         if let Some(obsolete) = self.obsolete {
-            trainz_build >= obsolete
+            *trainz_build >= obsolete
         } else {
             false
         }
@@ -289,11 +310,34 @@ impl RuleNode {
             docs.push(kind.documentation(trainz_version));
         }
 
+        docs.push(Some(format!(
+            "Dependencies:\n{}",
+            self.dependencies
+                .par_iter()
+                .map(|(key, value)| format!("- {}: {}", key, value))
+                .collect::<Vec<String>>()
+                .join("\n")
+        )));
+
+        docs.push(Some(format!(
+            "Validators:\n{}",
+            self.validators
+                .par_iter()
+                .filter_map(|validator| {
+                    match validator {
+                        Validator::Unknown(name, _) => Some(format!("- {}", name)),
+                        _ => None,
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join("\n")
+        )));
+
         Some(
             docs.iter()
                 .filter_map(|doc| doc.as_ref().map(|doc| doc.to_string()))
                 .collect::<Vec<String>>()
-                .join("\n\n"),
+                .join("\n\n\n"),
         )
     }
 }
