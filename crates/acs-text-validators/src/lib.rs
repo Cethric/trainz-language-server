@@ -1,6 +1,6 @@
 mod load_validators;
 pub mod text_util;
-pub(crate) mod util;
+pub mod util;
 pub mod validation_graph;
 
 mod parse_file;

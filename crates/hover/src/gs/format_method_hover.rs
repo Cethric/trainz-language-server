@@ -11,13 +11,16 @@
 /// # Example
 ///
 /// ```
-/// # use trainz_ast::gs::{MethodDef, Type};
-/// # use trainz_ast::Identifier;
+/// # use trainz_ast::gs::{MethodDef , TypeOrVoid};
+/// # use trainz_ast::gs::literal::Identifier;
+/// # use trainz_ast::Range;
 /// # let method = MethodDef {
+/// #     body: None,
+/// #     scope_id: 0,
 /// #     modifiers: vec![],
 /// #     parent_class: None,
 /// #     name: Identifier { name: "myMethod".to_string(), range: Default::default() },
-/// #     return_type: Type::Void,
+/// #     return_type: TypeOrVoid::Void(Range::default()),
 /// #     params: vec![],
 /// #     void_param_range: Some(Default::default()),
 /// #     range: Default::default(),

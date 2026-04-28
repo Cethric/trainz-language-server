@@ -35,7 +35,7 @@ use trainz_ast::acs_text::{KeyValuePair, Value};
 /// #     key_range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
 /// #     range: Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 5 } },
 /// # };
-/// # // let diags = trainz_diagnostics::acs_text::validate_node_structure::validate_node_structure(&structure, &kv, 2.0, &None);
+/// # let diags = trainz_diagnostics::acs_text::validate_node_structure::validate_node_structure(&structure, &kv, 2.0, &None);
 /// ```
 pub fn validate_node_structure(
     structure: &RuleNodeStructure,

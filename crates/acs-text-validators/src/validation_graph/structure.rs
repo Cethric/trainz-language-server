@@ -11,7 +11,7 @@ use std::sync::{Arc, Weak};
 use tracing::{debug, warn};
 use trainz_ast::acs_text::{KeyValuePair, Value};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RuleNodeStructure {
     unique: bool,
     values: HashMap<String, Arc<RuleNode>>,

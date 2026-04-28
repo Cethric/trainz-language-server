@@ -1,4 +1,4 @@
-mod format_method_hover;
+pub mod format_method_hover;
 mod get_text_from_range;
 mod trainz_hover;
 

@@ -11,12 +11,12 @@ use trainz_ast::acs_text::AcsText;
 use trainz_ast::{Position, Range};
 
 mod acs_text_validator;
-mod common;
+pub mod common;
 #[cfg(test)]
 mod tests;
 mod validate_node_element;
 mod validate_node_kind;
-mod validate_node_structure;
+pub mod validate_node_structure;
 mod validate_node_value;
 mod validate_rule_node;
 
@@ -35,12 +35,13 @@ mod validate_rule_node;
 /// # Example
 ///
 /// ```
+/// # use trainz_ast::Range;
 /// # use trainz_ast::acs_text::AcsText;
 /// # use trainz_acs_text_validators::RulesRoot;
 /// # use std::collections::HashMap;
-/// # let acs_text = AcsText::default();
+/// # let acs_text = AcsText{ key_value_pairs: vec![], range: Range::default(), src: String::from("") };
 /// # let graph = RulesRoot::new(HashMap::new(), vec![]);
-/// # // let diags = trainz_diagnostics::acs_text::acs_text_diagnostics(&acs_text, &graph, None);
+/// # let diags = trainz_diagnostics::acs_text::acs_text_diagnostics(&acs_text, &graph, None);
 /// ```
 #[tracing::instrument(skip(acs_text, graph, base_path))]
 pub fn acs_text_diagnostics(

@@ -74,6 +74,12 @@ pub enum TypeOrVoid {
     Type(Type),
 }
 
+impl Default for TypeOrVoid {
+    fn default() -> Self {
+        Self::Void(Default::default())
+    }
+}
+
 impl Display for TypeOrVoid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

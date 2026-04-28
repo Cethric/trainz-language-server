@@ -159,7 +159,7 @@ impl Display for FieldModifier {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MethodDef {
     pub parent_class: Option<String>,
     pub modifiers: Vec<(MethodModifier, crate::Range)>,

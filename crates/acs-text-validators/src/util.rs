@@ -1,63 +1,9 @@
 use trainz_ast::acs_text::{KeyValuePair, NumericValue, Value};
 pub trait FromNumericValue: Sized {
-    /// Converts an integer value.
-    ///
-    /// # Arguments
-    ///
-    /// * `value`: The integer value to convert.
-    ///
-    /// # Returns
-    ///
-    /// The converted value.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// # use trainz_acs_text_validators::util::FromNumericValue;
-    /// #
-    /// # let val = <i64 as FromNumericValue>::from_int(10);
-    /// # assert_eq!(val, 10);
-    /// ```
     fn from_int(value: i64) -> Self;
 
-    /// Converts a hexadecimal value.
-    ///
-    /// # Arguments
-    ///
-    /// * `value`: The hexadecimal value to convert.
-    ///
-    /// # Returns
-    ///
-    /// The converted value.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// # use trainz_acs_text_validators::util::FromNumericValue;
-    /// #
-    /// # let val = <u64 as FromNumericValue>::from_hex(0x10);
-    /// # assert_eq!(val, 16);
-    /// ```
     fn from_hex(value: u64) -> Self;
 
-    /// Converts a floating-point value.
-    ///
-    /// # Arguments
-    ///
-    /// * `value`: The floating-point value to convert.
-    ///
-    /// # Returns
-    ///
-    /// The converted value.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// # use trainz_acs_text_validators::util::FromNumericValue;
-    /// #
-    /// # let val = <f64 as FromNumericValue>::from_float(10.5);
-    /// # assert_eq!(val, 10.5);
-    /// ```
     fn from_float(value: f64) -> Self;
 }
 
@@ -159,10 +105,11 @@ impl FromNumericValue for u8 {
 /// # Example
 ///
 /// ```
+/// use trainz_ast::Range;
 /// use trainz_ast::acs_text::{KeyValuePair, Value};
 /// use trainz_acs_text_validators::util::parse_as_bool;
 ///
-/// let kvp = KeyValuePair::default(); // Simplified example
+/// let kvp = KeyValuePair{ key: String::from("key"), key_range: Range::default(), value: None, range: Range::default() }; // Simplified example
 /// let val = parse_as_bool(&kvp);
 /// ```
 #[tracing::instrument(skip(key_value_pair))]
@@ -329,10 +276,11 @@ where
 /// # Example
 ///
 /// ```
+/// use trainz_ast::Range;
 /// use trainz_ast::acs_text::KeyValuePair;
 /// use trainz_acs_text_validators::util::parse_as_string;
 ///
-/// let kvp = KeyValuePair::default(); // Simplified example
+/// let kvp = KeyValuePair{ key: String::from("key"), key_range: Range::default(), value: None, range: Range::default() }; // Simplified example
 /// let val = parse_as_string(&kvp);
 /// ```
 #[tracing::instrument(skip(key_value_pair))]

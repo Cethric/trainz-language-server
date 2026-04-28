@@ -16,9 +16,10 @@ use trainz_ast::acs_text::{AcsText, KeyValuePair};
 /// # Examples
 ///
 /// ```
+/// # use trainz_ast::Range;
 /// # use trainz_ast::acs_text::AcsText;
 /// # use trainz_acs_text_validators::text_util::get_kind_from_text;
-/// # let acs_text = AcsText { key_value_pairs: vec![] };
+/// # let acs_text = AcsText { key_value_pairs: vec![], src: String::from(""), range: Range::default() };
 /// # let kind = get_kind_from_text(&acs_text);
 /// ```
 #[tracing::instrument(skip(acs_text))]
@@ -82,9 +83,10 @@ pub fn get_kind_from_kvp(key_value_pairs: &[KeyValuePair]) -> Option<(String, Ra
 /// # Examples
 ///
 /// ```
+/// # use trainz_ast::Range;
 /// # use trainz_ast::acs_text::AcsText;
 /// # use trainz_acs_text_validators::text_util::get_trainz_build_from_text;
-/// # let acs_text = AcsText { key_value_pairs: vec![] };
+/// # let acs_text = AcsText { key_value_pairs: vec![], src: String::from(""), range: Range::default() };
 /// # let build = get_trainz_build_from_text(&acs_text);
 /// ```
 #[tracing::instrument(skip(acs_text))]

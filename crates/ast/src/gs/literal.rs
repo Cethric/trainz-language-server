@@ -39,7 +39,7 @@ impl HasRange for StringLiteral {
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Identifier {
     pub name: String,
     pub range: crate::Range,
