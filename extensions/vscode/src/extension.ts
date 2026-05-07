@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import {ExtensionContext, languages, LogOutputChannel, Uri, window, workspace, WorkspaceFolder, SemanticTokens, SemanticTokensBuilder, SemanticTokensLegend, Progress, ProgressLocation} from 'vscode';
 import {Executable, LanguageClient, LanguageClientOptions, ServerOptions} from 'vscode-languageclient/node';
+import {registerGsFeatures} from './gs';
+import {registerAcsFeatures} from './acs';
 
 // let defaultClient: LanguageClient;
 const clients = new Map<string, LanguageClient>();
@@ -187,70 +189,58 @@ function createLanguageClient(
 }
 
 export function activate(context: ExtensionContext) {
-    const config = workspace.getConfiguration('trainz-language-server');
-    let command = config.get<string>('server-bin') || 'lsp-bin';
-    let validation = config.get<string>('validation-path') || undefined;
-    let search = config.get<string[]>('search-paths') || undefined;
-
     const outputChannel: LogOutputChannel = window.createOutputChannel('trainz-language-server', {log: true});
     const traceOutputChannel = window.createOutputChannel('trainz-language-server trace', {log: true});
     context.subscriptions.push(traceOutputChannel);
 
-    const run: Executable = {
-        command,
-        options: {
-            env: {
-                ...process.env,
-                TRAINZ_LANGUAGE_SERVER_SCRIPT_SEARCH_PATHS: search?.join(";"),
-                TRAINZ_LANGUAGE_SERVER_ACS_TEXT_VALIDATION_PATH: validation,
-                RUST_LOG: "debug"
-            }
-        }
-    };
+    function getServerOptions(folder: WorkspaceFolder, config: vscode.WorkspaceConfiguration): ServerOptions {
+        let command = config.get<string>('server-bin') || 'lsp-bin';
+        let validation = config.get<string>('validation-path') || undefined;
+        let search = config.get<string[]>('search-paths') || undefined;
+        let logFile = config.get<string>('log-file') || undefined;
+        let logLevel = config.get<string>('log-level') || 'info';
 
-    const serverOptions: ServerOptions = {
-        run,
-        debug: run
-    };
-
-    const clientOptions: LanguageClientOptions = {
-        documentSelector: [
-            {scheme: 'file', pattern: '**/*.gs', language: 'game-script'},
-            {scheme: 'file', pattern: '**/*.txt', language: 'acs_text'},
-            {scheme: 'file', pattern: '**/*.chp', language: 'acs_text'}
-        ],
-        synchronize: {
-            fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
-        },
-        diagnosticCollectionName: 'trainz-language-server',
-        outputChannel,
-        traceOutputChannel,
-        stdioEncoding: 'utf8',
-        progressOnInitialization: true,
-        initializationOptions: {
-            capabilities: {
-                window: {
-                    workDoneProgress: true
+        const run: Executable = {
+            command,
+            options: {
+                env: {
+                    ...process.env,
+                    TRAINZ_LANGUAGE_SERVER_SCRIPT_SEARCH_PATHS: search?.join(";"),
+                    TRAINZ_LANGUAGE_SERVER_ACS_TEXT_VALIDATION_PATH: validation,
+                    TRAINZ_LANGUAGE_SERVER_LOG_FILE: logFile,
+                    TRAINZ_LANGUAGE_SERVER_LOG_LEVEL: logLevel
                 },
-                textDocument: {
-                    semanticTokens: {
-                        dynamicRegistration: false,
-                        legend: semanticTokensLegend
-                    }
-                }
+                cwd: folder.uri.fsPath
             }
-        }
-    };
+        };
+        console.log(`[ACS EXTENSION] Launching server with validation path: ${validation}`);
+
+        return {
+            run,
+            debug: run
+        };
+    }
 
     const diagnosticCollection = languages.createDiagnosticCollection('trainz-language-server');
     context.subscriptions.push(diagnosticCollection);
 
-    function didOpenTextDocument(document: vscode.TextDocument): void {
+    registerGsFeatures(context, clients, diagnosticCollection);
+    registerAcsFeatures(context, clients, diagnosticCollection);
+
+    async function didOpenTextDocument(document: vscode.TextDocument): Promise<void> {
+        // Force config.txt to acs
+        if (document.fileName.endsWith('config.txt') && document.languageId !== 'acs') {
+            console.log(`[ACS EXTENSION] Forcing language ID to 'acs' for: ${document.fileName}`);
+            await vscode.languages.setTextDocumentLanguage(document, 'acs');
+        }
+
         // We are only interested in language mode text
-        if ((document.languageId !== 'game-script' && document.languageId !== 'acs_text') ||
+        if ((document.languageId !== 'game-script' && document.languageId !== 'acs' && !document.fileName.endsWith('config.txt')) ||
             (document.uri.scheme !== 'file' && document.uri.scheme !== 'untitled')) {
             return;
         }
+        
+        console.log(`[ACS EXTENSION] Processing document: ${document.fileName} with language ID: ${document.languageId}`);
 
         const uri = document.uri;
 
@@ -269,8 +259,34 @@ export function activate(context: ExtensionContext) {
         folder = getOuterMostWorkspaceFolder(folder);
 
         if (!clients.has(folder.uri.toString())) {
+            const config = workspace.getConfiguration('trainz-language-server');
+            const serverOptions = getServerOptions(folder, config);
             const folderClientOptions: LanguageClientOptions = {
-                ...clientOptions,
+                documentSelector: [
+                    {scheme: 'file', pattern: '**/*.gs', language: 'game-script'},
+                    {scheme: 'file', pattern: '**/config.txt', language: 'acs'},
+                ],
+                synchronize: {
+                    fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
+                },
+                diagnosticCollectionName: 'trainz-language-server',
+                outputChannel,
+                traceOutputChannel,
+                stdioEncoding: 'utf8',
+                progressOnInitialization: true,
+                initializationOptions: {
+                    capabilities: {
+                        window: {
+                            workDoneProgress: true
+                        },
+                        textDocument: {
+                            semanticTokens: {
+                                dynamicRegistration: false,
+                                legend: semanticTokensLegend
+                            }
+                        }
+                    }
+                },
                 workspaceFolder: folder
             };
 
@@ -515,64 +531,6 @@ function handleDiagnostics(
     }
 }
 
-/**
- * Convert LSP document symbols to VS Code format
- */
-function convertDocumentSymbols(
-    symbols: any[],
-    client: LanguageClient,
-    document: vscode.TextDocument
-): vscode.DocumentSymbol[] {
-    const folder = workspace.getWorkspaceFolder(document.uri);
-    let mapping: Map<number, vscode.SymbolKind> | undefined;
-    if (folder) {
-        const outerMost = getOuterMostWorkspaceFolder(folder);
-        const folderKey = outerMost.uri.toString();
-        mapping = ensureSymbolKindMapping(folderKey, client);
-    }
-
-    return symbols.map((symbol) => {
-        const convertedSymbol = new vscode.DocumentSymbol(
-            symbol.name,
-            symbol.detail || '',
-            convertSymbolKind(symbol.kind, mapping),
-            client.protocol2CodeConverter.asRange(symbol.range) ||
-            new vscode.Range(0, 0, 0, 0),
-            client.protocol2CodeConverter.asRange(symbol.selectionRange) ||
-            new vscode.Range(0, 0, 0, 0)
-        );
-
-        // Recursively convert children
-        if (symbol.children && Array.isArray(symbol.children)) {
-            convertedSymbol.children = convertDocumentSymbols(symbol.children, client, document);
-        }
-
-        return convertedSymbol;
-    });
-}
-
-/**
- * Convert LSP symbol kind to VS Code symbol kind
- */
-export function convertSymbolKind(lspKind: number, mapping?: Map<number, vscode.SymbolKind>): vscode.SymbolKind {
-    if (mapping) {
-        return mapping.get(lspKind) || vscode.SymbolKind.Variable;
-    }
-    const kindMap: { [key: number]: vscode.SymbolKind } = {
-        1: vscode.SymbolKind.Class,
-        2: vscode.SymbolKind.Method,
-        3: vscode.SymbolKind.Property,
-        4: vscode.SymbolKind.Field,
-        5: vscode.SymbolKind.Variable,
-        6: vscode.SymbolKind.String,
-        7: vscode.SymbolKind.Number,
-        8: vscode.SymbolKind.Key,
-        9: vscode.SymbolKind.Operator,
-        10: vscode.SymbolKind.TypeParameter,
-    };
-
-    return kindMap[lspKind] || vscode.SymbolKind.Variable;
-}
 
 /**
  * Convert LSP completion item to VS Code completion item
@@ -661,7 +619,7 @@ function registerLanguageFeatures(context: ExtensionContext) {
         languages.registerCompletionItemProvider(
             [
                 {scheme: 'file', language: 'game-script'},
-                {scheme: 'file', language: 'acs_text'}
+                {scheme: 'file', language: 'acs'}
             ],
             {
                 provideCompletionItems: async (document, position, token) => {
@@ -745,7 +703,7 @@ function registerLanguageFeatures(context: ExtensionContext) {
         languages.registerHoverProvider(
             [
                 {scheme: 'file', language: 'game-script'},
-                {scheme: 'file', language: 'acs_text'}
+                {scheme: 'file', language: 'acs'}
             ],
             {
                 provideHover: async (document, position, token) => {
@@ -796,179 +754,6 @@ function registerLanguageFeatures(context: ExtensionContext) {
         )
     );
 
-    // Register document symbol provider (for outline/symbolizing)
-    context.subscriptions.push(
-        languages.registerDocumentSymbolProvider(
-            [
-                {scheme: 'file', language: 'game-script'},
-                {scheme: 'file', language: 'acs_text'}
-            ],
-            {
-                provideDocumentSymbols: async (document, token) => {
-                    try {
-                        console.log(`Document symbols requested for ${document.uri.toString()}`);
 
-                        const client = getClientForDocument(document);
-                        if (!client || !client.isRunning()) {
-                            return [];
-                        }
-
-                        const response = await client.sendRequest<any>(
-                            'textDocument/documentSymbol',
-                            {
-                                textDocument: {uri: document.uri.toString()}
-                            },
-                            token
-                        );
-
-                        console.log('Document symbols response:', response);
-
-                        if (!response) {
-                            return [];
-                        }
-
-                        return convertDocumentSymbols(response, client, document);
-                    } catch (error) {
-                        console.error('Error in document symbol provider:', error);
-                        return [];
-                    }
-                }
-            }
-        )
-    );
-
-    // Register folding range provider
-    context.subscriptions.push(
-        languages.registerFoldingRangeProvider(
-            [
-                {scheme: 'file', language: 'game-script'},
-                {scheme: 'file', language: 'acs_text'}
-            ],
-            {
-                provideFoldingRanges: async (document, context, token) => {
-                    try {
-                        console.log(`Folding ranges requested for ${document.uri.toString()}`);
-
-                        const client = getClientForDocument(document);
-                        if (!client || !client.isRunning()) {
-                            return [];
-                        }
-
-                        const response = await client.sendRequest<any>(
-                            'textDocument/foldingRange',
-                            {
-                                textDocument: {uri: document.uri.toString()}
-                            },
-                            token
-                        );
-
-                        console.log('Folding ranges response:', response);
-
-                        if (!response) {
-                            return [];
-                        }
-
-                        // Convert LSP folding ranges to VS Code format
-                        return response.map((range: any) => {
-                            const startLine = range.startLine || 0;
-                            const endLine = range.endLine || 0;
-                            const kind = range.kind as vscode.FoldingRangeKind | undefined;
-
-                            return new vscode.FoldingRange(
-                                startLine,
-                                endLine,
-                                kind
-                            );
-                        });
-                    } catch (error) {
-                        console.error('Error in folding range provider:', error);
-                        return [];
-                    }
-                }
-            }
-        )
-    );
-
-    // Register document semantic tokens provider
-    context.subscriptions.push(
-        languages.registerDocumentSemanticTokensProvider(
-            [
-                {scheme: 'file', language: 'game-script'},
-                {scheme: 'file', language: 'acs_text'}
-            ],
-            {
-                provideDocumentSemanticTokens: async (document, token) => {
-                    try {
-                        console.log(`Semantic tokens requested for ${document.uri.toString()}`);
-
-                        const client = getClientForDocument(document);
-                        if (!client || !client.isRunning()) {
-                            return null;
-                        }
-
-                        const folder = workspace.getWorkspaceFolder(document.uri);
-                        if (!folder) {
-                            return null;
-                        }
-
-                        const outerMost = getOuterMostWorkspaceFolder(folder);
-                        const folderKey = outerMost.uri.toString();
-
-                        const mappings = ensureSemanticTokenMappings(folderKey, client);
-                        if (!mappings) {
-                            return null;
-                        }
-
-                        const { typeMapping, modifierMapping } = mappings;
-
-                        const response = await client.sendRequest<any>(
-                            'textDocument/semanticTokens/full',
-                            {
-                                textDocument: {uri: document.uri.toString()}
-                            },
-                            token
-                        );
-
-                        console.log('Semantic tokens response:', response);
-
-                        if (!response || !response.data) {
-                            return null;
-                        }
-
-                        const builder = new vscode.SemanticTokensBuilder(semanticTokensLegend);
-
-                        let i = 0;
-                        while (i < response.data.length) {
-                            const deltaLine = response.data[i++];
-                            const deltaStart = response.data[i++];
-                            const length = response.data[i++];
-                            const tokenType = response.data[i++];
-                            const tokenModifiers = response.data[i++];
-
-                            const mappedType = typeMapping.get(tokenType) ?? 0;
-
-                            let mappedMods = 0;
-                            for (let j = 0; j < 32; j++) {
-                                if (tokenModifiers & (1 << j)) {
-                                    const mapped = modifierMapping.get(j);
-                                    if (mapped !== undefined) {
-                                        mappedMods |= (1 << mapped);
-                                    }
-                                }
-                            }
-
-                            builder.push(deltaLine, deltaStart, length, mappedType, mappedMods);
-                        }
-
-                        return builder.build();
-                    } catch (error) {
-                        console.error('Error in semantic tokens provider:', error);
-                        return null;
-                    }
-                }
-            },
-            semanticTokensLegend
-        )
-    );
 }
 

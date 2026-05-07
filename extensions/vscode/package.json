@@ -16,8 +16,9 @@
   },
   "homepage": "https://github.com/Cethric/trainz-language-server/tree/develop/extensions/vscode",
   "version": "0.1.0",
+  "icon": "icon.svg",
   "engines": {
-    "vscode": "^1.115.0"
+    "vscode": "^1.116.0"
   },
   "categories": [
     "Programming Languages",
@@ -27,12 +28,9 @@
     "Trainz",
     "GS",
     "AcsText",
+    "Soup",
     "Language Server",
     "LSP"
-  ],
-  "activationEvents": [
-    "onLanguage:game-script",
-    "onLanguage:acs_text"
   ],
   "main": "./dist/extension.js",
   "preview": true,
@@ -52,19 +50,28 @@
         "extensions": [
           ".gs"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.gs.json",
+        "icon": {
+          "light": "./icons/gs.svg",
+          "dark": "./icons/gs.svg"
+        }
       },
       {
-        "id": "acs_text",
+        "id": "acs",
         "aliases": [
-          "ACS_TEXT",
-          "acs_text"
+          "Soup",
+          "soup",
+          "acs"
         ],
-        "extensions": [
-          ".txt",
-          ".chp"
+        "extensions": [],
+        "filenames": [
+          "config.txt"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.acs.json",
+        "icon": {
+          "light": "./icons/acs.svg",
+          "dark": "./icons/acs.svg"
+        }
       }
     ],
     "configuration": {
@@ -94,9 +101,30 @@
         },
         "trainz-language-server.trace.server": {
           "type": "string",
-          "enum": ["off", "messages", "verbose"],
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
           "default": "off",
           "description": "Controls the trace level logged to the Trainz Language Server trace output channel."
+        },
+        "trainz-language-server.log-file": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the log file for the Trainz Language Server."
+        },
+        "trainz-language-server.log-level": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warn",
+            "info",
+            "debug",
+            "trace"
+          ],
+          "default": "info",
+          "description": "Logging level for the Trainz Language Server."
         }
       }
     },
@@ -143,43 +171,43 @@
         }
       },
       {
-        "language": "acs_text",
+        "language": "acs",
         "scopes": {
           "keyword": [
-            "keyword.control.acs_text"
+            "keyword.control.acs"
           ],
           "class": [
-            "entity.name.type.class.acs_text"
+            "entity.name.type.class.acs"
           ],
           "string": [
-            "string.quoted.double.acs_text"
+            "string.quoted.double.acs"
           ],
           "type": [
-            "entity.name.type.acs_text"
+            "entity.name.type.acs"
           ],
           "method": [
-            "entity.name.function.acs_text"
+            "entity.name.function.acs"
           ],
           "operator": [
-            "keyword.operator.acs_text"
+            "keyword.operator.acs"
           ],
           "number": [
-            "constant.numeric.acs_text"
+            "constant.numeric.acs"
           ],
           "property": [
-            "variable.other.property.acs_text"
+            "variable.other.property.acs"
           ],
           "parameter": [
-            "variable.parameter.acs_text"
+            "variable.parameter.acs"
           ],
           "modifier": [
-            "storage.modifier.acs_text"
+            "storage.modifier.acs"
           ],
           "variable": [
-            "variable.other.acs_text"
+            "variable.other.acs"
           ],
           "comment": [
-            "comment.line.double-slash.acs_text"
+            "comment.line.double-slash.acs"
           ]
         }
       }
@@ -203,16 +231,16 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "~22.19.17",
-    "@types/vscode": "^1.115.0",
-    "vscode-languageclient": "^9.0.1",
-    "@typescript-eslint/eslint-plugin": "^8.58.1",
-    "@typescript-eslint/parser": "^8.58.1",
-    "@vscode/test-cli": "^0.0.11",
+    "@types/node": "~25.6.0",
+    "@types/vscode": "^1.118.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.2",
+    "@typescript-eslint/parser": "^8.59.2",
+    "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
-    "esbuild": "^0.25.12",
-    "eslint": "^9.39.4",
+    "esbuild": "^0.28.0",
+    "eslint": "^10.3.0",
     "npm-run-all": "^4.1.5",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3",
+    "vscode-languageclient": "^9.0.1"
   }
 }
