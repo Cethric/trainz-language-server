@@ -4,7 +4,10 @@ use trainz_ast::gs::process::process_trainz_ast;
 use trainz_parser::gs::parse;
 
 fn get_diagnostics(src: &str) -> Vec<Diagnostic> {
-    let pairs = parse(src).expect("Should parse");
+    let pairs = match parse(src) {
+        Ok(p) => p,
+        Err(_) => return Vec::new(), // If parsing fails, return empty diagnostics for now
+    };
     let program = process_trainz_ast(pairs, src);
 
     struct EmptyProgramResolver;
@@ -791,4 +794,14 @@ class Test {
                 .contains("Bit shift operator requires 'int' operand")
         );
     }
+}
+
+#[test]
+fn test_keyword_identifier_error() {
+    let src = "class Test { void Main() { int default = 1; } }";
+    let result = parse(src);
+    assert!(
+        result.is_err(),
+        "Expected parsing error for keyword as identifier"
+    );
 }

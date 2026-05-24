@@ -12,7 +12,7 @@ use trainz_ast::gs::program::Program;
 use trainz_ast::gs::stmt::{Block, Stmt};
 use trainz_ast::gs::type_eval;
 use trainz_ast::gs::types::TypeOrVoid;
-use trainz_ast::gs::{ClassDef, Expr, MethodDef};
+use trainz_ast::gs::{ClassDef, Expr, Identifier, MethodDef};
 
 /// Performs diagnostic validation on a Game Script program.
 ///
@@ -187,6 +187,21 @@ fn check_block(
     }
 }
 
+fn check_identifier(id: &Identifier, diagnostics: &mut Vec<Diagnostic>) {
+    if id.is_keyword() {
+        diagnostics.push(Diagnostic {
+            range: id.range,
+            severity: Some(DiagnosticSeverity::ERROR),
+            message: format!(
+                "'{}' is a keyword and cannot be used as an identifier",
+                id.name
+            ),
+            source: Some(String::from("game-script lsp")),
+            ..Default::default()
+        });
+    }
+}
+
 fn check_stmt(
     stmt: &Stmt,
     program: &Program,
@@ -199,6 +214,9 @@ fn check_stmt(
     match stmt {
         Stmt::Expr(expr) => check_expr(expr, program, resolver, class, diagnostics, array_sizes),
         Stmt::Decl(decl) => {
+            for id in &decl.names {
+                check_identifier(id, diagnostics);
+            }
             for (id, val) in decl.names.iter().zip(decl.values.iter()) {
                 check_expr(val, program, resolver, class, diagnostics, array_sizes);
                 let val_ty = type_eval::evaluate_expr_type(
