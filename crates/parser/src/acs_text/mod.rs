@@ -10,6 +10,16 @@ use shadow_rs::shadow;
 shadow!(build);
 
 /// Parses the given AcsText source code.
+///
+/// # Examples
+///
+/// ```rust
+/// use trainz_parser::acs_text::parse_acs_text;
+///
+/// let input = "name value";
+/// let result = parse_acs_text(input);
+/// assert!(result.is_ok());
+/// ```
 #[tracing::instrument(skip(src))]
 pub fn parse_acs_text(src: &'_ str) -> Result<Pairs<'_, Rule>, ParseError> {
     match AuranConfigAcsTextParser::parse(Rule::acs_text, src) {
