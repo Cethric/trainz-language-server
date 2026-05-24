@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
 use tower_lsp_server::ls_types::{Hover, HoverContents, HoverParams, MarkedString};
@@ -49,8 +50,14 @@ fn build_hover_item(
         if let Some(description) = rule.description() {
             contents.push(MarkedString::String(description.to_string()));
         }
-        if let Some(documentation) = rule.documentation(&trainz_build) {
-            contents.push(MarkedString::String(documentation.to_string()));
+        if let Some(documentation) = rule.documentation(&trainz_build)
+            && !documentation.is_empty()
+        {
+            contents.par_extend(
+                documentation
+                    .par_iter()
+                    .filter_map(|doc| Some(MarkedString::String(doc.to_string()))),
+            );
         }
         Hover {
             contents: HoverContents::Array(contents),

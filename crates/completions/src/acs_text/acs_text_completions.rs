@@ -1,4 +1,5 @@
 use rayon::prelude::*;
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tower_lsp_server::ls_types::{
@@ -115,9 +116,10 @@ fn build_completion_item(node: &Arc<RuleNode>, trainz_build: &f64) -> Vec<Comple
         kind: Some(CompletionItemKind::KEYWORD),
         detail: node.details(),
         documentation: node.documentation(trainz_build).map(|value| {
+            let result = value.join("\n\n");
             Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value,
+                value: result,
             })
         }),
         deprecated: Some(node.is_obsolete(trainz_build)),
@@ -1301,9 +1303,10 @@ fn build_tag_array_completion_item(
         kind: Some(CompletionItemKind::KEYWORD),
         detail: tag_array.details(),
         documentation: tag_array.documentation(trainz_build).map(|value| {
+            let result = value.join("\n\n");
             Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value,
+                value: result,
             })
         }),
         deprecated: Some(tag_array.is_obsolete(trainz_build)),
