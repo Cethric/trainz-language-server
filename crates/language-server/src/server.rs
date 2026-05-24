@@ -586,6 +586,23 @@ impl LanguageServer for TrainzLanguageServer {
     #[tracing::instrument(skip(self, params))]
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
         debug!("did_change_configuration {:?}", params.settings);
+
+        // Extract validation-path from the settings payload if provided
+        // Settings are sent as a JSON object: { "trainz-language-server": { "validation-path": "..." } }
+        let new_validation_path = params
+            .settings
+            .get("trainz-language-server")
+            .and_then(|s| s.get("validation-path"))
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(std::path::PathBuf::from);
+
+        if let Some(path) = new_validation_path {
+            debug!("did_change_configuration: reloading ACS graph from path={}", path.display());
+            self.acs_state.load_graph_from_path(&path).await;
+        } else {
+            debug!("did_change_configuration: no valid validation-path in settings, skipping graph reload");
+        }
     }
 
     #[tracing::instrument(skip(self, params))]
@@ -1275,7 +1292,9 @@ impl LanguageServer for TrainzLanguageServer {
 
     #[tracing::instrument(skip(self, params))]
     async fn hover(&self, params: HoverParams) -> tower_lsp_server::jsonrpc::Result<Option<Hover>> {
-        trace!("Hover {:?}", params);
+        let uri = params.text_document_position_params.text_document.uri.to_string();
+        let position = params.text_document_position_params.position;
+        debug!("Hover request: uri={} line={} char={}", uri, position.line, position.character);
 
         let work_done_token = params.work_done_progress_params.work_done_token.clone();
         let progress = if let Some(token) = work_done_token {
@@ -1298,6 +1317,16 @@ impl LanguageServer for TrainzLanguageServer {
             .uri
             .to_file_path();
 
+        if document_path.is_none() {
+            debug!("Hover: could not resolve document path from URI");
+        }
+
+        if let Some(path) = &document_path {
+            if self.parsed_files.get(&path.to_string_lossy().to_string()).is_none() {
+                debug!("Hover: document not found in parsed_files for path={}", path.display());
+            }
+        }
+
         if let Some(path) = &document_path
             && let Some(document) = self.parsed_files.get(&path.to_string_lossy().to_string())
         {
@@ -1311,6 +1340,7 @@ impl LanguageServer for TrainzLanguageServer {
 
                     let graph = self.acs_state.graph.read().await;
                     if let Some(graph) = &*graph {
+                        debug!("Hover: running acs_text_hover for {}", path.display());
                         hover_result = acs_text_hover(
                             acs_text,
                             graph,
@@ -1320,6 +1350,9 @@ impl LanguageServer for TrainzLanguageServer {
                                 parsed_files: &self.parsed_files,
                             }),
                         );
+                        debug!("Hover: acs_text_hover result is_some={}", hover_result.is_some());
+                    } else {
+                        debug!("Hover: ACS rules graph is not loaded — skipping acs_text_hover");
                     }
 
                     if hover_result.is_some() {
@@ -1335,6 +1368,7 @@ impl LanguageServer for TrainzLanguageServer {
                             .report_with_message("Searching GameScript file", 25)
                             .await;
                     }
+                    debug!("Hover: running trainz_hover (GS) for {}", path.display());
                     let resolver = RecursiveIncludeResolver {
                         current_program: program,
                         parsed_files: &self.parsed_files,
@@ -1345,6 +1379,7 @@ impl LanguageServer for TrainzLanguageServer {
                         &resolver,
                         params.text_document_position_params.position,
                     );
+                    debug!("Hover: trainz_hover (GS) result is_some={}", hover_result.is_some());
                 }
                 ParsedFileType::AcsBinary(_) => {}
             }
@@ -1596,6 +1631,7 @@ impl LanguageServer for TrainzLanguageServer {
             progress.finish().await;
         }
 
+        debug!("Hover response: uri={} returning is_some={}", uri, hover_result.is_some());
         Ok(hover_result)
     }
 

@@ -9,7 +9,7 @@ use tower_lsp_server::ls_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, Diagnostic, DocumentSymbol, FoldingRange,
     SemanticToken, TextEdit, Uri, WorkspaceEdit,
 };
-use tracing::{error, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use trainz_acs_text_validators::{RulesRoot, load_validators};
 use trainz_ast::acs_text::{AcsText, Kuid};
 use trainz_ast::cache::AstCache;
@@ -130,25 +130,32 @@ pub struct ACSState {
 impl ACSState {
     pub async fn load_graph(&self) {
         if let Some(validation_path) = &self.validation_path {
-            let extension_overrides_path =
-                if let Some(extensions_overrides_path) = &self.extensions_overrides_path {
-                    Some(extensions_overrides_path.as_path())
-                } else {
-                    None
-                };
-            let graph = load_validators(&validation_path, extension_overrides_path).await;
-            if let Ok(graph) = graph {
-                let mut guard = self.graph.write().await;
-                info!(
-                    "Loaded {} top level nodes",
-                    graph.get_top_level_nodes().len()
-                );
-                guard.replace(graph);
-            } else if let Err(err) = graph {
-                error!("Failed to load validators: {}", err)
-            }
+            debug!("load_graph: loading from path={}", validation_path.display());
+            self.load_graph_from_path(validation_path).await;
         } else {
             warn!("No validation path specified");
+        }
+    }
+
+    pub async fn load_graph_from_path(&self, validation_path: &PathBuf) {
+        debug!("load_graph_from_path: validation_path={}", validation_path.display());
+        let extension_overrides_path =
+            if let Some(extensions_overrides_path) = &self.extensions_overrides_path {
+                Some(extensions_overrides_path.as_path())
+            } else {
+                None
+            };
+        let graph = load_validators(validation_path, extension_overrides_path).await;
+        if let Ok(graph) = graph {
+            let mut guard = self.graph.write().await;
+            info!(
+                "Loaded {} top level nodes from {}",
+                graph.get_top_level_nodes().len(),
+                validation_path.display()
+            );
+            guard.replace(graph);
+        } else if let Err(err) = graph {
+            error!("Failed to load validators from {}: {}", validation_path.display(), err)
         }
     }
 }
