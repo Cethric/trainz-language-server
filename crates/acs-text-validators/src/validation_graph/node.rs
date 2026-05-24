@@ -470,67 +470,72 @@ impl RuleNode {
     ///
     /// # Returns
     ///
-    /// `Option<String>` containing the documentation.
+    /// `Option<Vec<String>>` containing the documentation.
     #[tracing::instrument(skip(self, trainz_version))]
-    pub fn documentation(&self, trainz_version: &f64) -> Option<String> {
-        let obsolete = self.obsolete.and_then(|obsolete| {
+    pub fn documentation(&self, trainz_version: &f64) -> Option<Vec<String>> {
+        let mut docs: Vec<String> = vec![];
+
+        if let Some(obsolete) = self.obsolete.and_then(|obsolete| {
             if obsolete >= *trainz_version {
                 Some(format!("Obsolete since Trainz build {}", obsolete))
             } else {
                 None
             }
-        });
-        let required = self.compulsory.and_then(|compulsory| {
+        }) {
+            docs.push(obsolete);
+        }
+
+        if let Some(required) = self.compulsory.and_then(|compulsory| {
             if compulsory >= *trainz_version {
                 Some(format!("Compulsory since Trainz build {}", compulsory))
             } else {
                 None
             }
-        });
-        let minimum_version = self
-            .minimum_version
-            .map(|minimum_version| format!("Minimum Trainz build {}", minimum_version));
-
-        let mut docs: Vec<Option<String>> = vec![
-            obsolete,
-            required,
-            minimum_version,
-            self.description.clone(),
-        ];
-
-        if let Some(kind) = &self.kind {
-            docs.push(kind.documentation(trainz_version));
+        }) {
+            docs.push(required);
         }
 
-        docs.push(Some(format!(
-            "Dependencies:\n{}",
-            self.dependencies
-                .par_iter()
-                .map(|(key, value)| format!("- {}: {}", key, value))
-                .collect::<Vec<String>>()
-                .join("\n")
-        )));
+        if let Some(minimum_version) = self
+            .minimum_version
+            .map(|minimum_version| format!("Minimum Trainz build {}", minimum_version))
+        {
+            docs.push(minimum_version);
+        }
 
-        docs.push(Some(format!(
-            "Validators:\n{}",
-            self.validators
-                .par_iter()
-                .filter_map(|validator| {
-                    match validator {
-                        Validator::Unknown(name, _) => Some(format!("- {}", name)),
-                        _ => None,
-                    }
-                })
-                .collect::<Vec<String>>()
-                .join("\n")
-        )));
+        if let Some(kind) = &self.kind
+            && let Some(kind_docs) = kind.documentation(trainz_version)
+        {
+            docs.par_extend(kind_docs);
+        }
 
-        Some(
-            docs.iter()
-                .filter_map(|doc| doc.as_ref().map(|doc| doc.to_string()))
-                .collect::<Vec<String>>()
-                .join("\n\n\n"),
-        )
+        if !self.dependencies.is_empty() {
+            docs.push(format!(
+                "Dependencies:\n{}",
+                self.dependencies
+                    .par_iter()
+                    .map(|(key, value)| format!("- {}: {}", key, value))
+                    .collect::<Vec<String>>()
+                    .join("\n")
+            ));
+        }
+
+        if !self.validators.is_empty() {
+            docs.push(format!(
+                "Validators:\n{}",
+                self.validators
+                    .par_iter()
+                    .filter_map(|validator| {
+                        match validator {
+                            Validator::Unknown(name, _) => Some(format!("- {}", name)),
+                            _ => None,
+                        }
+                    })
+                    .collect::<Vec<String>>()
+                    .join("\n")
+            ));
+        }
+
+        Some(docs)
     }
 }
 
@@ -607,7 +612,7 @@ impl RuleNodeKind {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn documentation(&self, trainz_version: &f64) -> Option<String> {
+    pub fn documentation(&self, trainz_version: &f64) -> Option<Vec<String>> {
         match self {
             RuleNodeKind::Value(value) => value.documentation(),
             RuleNodeKind::Element(element) => element.documentation(trainz_version),

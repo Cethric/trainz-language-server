@@ -118,7 +118,7 @@ impl RuleNodeElement {
     /// # // let doc = element.documentation(&version);
     /// ```
     #[tracing::instrument(skip(self))]
-    pub fn documentation(&self, trainz_version: &f64) -> Option<String> {
+    pub fn documentation(&self, trainz_version: &f64) -> Option<Vec<String>> {
         if let Some(element) = &self.element
             && let Some(element) = element.upgrade()
         {

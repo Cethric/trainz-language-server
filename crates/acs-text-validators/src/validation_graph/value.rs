@@ -238,24 +238,24 @@ impl RuleNodeValue {
     /// # // let documentation = value.documentation();
     /// ```
     #[tracing::instrument(skip(self))]
-    pub fn documentation(&self) -> Option<String> {
+    pub fn documentation(&self) -> Option<Vec<String>> {
         match self {
             RuleNodeValue::String(string) => string
                 .default
                 .as_ref()
-                .map(|string| format!("Default: `{}`", string)),
-            RuleNodeValue::Float(float) => {
-                float.default.map(|float| format!("Default: {:.02}", float))
-            }
+                .map(|string| vec![format!("Default: `{}`", string)]),
+            RuleNodeValue::Float(float) => float
+                .default
+                .map(|float| vec![format!("Default: {:.02}", float)]),
             RuleNodeValue::Integer(integer) => integer
                 .default
-                .map(|integer| format!("Default: `{}`", integer)),
+                .map(|integer| vec![format!("Default: `{}`", integer)]),
             RuleNodeValue::Bool(bool) => bool
                 .default
-                .map(|bool| format!("Default: `{}`", if bool { "1" } else { "0" })),
+                .map(|bool| vec![format!("Default: `{}`", if bool { "1" } else { "0" })]),
             RuleNodeValue::Rgb(rgb) => {
                 if let Some((r, g, b)) = rgb.default {
-                    Some(format!("Default: `{},{},{}`", r, g, b))
+                    Some(vec![format!("Default: `{},{},{}`", r, g, b)])
                 } else {
                     None
                 }
@@ -268,7 +268,7 @@ impl RuleNodeValue {
                     .unwrap_or(String::from(""));
                 let options = combo.display_options();
 
-                Some(format!("{}\nOptions:\n{}", docs, options))
+                Some(vec![format!("{}\nOptions:\n{}", docs, options)])
             }
             RuleNodeValue::IntComboBox(combo) => {
                 let docs = combo
@@ -278,7 +278,7 @@ impl RuleNodeValue {
                     .unwrap_or(String::from(""));
                 let options = combo.display_options();
 
-                Some(format!("{}\nOptions:\n{}", docs, options))
+                Some(vec![format!("{}\nOptions:\n{}", docs, options)])
             }
             RuleNodeValue::FloatComboBox(combo) => {
                 let docs = combo
@@ -288,7 +288,7 @@ impl RuleNodeValue {
                     .unwrap_or(String::from(""));
                 let options = combo.display_options();
 
-                Some(format!("{}\nOptions:\n{}", docs, options))
+                Some(vec![format!("{}\nOptions:\n{}", docs, options)])
             }
             RuleNodeValue::ListBox(list) => {
                 let docs = list
@@ -298,67 +298,70 @@ impl RuleNodeValue {
                     .unwrap_or(String::from(""));
                 let options = list.display_options();
 
-                Some(format!("{}\nOptions:\n{}", docs, options))
+                Some(vec![format!("{}\nOptions:\n{}", docs, options)])
             }
             RuleNodeValue::Kuid(_) => None,
             RuleNodeValue::KuidBrowser(kuid) => {
                 if let Some((user, content, version)) = kuid.default {
                     if let Some(version) = version {
-                        Some(format!("`<kuid2:{}:{}:{}>`", user, content, version))
+                        Some(vec![format!("`<kuid2:{}:{}:{}>`", user, content, version)])
                     } else {
-                        Some(format!("`<kuid:{}:{}>`", user, content))
+                        Some(vec![format!("`<kuid:{}:{}>`", user, content)])
                     }
                 } else {
                     None
                 }
             }
-            RuleNodeValue::FilePath(path) => path.default.clone(),
+            RuleNodeValue::FilePath(path) => path.default.clone().map(|path| vec![path]),
             RuleNodeValue::FloatList(list) => list.default.as_ref().map(|list| {
-                format!(
+                vec![format!(
                     "`{}`",
                     list.iter()
                         .map(|v| format!("{:.02}", v))
                         .collect::<Vec<String>>()
                         .join(",")
-                )
+                )]
             }),
             RuleNodeValue::Vector2(vector) => {
                 if let Some((v0, v1)) = vector.default {
-                    Some(format!("`{:.02},{:.02}`", v0, v1))
+                    Some(vec![format!("`{:.02},{:.02}`", v0, v1)])
                 } else {
                     None
                 }
             }
             RuleNodeValue::Vector3(vector) => {
                 if let Some((v0, v1, v2)) = vector.default {
-                    Some(format!("`{:.02},{:.02},{:.02}`", v0, v1, v2))
+                    Some(vec![format!("`{:.02},{:.02},{:.02}`", v0, v1, v2)])
                 } else {
                     None
                 }
             }
             RuleNodeValue::Vector4(vector) => {
                 if let Some((v0, v1, v2, v3)) = vector.default {
-                    Some(format!("`{:.02},{:.02},{:.02},{:.02}`", v0, v1, v2, v3))
+                    Some(vec![format!(
+                        "`{:.02},{:.02},{:.02},{:.02}`",
+                        v0, v1, v2, v3
+                    )])
                 } else {
                     None
                 }
             }
             RuleNodeValue::Vector5(vector) => {
                 if let Some((v0, v1, v2, v3, v4)) = vector.default {
-                    Some(format!(
+                    Some(vec![format!(
                         "`{:.02},{:.02},{:.02},{:.02},{:.02}`",
                         v0, v1, v2, v3, v4
-                    ))
+                    )])
                 } else {
                     None
                 }
             }
             RuleNodeValue::Vector6(vector) => {
                 if let Some((v0, v1, v2, v3, v4, v5)) = vector.default {
-                    Some(format!(
+                    Some(vec![format!(
                         "`{:.02},{:.02},{:.02},{:.02},{:.02},{:.02}`",
                         v0, v1, v2, v3, v4, v5
-                    ))
+                    )])
                 } else {
                     None
                 }

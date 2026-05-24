@@ -229,7 +229,7 @@ impl RuleNodeStructure {
     }
 
     #[tracing::instrument(skip(self, _trainz_version))]
-    pub fn documentation(&self, _trainz_version: &f64) -> Option<String> {
+    pub fn documentation(&self, _trainz_version: &f64) -> Option<Vec<String>> {
         // TODO - implement documentation
         None
     }
