@@ -47,4 +47,17 @@ tasks {
     wrapper {
         gradleVersion = providers.gradleProperty("gradleVersion").get()
     }
+
+    // Copy shared icons from the root icons/ directory into the plugin resources
+    processResources {
+        from(rootProject.file("../../icons")) {
+            include("gs.svg", "acs.svg")
+            into("icons")
+        }
+        from(rootProject.file("../../icons")) {
+            include("plugin.svg")
+            rename("plugin.svg", "pluginIcon.svg")
+            into("META-INF")
+        }
+    }
 }
