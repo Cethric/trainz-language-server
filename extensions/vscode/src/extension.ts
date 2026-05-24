@@ -43,15 +43,55 @@ export async function activate(context: vscode.ExtensionContext) {
             const config = vscode.workspace.getConfiguration('trainz-language-server', folder ? folder.uri : null);
             const serverBin = config.get<string>('server-bin') || 'trainz-language-server';
 
+            const args: string[] = [];
+
+            const validationPath = config.get<string>('validation-path');
+            if (validationPath) {
+                args.push('--validation-path', validationPath);
+            } else {
+                vscode.window.showWarningMessage(
+                    'Trainz Language Server: No validation path configured. ACS hover and diagnostics will not work. ' +
+                    'Please set "trainz-language-server.validation-path" in your settings.',
+                    'Open Settings'
+                ).then(selection => {
+                    if (selection === 'Open Settings') {
+                        vscode.commands.executeCommand('workbench.action.openSettings', 'trainz-language-server.validation-path');
+                    }
+                });
+            }
+
+            const searchPaths = config.get<string[]>('search-paths');
+            if (searchPaths && searchPaths.length > 0) {
+                args.push('--search-paths', searchPaths.join(';'));
+            }
+
+            const logFile = config.get<string>('log-file');
+            if (logFile) {
+                args.push('--log-file', logFile);
+            }
+
+            const logLevel = config.get<string>('log-level');
+            if (logLevel) {
+                args.push('--log-level', logLevel);
+            }
+
             const serverOptions: ServerOptions = {
                 command: serverBin,
-                args: [],
+                args,
             };
+
+            // Scope the document selector to the workspace folder when one is known,
+            // so that each per-folder client only handles documents within its own folder.
+            // Without this, every client would match all GS/ACS files in the workspace
+            // and request diagnostics for them, causing duplicate results.
+            const folderPattern = folder
+                ? `${folder.uri.fsPath.replace(/\\/g, '/')}/**`
+                : '**';
 
             const clientOptions: LanguageClientOptions = {
                 documentSelector: [
-                    { scheme: 'file', language: 'game-script', pattern: '**/*.gs' },
-                    { scheme: 'file', language: 'acs' }
+                    { scheme: 'file', language: 'game-script', pattern: `${folderPattern}` },
+                    { scheme: 'file', language: 'acs', pattern: folderPattern }
                 ],
                 workspaceFolder: folder,
                 // The built-in LSP client handles textDocument/didOpen, didChange, didClose

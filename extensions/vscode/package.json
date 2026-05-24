@@ -85,7 +85,7 @@
         },
         "trainz-language-server.validation-path": {
           "type": "string",
-          "default": "validators",
+          "default": "",
           "description": "Path to the Trainz Validation files"
         },
         "trainz-language-server.search-paths": {
