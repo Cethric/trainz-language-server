@@ -2,6 +2,7 @@ use crate::gs::{format_method_hover, get_text_from_range};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::collections::{HashMap, HashSet};
 use tower_lsp_server::ls_types::{Hover, HoverContents, MarkupContent, MarkupKind};
+use tracing::debug;
 use trainz_ast::Position;
 use trainz_ast::find::HasRange;
 use trainz_ast::gs::dependency_graph::ProgramResolver;
@@ -19,6 +20,7 @@ pub fn trainz_hover(
     program_resolver: &dyn ProgramResolver,
     position: Position,
 ) -> Option<Hover> {
+    debug!("trainz_hover: position={:?}", position);
     if let Some(include) = find_include_at_position(program, position)
         && let Some(path) = &include.path
     {
@@ -54,6 +56,7 @@ pub fn trainz_hover(
     }
 
     let id = find_id_at_position(program, position)?;
+    debug!("trainz_hover: found id='{}' at {:?}", id.name, id.range);
 
     if let Some((ty, name)) = program.find_variable_declaration(&id.name, position) {
         let mut value = format!("{} {}", ty, name.name);
@@ -273,6 +276,7 @@ pub fn trainz_hover(
 
     // Check if it's a class name
     if let Some(cls) = resolver.find_class(&id.name) {
+        debug!("trainz_hover: matched class name '{}'", cls.name.name);
         return Some(Hover {
             contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::Markdown,
@@ -282,5 +286,6 @@ pub fn trainz_hover(
         });
     }
 
+    debug!("trainz_hover: no hover match found for id='{}'", id.name);
     None
 }

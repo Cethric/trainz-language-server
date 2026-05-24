@@ -5,6 +5,7 @@ use tower_lsp_server::ls_types::{Hover, HoverContents, HoverParams, MarkedString
 use trainz_acs_text_validators::text_util::{get_kind_from_text, get_trainz_build_from_text};
 use trainz_acs_text_validators::{RuleNode, RulesRoot};
 use trainz_ast::acs_text::{AcsText, KeyValuePair};
+use tracing::debug;
 
 #[tracing::instrument(skip(acs_text, graph, params, _base_path, _script_resolver))]
 pub fn acs_text_hover(
@@ -17,11 +18,18 @@ pub fn acs_text_hover(
     let container_path =
         acs_text.get_kvp_to_position(params.text_document_position_params.position);
     let last_item = container_path.last();
+    debug!(
+        "acs_text_hover: position={:?} container_path_len={} last_item={:?}",
+        params.text_document_position_params.position,
+        container_path.len(),
+        last_item.map(|kv| &kv.key)
+    );
 
     if let Some((kind, _, _)) = get_kind_from_text(acs_text)
         && let Some((found, chain)) = graph.get_rule_from_path(&kind, &container_path)
     {
         let trainz_build = get_trainz_build_from_text(acs_text);
+        debug!("acs_text_hover: rule found={} chain_len={}", found, chain.len());
 
         if found && let Some(rule) = chain.last() {
             build_hover_item(last_item, rule, trainz_build)
@@ -33,6 +41,7 @@ pub fn acs_text_hover(
             None
         }
     } else {
+        debug!("acs_text_hover: no kind or no rule found in graph for container path");
         None
     }
 }
