@@ -38,21 +38,45 @@ impl HasRange for Stmt {
     }
 }
 
+/// Represents a statement in a GS program.
+///
+/// # Examples
+///
+/// ```rust
+/// use trainz_ast::gs::stmt::Stmt;
+/// use trainz_ast::Range;
+///
+/// let stmt = Stmt::Break(Range::default(), Range::default());
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Stmt {
+    /// A labeled statement (e.g., `label: ;` or `label:`)
     Label(Identifier, crate::Range, crate::Range), // id, colon range, stmt range
+    /// A variable declaration (e.g., `int x = 1;`)
     Decl(Decl),
+    /// A return statement (e.g., `return 1;` or `return;`)
     Return(Option<Expr>, crate::Range, crate::Range), // expr, keyword range, stmt range
-    Break(crate::Range, crate::Range),                // keyword range, stmt range
-    Continue(crate::Range, crate::Range),             // keyword range, stmt range
-    Goto(Identifier, crate::Range, crate::Range),     // identifier, keyword range, stmt range
+    /// A break statement (e.g., `break;`)
+    Break(crate::Range, crate::Range), // keyword range, stmt range
+    /// A continue statement (e.g., `continue;`)
+    Continue(crate::Range, crate::Range), // keyword range, stmt range
+    /// A goto statement (e.g., `goto label;`)
+    Goto(Identifier, crate::Range, crate::Range), // identifier, keyword range, stmt range
+    /// An expression statement (e.g., `x = 1;`)
     Expr(Expr),
+    /// An if statement (e.g., `if (cond) { ... }`)
     If(Box<IfStmt>),
+    /// A while loop (e.g., `while (cond) { ... }`)
     While(Box<WhileStmt>),
+    /// A for loop (e.g., `for (init; cond; step) { ... }`)
     For(Box<ForStmt>),
+    /// A wait statement (e.g., `wait() { ... }`)
     Wait(Box<WaitStmt>),
+    /// An on-event statement (e.g., `on("event", "target") { ... }`)
     On(Box<OnStmt>),
+    /// A switch statement (e.g., `switch (expr) { case 1: ... }`)
     Switch(Box<SwitchStmt>),
+    /// A block statement (e.g., `{ ... }`)
     Block(Block),
 }
 

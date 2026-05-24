@@ -33,7 +33,19 @@ impl Program {
     /// # Examples
     ///
     /// ```rust
-    /// // let scope = program.get_scope(scope_id);
+    /// use trainz_ast::gs::program::Program;
+    /// use std::collections::HashMap;
+    ///
+    /// let program = Program {
+    ///     includes: Vec::new(),
+    ///     classes: HashMap::new(),
+    ///     scopes: Vec::new(),
+    ///     root_scope_id: 0,
+    ///     range: Default::default(),
+    ///     src: String::new(),
+    /// };
+    /// let scope = program.get_scope(0);
+    /// assert!(scope.is_none());
     /// ```
     pub fn get_scope(&self, id: usize) -> Option<&Scope> {
         self.scopes.get(id)
@@ -50,7 +62,21 @@ impl Program {
     /// # Examples
     ///
     /// ```rust
-    /// // let scope = program.find_narrowest_scope(position);
+    /// use trainz_ast::gs::program::Program;
+    /// use tower_lsp_server::ls_types::Position;
+    /// use std::collections::HashMap;
+    ///
+    /// let program = Program {
+    ///     includes: Vec::new(),
+    ///     classes: HashMap::new(),
+    ///     scopes: Vec::new(),
+    ///     root_scope_id: 0,
+    ///     range: Default::default(),
+    ///     src: String::new(),
+    /// };
+    /// let pos = Position::new(0, 0);
+    /// let scope = program.find_narrowest_scope(pos);
+    /// assert!(scope.is_none());
     /// ```
     pub fn find_narrowest_scope(&self, pos: Position) -> Option<&Scope> {
         self.find_narrowest_scope_recursive(self.root_scope_id, pos)
@@ -83,7 +109,21 @@ impl Program {
     /// # Examples
     ///
     /// ```rust
-    /// // let var_decl = program.find_variable_declaration("my_var", position);
+    /// use trainz_ast::gs::program::Program;
+    /// use tower_lsp_server::ls_types::Position;
+    /// use std::collections::HashMap;
+    ///
+    /// let program = Program {
+    ///     includes: Vec::new(),
+    ///     classes: HashMap::new(),
+    ///     scopes: Vec::new(),
+    ///     root_scope_id: 0,
+    ///     range: Default::default(),
+    ///     src: String::new(),
+    /// };
+    /// let pos = Position::new(0, 0);
+    /// let var_decl = program.find_variable_declaration("my_var", pos);
+    /// assert!(var_decl.is_none());
     /// ```
     pub fn find_variable_declaration(
         &self,
