@@ -10,28 +10,41 @@ pub fn get_token_type(target: SemanticTokenType) -> u32 {
 #[tracing::instrument]
 pub fn get_legend() -> (Vec<SemanticTokenType>, Vec<SemanticTokenModifier>) {
     let token_types = vec![
-        SemanticTokenType::CLASS,     // 0
-        SemanticTokenType::METHOD,    // 1
-        SemanticTokenType::PROPERTY,  // 2
-        SemanticTokenType::PARAMETER, // 3
-        SemanticTokenType::VARIABLE,  // 4
-        SemanticTokenType::STRING,    // 5
-        SemanticTokenType::NUMBER,    // 6
-        SemanticTokenType::KEYWORD,   // 7
-        SemanticTokenType::OPERATOR,  // 8
-        SemanticTokenType::TYPE,      // 9
-        SemanticTokenType::MODIFIER,  // 10
-        SemanticTokenType::COMMENT,   // 11
+        SemanticTokenType::NAMESPACE,
+        SemanticTokenType::TYPE,
+        SemanticTokenType::CLASS,
+        SemanticTokenType::ENUM,
+        SemanticTokenType::INTERFACE,
+        SemanticTokenType::STRUCT,
+        SemanticTokenType::TYPE_PARAMETER,
+        SemanticTokenType::PARAMETER,
+        SemanticTokenType::VARIABLE,
+        SemanticTokenType::PROPERTY,
+        SemanticTokenType::ENUM_MEMBER,
+        SemanticTokenType::EVENT,
+        SemanticTokenType::FUNCTION,
+        SemanticTokenType::METHOD,
+        SemanticTokenType::MACRO,
+        SemanticTokenType::KEYWORD,
+        SemanticTokenType::MODIFIER,
+        SemanticTokenType::COMMENT,
+        SemanticTokenType::STRING,
+        SemanticTokenType::NUMBER,
+        SemanticTokenType::REGEXP,
+        SemanticTokenType::OPERATOR,
     ];
 
     let token_modifiers = vec![
-        SemanticTokenModifier::DEPRECATED,      // 1
-        SemanticTokenModifier::DECLARATION,     // 2
-        SemanticTokenModifier::DEFINITION,      // 4
-        SemanticTokenModifier::READONLY,        // 8
-        SemanticTokenModifier::STATIC,          // 16
-        SemanticTokenModifier::DOCUMENTATION,   // 32
-        SemanticTokenModifier::DEFAULT_LIBRARY, // 64
+        SemanticTokenModifier::DECLARATION,
+        SemanticTokenModifier::DEFINITION,
+        SemanticTokenModifier::READONLY,
+        SemanticTokenModifier::STATIC,
+        SemanticTokenModifier::DEPRECATED,
+        SemanticTokenModifier::ABSTRACT,
+        SemanticTokenModifier::ASYNC,
+        SemanticTokenModifier::MODIFICATION,
+        SemanticTokenModifier::DOCUMENTATION,
+        SemanticTokenModifier::DEFAULT_LIBRARY,
     ];
 
     (token_types, token_modifiers)
