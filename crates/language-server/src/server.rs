@@ -231,7 +231,7 @@ impl LanguageServer for TrainzLanguageServer {
                         DocumentFilter {
                             language: Some(ACS_TEXT_LANGUAGE_ID.to_string()),
                             scheme: Some(String::from("file")),
-                            pattern: Some(String::from("config.txt")),
+                            pattern: None,
                         },
                     ]),
                     id: Some(String::from("trainz-language-server")),
@@ -318,6 +318,10 @@ impl LanguageServer for TrainzLanguageServer {
                 .begin()
                 .await;
 
+            trace!(
+                "did_open: id={:?}, path={:?}",
+                params.text_document.language_id, document_path
+            );
             if params.text_document.language_id == GAME_SCRIPT_LANGUAGE_ID {
                 self.process_gs_file(
                     &document_path,
@@ -379,7 +383,14 @@ impl LanguageServer for TrainzLanguageServer {
                 .client
                 .progress(ProgressToken::String(path), "Updating file")
                 .with_percentage(0)
-                .with_message(format!("Updating file: {:?}", document_path.file_name()))
+                .with_message(format!(
+                    "Updating file: {}",
+                    document_path
+                        .file_name()
+                        .map(|name| name.to_str())
+                        .unwrap_or(Some(""))
+                        .unwrap()
+                ))
                 .begin()
                 .await;
             if let Some(path_str) = document_path.to_str() {
@@ -464,6 +475,22 @@ impl LanguageServer for TrainzLanguageServer {
                     continue;
                 }
 
+                let path = document_path.to_string_lossy().to_string();
+
+                // If the file is currently open in an editor, skip the disk-read update.
+                // The LSP didOpen/didChange notifications already provide the authoritative
+                // in-memory content, so reading from disk here would clobber it with stale
+                // (or differently-encoded) on-disk content.
+                if let Some(count) = self.counts.get(&path) {
+                    if count.load(std::sync::atomic::Ordering::SeqCst) > 0 {
+                        trace!(
+                            "did_change_watched_files: skipping open file {:?}",
+                            document_path
+                        );
+                        continue;
+                    }
+                }
+
                 let _permit = self.processing_semaphore.acquire().await.ok();
 
                 // Bust cache
@@ -471,10 +498,14 @@ impl LanguageServer for TrainzLanguageServer {
 
                 self.add_file_to_project(&document_path);
 
-                let path = document_path.to_string_lossy().to_string();
-
                 if let Ok(document) = fs::read(path.clone()) {
-                    let source = String::from_utf8_lossy(&document);
+                    // Strip UTF-8 BOM if present, then decode as UTF-8.
+                    let raw = if document.starts_with(b"\xef\xbb\xbf") {
+                        &document[3..]
+                    } else {
+                        &document
+                    };
+                    let source = String::from_utf8_lossy(raw);
 
                     let workspace_folders = self.workspace_folders();
 
@@ -482,7 +513,14 @@ impl LanguageServer for TrainzLanguageServer {
                         .client
                         .progress(ProgressToken::String(path), "Updating file")
                         .with_percentage(0)
-                        .with_message(format!("Updating file: {:?}", document_path.file_name()))
+                        .with_message(format!(
+                            "Updating file: {}",
+                            document_path
+                                .file_name()
+                                .map(|name| name.to_str())
+                                .unwrap_or(Some(""))
+                                .unwrap()
+                        ))
                         .begin()
                         .await;
                     if let Some(path_str) = document_path.to_str() {
@@ -713,7 +751,7 @@ impl LanguageServer for TrainzLanguageServer {
             return Err(Error::invalid_request());
         }
         let path = document_path.to_string_lossy().to_string();
-        trace!("semantic_tokens_full {:?} {:?}", path, document_path);
+        debug!("semantic_tokens_full {:?} {:?}", path, document_path);
 
         let (parsed_file_type, comments, semantic_tokens_lock) =
             if let Some(document) = self.parsed_files.get(&path) {
@@ -737,13 +775,18 @@ impl LanguageServer for TrainzLanguageServer {
                     }
                     ParsedFileType::AcsText(acs_text) => (
                         tokio::runtime::Handle::current().block_on(async move {
-                            if let guard = self.acs_state.graph.read().await
-                                && let Some(graph) = guard.as_ref()
-                            {
-                                acs_text_semantic_tokens(acs_text, graph)
+                            let guard = self.acs_state.graph.read().await;
+                            let empty_graph;
+                            let graph = if let Some(g) = guard.as_ref() {
+                                g
                             } else {
-                                vec![]
-                            }
+                                empty_graph = trainz_acs_text_validators::RulesRoot::new(
+                                    std::collections::HashMap::new(),
+                                    vec![],
+                                );
+                                &empty_graph
+                            };
+                            acs_text_semantic_tokens(acs_text, graph)
                         }),
                         Some(acs_text.src.as_str()),
                     ),

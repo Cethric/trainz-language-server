@@ -43,6 +43,10 @@ struct Args {
     #[arg(long, env = "TRAINZ_LANGUAGE_SERVER_LOG_FILE")]
     log_file: Option<PathBuf>,
 
+    /// Log level
+    #[arg(long, env = "TRAINZ_LANGUAGE_SERVER_LOG_LEVEL")]
+    log_level: Option<String>,
+
     /// Path to the asset cache sqlite file
     #[arg(long, env = "TRAINZ_LANGUAGE_SERVER_ASSET_CACHE")]
     asset_cache: Option<PathBuf>,
@@ -71,11 +75,15 @@ async fn main() {
     } else {
         BoxMakeWriter::new(std::io::stderr)
     };
-    setup_logger(Some(args.verbosity.to_string()), Some(writer));
+    let log_level = args
+        .log_level
+        .clone()
+        .or_else(|| Some(args.verbosity.to_string()));
+    setup_logger(log_level, Some(writer));
 
     info!(
-        "Launching Trainz Language Server v{} - {:?}",
-        PKG_VERSION, args
+        "Launching Trainz Language Server v{} - {:?} - validation_path: {:?}",
+        PKG_VERSION, args, args.validation_path
     );
 
     let validation_path = args.validation_path;

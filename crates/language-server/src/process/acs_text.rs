@@ -3,7 +3,7 @@ use crate::state::{ParsedFile, ParsedFileType, TrainzLanguageServer};
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
 use tower_lsp_server::{Bounded, NotCancellable, OngoingProgress};
-use tracing::{error, trace};
+use tracing::{error, trace, warn};
 use trainz_ast::acs_text::process::process_acs_text_ast;
 use trainz_parser::acs_text::parse_acs_text;
 
@@ -54,7 +54,7 @@ impl TrainzLanguageServer {
     ) {
         if let Some(path_str) = path.to_str() {
             if self.parsed_files.contains_key(path_str) && !changed {
-                trace!("File already processed {:?}", path);
+                warn!("File already processed {:?}", path);
                 return;
             }
             trace!("Processing file {:?}", path);
