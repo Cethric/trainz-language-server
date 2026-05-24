@@ -1,759 +1,108 @@
 import * as vscode from 'vscode';
-import {ExtensionContext, languages, LogOutputChannel, Uri, window, workspace, WorkspaceFolder, SemanticTokens, SemanticTokensBuilder, SemanticTokensLegend, Progress, ProgressLocation} from 'vscode';
-import {Executable, LanguageClient, LanguageClientOptions, ServerOptions} from 'vscode-languageclient/node';
-import {registerGsFeatures} from './gs';
-import {registerAcsFeatures} from './acs';
+import { LanguageClient, LanguageClientOptions, ServerOptions } from 'vscode-languageclient/node';
+import { registerGsDocumentSymbols } from './features/gs/symbols';
+import { registerAcsDocumentSymbols } from './features/acs/symbols';
+import { registerGsFoldingRanges } from './features/gs/folding';
+import { registerAcsFoldingRanges } from './features/acs/folding';
+import { registerGsCompletionProvider } from './features/gs/completion';
+import { registerAcsCompletionProvider } from './features/acs/completion';
+import { registerGsHoverProvider } from './features/gs/hover';
+import { registerAcsHoverProvider } from './features/acs/hover';
+import { registerGsSemanticTokens } from './features/gs/semanticTokens';
+import { registerAcsSemanticTokens } from './features/acs/semanticTokens';
+import { registerGsDefinitionProvider } from './features/gs/definition';
+import { registerAcsDefinitionProvider } from './features/acs/definition';
+import { registerGsFormattingProvider } from './features/gs/formatting';
+import { registerAcsFormattingProvider } from './features/acs/formatting';
 
-// let defaultClient: LanguageClient;
-const clients = new Map<string, LanguageClient>();
+const clients: Map<string, LanguageClient> = new Map();
 
-const symbolKindMappings = new Map<string, Map<number, vscode.SymbolKind>>();
-const tokenTypeMappings = new Map<string, Map<number, number>>();
-const tokenModifierMappings = new Map<string, Map<number, number>>();
-
-// Progress tracking
-const activeProgress = new Map<string, { resolve: () => void; progress: Progress<{ message?: string; increment?: number }> }>();
-
-function ensureSymbolKindMapping(folderKey: string, client: LanguageClient): Map<number, vscode.SymbolKind> | undefined {
-    if (symbolKindMappings.has(folderKey)) {
-        return symbolKindMappings.get(folderKey);
-    }
-
-    const serverCapabilities = client.initializeResult?.capabilities;
-    if (serverCapabilities?.documentSymbolProvider && (serverCapabilities.documentSymbolProvider as any).legend && (serverCapabilities.documentSymbolProvider as any).legend.symbolKinds) {
-        const legend = (serverCapabilities.documentSymbolProvider as any).legend;
-        const mapping = new Map<number, vscode.SymbolKind>();
-        legend.symbolKinds.forEach((kind: string, index: number) => {
-            const vscKind = (vscode.SymbolKind as any)[kind.charAt(0).toUpperCase() + kind.slice(1)];
-            if (vscKind !== undefined) {
-                mapping.set(index + 1, vscKind);
-            }
-        });
-        symbolKindMappings.set(folderKey, mapping);
-        return mapping;
-    }
-    return undefined;
+export function getClients(): Map<string, LanguageClient> {
+    return clients;
 }
 
-function ensureSemanticTokenMappings(folderKey: string, client: LanguageClient): { typeMapping: Map<number, number>; modifierMapping: Map<number, number> } | undefined {
-    if (tokenTypeMappings.has(folderKey) && tokenModifierMappings.has(folderKey)) {
-        return {
-            typeMapping: tokenTypeMappings.get(folderKey)!,
-            modifierMapping: tokenModifierMappings.get(folderKey)!
-        };
-    }
+export async function activate(context: vscode.ExtensionContext) {
+    console.log('[Trainz LSP] Activating extension...');
 
-    const serverCapabilities = client.initializeResult?.capabilities;
-    if (serverCapabilities?.semanticTokensProvider && serverCapabilities.semanticTokensProvider.legend) {
-        const serverLegend = serverCapabilities.semanticTokensProvider.legend;
-        const clientTokenTypes = [
-            'namespace', 'type', 'class', 'enum', 'interface', 'struct', 'typeParameter',
-            'parameter', 'variable', 'property', 'enumMember', 'event', 'function',
-            'method', 'macro', 'keyword', 'modifier', 'comment', 'string', 'number',
-            'regexp', 'operator'
-        ];
-        const clientTokenModifiers = [
-            'declaration', 'definition', 'readonly', 'static', 'deprecated', 'abstract',
-            'async', 'modification', 'documentation', 'defaultLibrary'
-        ];
+    const traceChannel = vscode.window.createOutputChannel('Trainz LSP Trace');
+    const outputChannel = vscode.window.createOutputChannel('Trainz LSP Output');
 
-        const typeMapping = new Map<number, number>();
-        serverLegend.tokenTypes.forEach((type, index) => {
-            const clientIndex = clientTokenTypes.indexOf(type);
-            if (clientIndex !== -1) {
-                typeMapping.set(index, clientIndex);
-            }
-        });
-
-        const modifierMapping = new Map<number, number>();
-        serverLegend.tokenModifiers.forEach((mod, index) => {
-            const clientIndex = clientTokenModifiers.indexOf(mod);
-            if (clientIndex !== -1) {
-                modifierMapping.set(index, clientIndex);
-            }
-        });
-
-        tokenTypeMappings.set(folderKey, typeMapping);
-        tokenModifierMappings.set(folderKey, modifierMapping);
-
-        return { typeMapping, modifierMapping };
-    }
-    return undefined;
-}
-
-const semanticTokensLegend: SemanticTokensLegend = {
-  tokenTypes: [
-    'namespace', 'type', 'class', 'enum', 'interface', 'struct', 'typeParameter',
-    'parameter', 'variable', 'property', 'enumMember', 'event', 'function',
-    'method', 'macro', 'keyword', 'modifier', 'comment', 'string', 'number',
-    'regexp', 'operator'
-  ],
-  tokenModifiers: [
-    'declaration', 'definition', 'readonly', 'static', 'deprecated', 'abstract',
-    'async', 'modification', 'documentation', 'defaultLibrary'
-  ]
-};
-
-let _sortedWorkspaceFolders: string[] | undefined;
-
-function sortedWorkspaceFolders(): string[] {
-    if (_sortedWorkspaceFolders === void 0) {
-        _sortedWorkspaceFolders = workspace.workspaceFolders ? workspace.workspaceFolders.map(folder => {
-            let result = folder.uri.toString();
-            if (result.charAt(result.length - 1) !== '/') {
-                result = result + '/';
-            }
-            return result;
-        }).sort(
-            (a, b) => {
-                return a.length - b.length;
-            }
-        ) : [];
-    }
-    return _sortedWorkspaceFolders;
-}
-
-workspace.onDidChangeWorkspaceFolders(() => _sortedWorkspaceFolders = undefined);
-
-function getOuterMostWorkspaceFolder(folder: WorkspaceFolder): WorkspaceFolder {
-    const sorted = sortedWorkspaceFolders();
-    for (const element of sorted) {
-        let uri = folder.uri.toString();
-        if (uri.charAt(uri.length - 1) !== '/') {
-            uri = uri + '/';
-        }
-        if (uri.startsWith(element)) {
-            return workspace.getWorkspaceFolder(Uri.parse(element))!;
-        }
-    }
-    return folder;
-}
-
-function getClientForDocument(document: vscode.TextDocument): LanguageClient | undefined {
-    const uri = document.uri;
-
-    // Untitled files go to a default client (if we had one)
-    if (uri.scheme === 'untitled') {
-        return undefined; // This LSP doesn't support untitled files
-    }
-
-    let folder = workspace.getWorkspaceFolder(uri);
-    if (!folder) {
-        return undefined;
-    }
-
-    // If we have nested workspace folders, we only start a server on the outer most workspace folder
-    folder = getOuterMostWorkspaceFolder(folder);
-    return clients.get(folder.uri.toString());
-}
-
-function createLanguageClient(
-    context: ExtensionContext,
-    serverOptions: ServerOptions,
-    clientOptions: LanguageClientOptions,
-    diagnosticCollection: vscode.DiagnosticCollection,
-    folder?: WorkspaceFolder
-): LanguageClient {
-    const client = new LanguageClient(
-        'trainz-language-server',
-        folder ? `Trainz Language Server (${folder.name})` : 'Trainz Language Server',
-        serverOptions,
-        clientOptions
-    );
-
-    client.start().then(() => {
-        // Set up notification handlers immediately
-        client.onNotification(
-            'textDocument/publishDiagnostics',
-            (params: any) => {
-                handleDiagnostics(client, diagnosticCollection, params);
-            }
-        );
-
-        // Handle progress notifications
-        client.onNotification(
-            '$/progress',
-            (params: any) => {
-                console.log('Received progress notification:', params);
-                handleProgress(params);
-            }
-        );
-
-        // Defer mapping creation to avoid blocking the main thread during startup
-        // Mappings will be created lazily when first needed
-    }).catch((error) => {
-        console.error('Failed to start language client', error);
-    });
-
-    return client;
-}
-
-export function activate(context: ExtensionContext) {
-    const outputChannel: LogOutputChannel = window.createOutputChannel('trainz-language-server', {log: true});
-    const traceOutputChannel = window.createOutputChannel('trainz-language-server trace', {log: true});
-    context.subscriptions.push(traceOutputChannel);
-
-    function getServerOptions(folder: WorkspaceFolder, config: vscode.WorkspaceConfiguration): ServerOptions {
-        let command = config.get<string>('server-bin') || 'lsp-bin';
-        let validation = config.get<string>('validation-path') || undefined;
-        let search = config.get<string[]>('search-paths') || undefined;
-        let logFile = config.get<string>('log-file') || undefined;
-        let logLevel = config.get<string>('log-level') || 'info';
-
-        const run: Executable = {
-            command,
-            options: {
-                env: {
-                    ...process.env,
-                    TRAINZ_LANGUAGE_SERVER_SCRIPT_SEARCH_PATHS: search?.join(";"),
-                    TRAINZ_LANGUAGE_SERVER_ACS_TEXT_VALIDATION_PATH: validation,
-                    TRAINZ_LANGUAGE_SERVER_LOG_FILE: logFile,
-                    TRAINZ_LANGUAGE_SERVER_LOG_LEVEL: logLevel
-                },
-                cwd: folder.uri.fsPath
-            }
-        };
-        console.log(`[ACS EXTENSION] Launching server with validation path: ${validation}`);
-
-        return {
-            run,
-            debug: run
-        };
-    }
-
-    const diagnosticCollection = languages.createDiagnosticCollection('trainz-language-server');
-    context.subscriptions.push(diagnosticCollection);
-
-    registerGsFeatures(context, clients, diagnosticCollection);
-    registerAcsFeatures(context, clients, diagnosticCollection);
-
-    async function didOpenTextDocument(document: vscode.TextDocument): Promise<void> {
-        // Force config.txt to acs
-        if (document.fileName.endsWith('config.txt') && document.languageId !== 'acs') {
-            console.log(`[ACS EXTENSION] Forcing language ID to 'acs' for: ${document.fileName}`);
-            await vscode.languages.setTextDocumentLanguage(document, 'acs');
-        }
-
+    function didOpenTextDocument(document: vscode.TextDocument): void {
         // We are only interested in language mode text
-        if ((document.languageId !== 'game-script' && document.languageId !== 'acs' && !document.fileName.endsWith('config.txt')) ||
+        console.log('[Trainz LSP] Document opened:', document.uri.toString(), 'Language ID:', document.languageId);
+        if ((document.languageId !== 'game-script' && document.languageId !== 'acs') ||
             (document.uri.scheme !== 'file' && document.uri.scheme !== 'untitled')) {
             return;
         }
-        
-        console.log(`[ACS EXTENSION] Processing document: ${document.fileName} with language ID: ${document.languageId}`);
 
-        const uri = document.uri;
+        const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+        const folderKey = folder ? folder.uri.toString() : 'default';
 
-        // Untitled files are not supported by this LSP
-        if (uri.scheme === 'untitled') {
-            return;
-        }
+        if (!clients.has(folderKey)) {
+            console.log('[Trainz LSP] Starting client for folder', folderKey);
+            const config = vscode.workspace.getConfiguration('trainz-language-server', folder ? folder.uri : null);
+            const serverBin = config.get<string>('server-bin') || 'trainz-language-server';
 
-        let folder = workspace.getWorkspaceFolder(uri);
-        // Files outside a folder can't be handled
-        if (!folder) {
-            return;
-        }
-
-        // If we have nested workspace folders we only start a server on the outer most workspace folder
-        folder = getOuterMostWorkspaceFolder(folder);
-
-        if (!clients.has(folder.uri.toString())) {
-            const config = workspace.getConfiguration('trainz-language-server');
-            const serverOptions = getServerOptions(folder, config);
-            const folderClientOptions: LanguageClientOptions = {
-                documentSelector: [
-                    {scheme: 'file', pattern: '**/*.gs', language: 'game-script'},
-                    {scheme: 'file', pattern: '**/config.txt', language: 'acs'},
-                ],
-                synchronize: {
-                    fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
-                },
-                diagnosticCollectionName: 'trainz-language-server',
-                outputChannel,
-                traceOutputChannel,
-                stdioEncoding: 'utf8',
-                progressOnInitialization: true,
-                initializationOptions: {
-                    capabilities: {
-                        window: {
-                            workDoneProgress: true
-                        },
-                        textDocument: {
-                            semanticTokens: {
-                                dynamicRegistration: false,
-                                legend: semanticTokensLegend
-                            }
-                        }
-                    }
-                },
-                workspaceFolder: folder
+            const serverOptions: ServerOptions = {
+                command: serverBin,
+                args: [],
             };
 
-            const client = createLanguageClient(context, serverOptions, folderClientOptions, diagnosticCollection, folder);
-            clients.set(folder.uri.toString(), client);
+            const clientOptions: LanguageClientOptions = {
+                documentSelector: [
+                    { scheme: 'file', language: 'game-script', pattern: '**/*.gs' },
+                    { scheme: 'file', language: 'acs' }
+                ],
+                workspaceFolder: folder,
+                // The built-in LSP client handles textDocument/didOpen, didChange, didClose
+                // synchronization automatically. File watcher events are sent separately
+                // as workspace/didChangeWatchedFiles notifications for background indexing.
+                synchronize: {
+                    fileEvents: vscode.workspace.createFileSystemWatcher('**/*')
+                },
+                progressOnInitialization: true,
+                traceOutputChannel: traceChannel,
+                outputChannel: outputChannel,
+            };
+
+            const client = new LanguageClient(
+                'trainz-language-server',
+                'Trainz Language Server',
+                serverOptions,
+                clientOptions
+            );
+
+            client.start();
+            clients.set(folderKey, client);
         }
     }
 
-    function handleDocumentClose(document: vscode.TextDocument) {
-        diagnosticCollection.delete(document.uri);
-    }
+    // Register all providers with the clients map
+    registerGsDocumentSymbols(context, clients);
+    registerAcsDocumentSymbols(context, clients);
+    registerGsFoldingRanges(context, clients);
+    registerAcsFoldingRanges(context, clients);
+    registerGsCompletionProvider(context, clients);
+    registerAcsCompletionProvider(context, clients);
+    registerGsHoverProvider(context, clients);
+    registerAcsHoverProvider(context, clients);
+    registerGsSemanticTokens(context, clients);
+    registerAcsSemanticTokens(context, clients);
+    registerGsDefinitionProvider(context, clients);
+    registerAcsDefinitionProvider(context, clients);
+    registerGsFormattingProvider(context, clients);
+    registerAcsFormattingProvider(context, clients);
 
-    // Register listeners
-    workspace.onDidOpenTextDocument(didOpenTextDocument);
-    workspace.onDidCloseTextDocument(handleDocumentClose);
-    workspace.textDocuments.forEach(didOpenTextDocument);
-
-    workspace.onDidChangeWorkspaceFolders((event) => {
-        for (const folder of event.removed) {
-            const client = clients.get(folder.uri.toString());
-            if (client) {
-                clients.delete(folder.uri.toString());
-                client.stop().catch(console.error);
-            }
-
-            symbolKindMappings.delete(folder.uri.toString());
-            tokenTypeMappings.delete(folder.uri.toString());
-            tokenModifierMappings.delete(folder.uri.toString());
-
-            // Clear diagnostics cache for removed clients
-            // Since we use URI-only keys now, we don't need to clear specific client caches
-            // The cache will be updated naturally as new diagnostics come in
-
-            // Clean up diagnostics for documents in removed folders
-            for (const document of workspace.textDocuments) {
-                const documentFolder = workspace.getWorkspaceFolder(document.uri);
-                if (!documentFolder) {
-                    continue;
-                }
-
-                const outerMost = getOuterMostWorkspaceFolder(documentFolder);
-                if (outerMost.uri.toString() === folder.uri.toString()) {
-                    diagnosticCollection.delete(document.uri);
-                }
-            }
-        }
-
-        // Restart clients for added folders
-        workspace.textDocuments.forEach(didOpenTextDocument);
-    });
-
-    // Register language features
-    registerLanguageFeatures(context);
+    vscode.workspace.onDidOpenTextDocument(didOpenTextDocument);
+    vscode.workspace.textDocuments.forEach(didOpenTextDocument);
+    
+    console.log('[Trainz LSP] Extension activated.');
 }
 
-export async function deactivate(): Promise<void> {
+export function deactivate(): Thenable<void> | undefined {
     const promises: Thenable<void>[] = [];
     for (const client of clients.values()) {
         promises.push(client.stop());
     }
-
-    // Clear diagnostics cache
-    diagnosticsCache.clear();
-
     return Promise.all(promises).then(() => undefined);
 }
-
-/**
- * Handle progress notifications from the language server
- */
-function handleProgress(params: any) {
-    console.log('Handling progress:', params);
-    const { token, value } = params;
-
-    if (value.kind === 'begin') {
-        console.log('Starting progress:', value.title || 'Language Server Operation');
-        // Start a new progress
-        window.withProgress({
-            location: ProgressLocation.Notification,
-            title: value.title || 'Language Server Operation',
-            cancellable: value.cancellable || false
-        }, (progress, cancellationToken) => {
-            return new Promise<void>((resolve) => {
-                activeProgress.set(token, { resolve, progress });
-
-                // Update initial progress
-                if (value.message) {
-                    progress.report({ message: value.message });
-                }
-                if (value.percentage !== undefined) {
-                    progress.report({ increment: value.percentage });
-                }
-
-                // Handle cancellation
-                cancellationToken.onCancellationRequested(() => {
-                    console.log('Progress cancelled for token:', token);
-                    // Note: In a real implementation, you might want to send a cancellation
-                    // request back to the server, but that's complex and depends on server support
-                    resolve();
-                    activeProgress.delete(token);
-                });
-            });
-        });
-    } else if (value.kind === 'report') {
-        console.log('Updating progress for token:', token);
-        // Update existing progress
-        const active = activeProgress.get(token);
-        if (active) {
-            const report: { message?: string; increment?: number } = {};
-            if (value.message) {
-                report.message = value.message;
-            }
-            if (value.percentage !== undefined) {
-                report.increment = value.percentage;
-            }
-            active.progress.report(report);
-        } else {
-            console.log('No active progress found for token:', token);
-        }
-    } else if (value.kind === 'end') {
-        console.log('Ending progress for token:', token);
-        // End progress
-        const active = activeProgress.get(token);
-        if (active) {
-            active.resolve();
-            activeProgress.delete(token);
-        } else {
-            console.log('No active progress found for token:', token);
-        }
-    }
-}
-
-// Cache for diagnostics to avoid unnecessary updates
-const diagnosticsCache = new Map<string, string>();
-
-function handleDiagnostics(
-    client: LanguageClient,
-    diagnosticCollection: vscode.DiagnosticCollection,
-    params: any
-) {
-    try {
-        const {uri, diagnostics} = params;
-
-        // Create a hash of the diagnostics to check for changes
-        const diagnosticsHash = JSON.stringify(diagnostics);
-        const cacheKey = `${uri}`;
-
-        // Only update if diagnostics have actually changed
-        if (diagnosticsCache.get(cacheKey) === diagnosticsHash) {
-            if (process.env.NODE_ENV === 'development') {
-                console.log(`Diagnostics unchanged for ${uri}, skipping update`);
-            }
-            return;
-        }
-
-        diagnosticsCache.set(cacheKey, diagnosticsHash);
-
-        // Log for debugging (only in development)
-        if (process.env.NODE_ENV === 'development') {
-            console.log(`Received ${diagnostics.length} diagnostics for ${uri}`);
-        }
-
-        // Convert the URI string to a VS Code URI
-        const docUri = client.protocol2CodeConverter.asUri(uri);
-
-        // Convert LSP diagnostics to VS Code diagnostics
-        const vscDiagnostics = diagnostics.map((diag: any) => {
-            // Convert range from LSP to VS Code format
-            const range = client.protocol2CodeConverter.asRange(diag.range) ||
-                new vscode.Range(0, 0, 0, 0);
-
-            // Convert severity level
-            let severity: vscode.DiagnosticSeverity = vscode.DiagnosticSeverity.Error;
-            if (diag.severity !== undefined) {
-                const convertedSeverity = client.protocol2CodeConverter.asDiagnosticSeverity(diag.severity);
-                if (convertedSeverity !== undefined) {
-                    severity = convertedSeverity as vscode.DiagnosticSeverity;
-                }
-            }
-
-            const diagnostic = new vscode.Diagnostic(
-                range,
-                diag.message,
-                severity
-            );
-
-            // Set additional properties if available
-            if (diag.code !== undefined) {
-                if (typeof diag.code === 'string' || typeof diag.code === 'number') {
-                    diagnostic.code = diag.code;
-                } else if (diag.code && typeof diag.code === 'object') {
-                    const targetUri = diag.code.target ? client.protocol2CodeConverter.asUri(diag.code.target) : undefined;
-                    if (targetUri) {
-                        diagnostic.code = {
-                            value: diag.code.value,
-                            target: targetUri
-                        };
-                    } else {
-                        diagnostic.code = diag.code.value;
-                    }
-                }
-            }
-
-            if (diag.source) {
-                diagnostic.source = diag.source;
-            }
-
-            if (diag.tags && Array.isArray(diag.tags)) {
-                diagnostic.tags = diag.tags
-                    .map((tag: number) => {
-                        switch (tag) {
-                            case 1:
-                                return vscode.DiagnosticTag.Unnecessary;
-                            case 2:
-                                return vscode.DiagnosticTag.Deprecated;
-                            default:
-                                return undefined;
-                        }
-                    })
-                    .filter((tag: vscode.DiagnosticTag | undefined): tag is vscode.DiagnosticTag => tag !== undefined);
-            }
-
-            if (diag.relatedInformation && Array.isArray(diag.relatedInformation)) {
-                diagnostic.relatedInformation = diag.relatedInformation.map((info: any) => {
-                    const location = client.protocol2CodeConverter.asLocation(info.location);
-                    return new vscode.DiagnosticRelatedInformation(location, info.message);
-                });
-            }
-
-            return diagnostic;
-        });
-
-        // Set diagnostics for the document (pass version if available for better performance)
-        diagnosticCollection.set(docUri, vscDiagnostics);
-
-        if (process.env.NODE_ENV === 'development') {
-            console.log(`Set ${vscDiagnostics.length} diagnostics for ${docUri.toString()}`);
-        }
-    } catch (error) {
-        console.error('Error processing diagnostics:', error);
-        // Don't rethrow - we don't want to crash the extension
-    }
-}
-
-
-/**
- * Convert LSP completion item to VS Code completion item
- */
-export function convertCompletionItem(item: any): vscode.CompletionItem {
-    const completionItem = new vscode.CompletionItem(
-        item.label,
-        item.kind ? convertCompletionItemKind(item.kind) : vscode.CompletionItemKind.Text
-    );
-
-    if (item.detail) {
-        completionItem.detail = item.detail;
-    }
-    if (item.documentation) {
-        if (typeof item.documentation === 'string') {
-            completionItem.documentation = new vscode.MarkdownString(item.documentation);
-        } else {
-            completionItem.documentation = new vscode.MarkdownString(item.documentation.value);
-        }
-    }
-    if (item.sortText) {
-        completionItem.sortText = item.sortText;
-    }
-    if (item.filterText) {
-        completionItem.filterText = item.filterText;
-    }
-    if (item.insertText) {
-        completionItem.insertText = item.insertText;
-    }
-    if (item.textEdit) {
-        const range = new vscode.Range(
-            item.textEdit.range.start.line,
-            item.textEdit.range.start.character,
-            item.textEdit.range.end.line,
-            item.textEdit.range.end.character
-        );
-        completionItem.textEdit = new vscode.TextEdit(range, item.textEdit.newText);
-    }
-
-    return completionItem;
-}
-
-/**
- * Convert LSP completion item kind to VS Code kind
- */
-export function convertCompletionItemKind(kind: number): vscode.CompletionItemKind {
-    const kindMap: { [key: number]: vscode.CompletionItemKind } = {
-        1: vscode.CompletionItemKind.Text,
-        2: vscode.CompletionItemKind.Method,
-        3: vscode.CompletionItemKind.Function,
-        4: vscode.CompletionItemKind.Constructor,
-        5: vscode.CompletionItemKind.Field,
-        6: vscode.CompletionItemKind.Variable,
-        7: vscode.CompletionItemKind.Class,
-        8: vscode.CompletionItemKind.Interface,
-        9: vscode.CompletionItemKind.Module,
-        10: vscode.CompletionItemKind.Property,
-        11: vscode.CompletionItemKind.Unit,
-        12: vscode.CompletionItemKind.Value,
-        13: vscode.CompletionItemKind.Enum,
-        14: vscode.CompletionItemKind.Keyword,
-        15: vscode.CompletionItemKind.Snippet,
-        16: vscode.CompletionItemKind.Color,
-        17: vscode.CompletionItemKind.File,
-        18: vscode.CompletionItemKind.Reference,
-        19: vscode.CompletionItemKind.Folder,
-        20: vscode.CompletionItemKind.EnumMember,
-        21: vscode.CompletionItemKind.Constant,
-        22: vscode.CompletionItemKind.Struct,
-        23: vscode.CompletionItemKind.Event,
-        24: vscode.CompletionItemKind.Operator,
-        25: vscode.CompletionItemKind.TypeParameter,
-    };
-
-    return kindMap[kind] || vscode.CompletionItemKind.Text;
-}
-
-/**
- * Register language feature providers for diagnostics, completion, hover, etc.
- */
-function registerLanguageFeatures(context: ExtensionContext) {
-    console.log('Registering language features...');
-
-    // Register completion item provider
-    context.subscriptions.push(
-        languages.registerCompletionItemProvider(
-            [
-                {scheme: 'file', language: 'game-script'},
-                {scheme: 'file', language: 'acs'}
-            ],
-            {
-                provideCompletionItems: async (document, position, token) => {
-                    try {
-                        console.log(`Completion requested at ${document.uri.toString()}:${position.line}:${position.character}`);
-
-                        const client = getClientForDocument(document);
-                        if (!client || !client.isRunning()) {
-                            return [];
-                        }
-
-                        const params = {
-                            textDocument: {uri: document.uri.toString()},
-                            position: {line: position.line, character: position.character}
-                        };
-
-                        const response = await client.sendRequest<any>(
-                            'textDocument/completion',
-                            params,
-                            token
-                        );
-
-                        console.log('Completion response:', response);
-
-                        if (!response) {
-                            return [];
-                        }
-
-                        const items = response.items && Array.isArray(response.items)
-                            ? response.items
-                            : Array.isArray(response)
-                                ? response
-                                : [];
-
-                        return items.map((item: any) => {
-                            const completionItem = convertCompletionItem(item);
-                            (completionItem as any).data = {
-                                ...((completionItem as any).data && typeof (completionItem as any).data === 'object' ? (completionItem as any).data : {}),
-                                __documentUri: document.uri.toString()
-                            };
-                            return completionItem;
-                        });
-                    } catch (error) {
-                        console.error('Error in completion provider:', error);
-                        return [];
-                    }
-                },
-                resolveCompletionItem: async (item, token) => {
-                    try {
-                        const documentUri = (item as any).data?.__documentUri || window.activeTextEditor?.document.uri.toString();
-                        if (!documentUri) {
-                            return item;
-                        }
-
-                        const doc = workspace.textDocuments.find(d => d.uri.toString() === documentUri);
-                        const client = doc ? getClientForDocument(doc) : undefined;
-                        if (!client || !client.isRunning()) {
-                            return item;
-                        }
-
-                        console.log('Resolving completion item:', item);
-                        const response = await client.sendRequest<any>(
-                            'completionItem/resolve',
-                            item,
-                            token
-                        );
-                        console.log('Resolved completion item:', response);
-                        return response || item;
-                    } catch (error) {
-                        console.error('Error resolving completion item:', error);
-                        return item;
-                    }
-                }
-            },
-            '.' // Trigger completion on dot
-        )
-    );
-
-    // Register hover provider
-    context.subscriptions.push(
-        languages.registerHoverProvider(
-            [
-                {scheme: 'file', language: 'game-script'},
-                {scheme: 'file', language: 'acs'}
-            ],
-            {
-                provideHover: async (document, position, token) => {
-                    try {
-                        console.log(`Hover requested at ${document.uri.toString()}:${position.line}:${position.character}`);
-
-                        const client = getClientForDocument(document);
-                        if (!client || !client.isRunning()) {
-                            return null;
-                        }
-
-                        const params = {
-                            textDocument: {uri: document.uri.toString()},
-                            position: {line: position.line, character: position.character}
-                        };
-
-                        const response = await client.sendRequest<any>(
-                            'textDocument/hover',
-                            params,
-                            token
-                        );
-
-                        console.log('Hover response:', response);
-
-                        if (!response) {
-                            return null;
-                        }
-
-                        let contents: any[] = [];
-                        if (response.contents) {
-                            if (Array.isArray(response.contents)) {
-                                contents = response.contents;
-                            } else {
-                                contents = [response.contents];
-                            }
-                        }
-
-                        return {
-                            contents: contents,
-                            range: response.range ? client.protocol2CodeConverter.asRange(response.range) : undefined
-                        };
-                    } catch (error) {
-                        console.error('Error in hover provider:', error);
-                        return null;
-                    }
-                }
-            }
-        )
-    );
-
-
-}
-

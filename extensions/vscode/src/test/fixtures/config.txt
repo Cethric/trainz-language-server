@@ -1,0 +1,13 @@
+kuid-table
+{
+	0	<kuid:12345:67890>
+}
+
+string-table
+{
+	name			"Test Asset"
+	description		"A test asset for E2E testing"
+}
+
+trainz-build		4.6
+category-class		"MR"

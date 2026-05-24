@@ -17,7 +17,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest ]
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
         node: [ '20', '22' ]
     steps:
       - uses: actions/checkout@v6
@@ -41,7 +41,7 @@ jobs:
         working-directory: extensions/vscode
 
       - name: Build
-        run: pnpm run package
+        run: pnpm build
         working-directory: extensions/vscode
 
       - name: Lint
@@ -76,8 +76,7 @@ jobs:
       - name: Create archive
         run: |
           mkdir -p artifacts
-          npx @vscode/vsce package --no-dependencies
-          mv *.vsix artifacts/
+          tar -C out -czf artifacts/trainz-language-server-vscode-${{ matrix.os }}-node${{ matrix.node }}-${{ github.sha }}.tar.gz .
         working-directory: extensions/vscode
         if: success()
 
