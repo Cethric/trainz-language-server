@@ -382,42 +382,42 @@ angle_close   = { ">" }
     **********************************************
 */
 
-keyword_break                = @{ "break" ~ !ASCII_ALPHANUMERIC }
-keyword_case                 = @{ "case" ~ !ASCII_ALPHANUMERIC }
-keyword_class                = @{ "class" ~ !ASCII_ALPHANUMERIC }
-keyword_continue             = @{ "continue" ~ !ASCII_ALPHANUMERIC }
-keyword_default              = @{ "default" ~ !ASCII_ALPHANUMERIC }
-keyword_define               = @{ "define" ~ !ASCII_ALPHANUMERIC }
-keyword_else                 = @{ "else" ~ !ASCII_ALPHANUMERIC }
-keyword_false                = @{ "false" ~ !ASCII_ALPHANUMERIC }
-keyword_final                = @{ "final" ~ !ASCII_ALPHANUMERIC }
-keyword_for                  = @{ "for" ~ !ASCII_ALPHANUMERIC }
-keyword_game                 = @{ "game" ~ !ASCII_ALPHANUMERIC }
-keyword_goto                 = @{ "goto" ~ !ASCII_ALPHANUMERIC }
-keyword_if                   = @{ "if" ~ !ASCII_ALPHANUMERIC }
-keyword_include              = @{ "include" ~ !ASCII_ALPHANUMERIC }
-keyword_inherited            = @{ "inherited" ~ !ASCII_ALPHANUMERIC }
-keyword_and                  = @{ "and" ~ !ASCII_ALPHANUMERIC }
-keyword_or                   = @{ "or" ~ !ASCII_ALPHANUMERIC }
-keyword_is_class             = @{ "isclass" ~ !ASCII_ALPHANUMERIC }
-keyword_legacy_compatibility = @{ "legacy_compatibility" ~ !ASCII_ALPHANUMERIC }
-keyword_mandatory            = @{ "mandatory" ~ !ASCII_ALPHANUMERIC }
-keyword_me                   = @{ "me" ~ !ASCII_ALPHANUMERIC }
-keyword_native               = @{ "native" ~ !ASCII_ALPHANUMERIC }
-keyword_null                 = @{ "null" ~ !ASCII_ALPHANUMERIC }
-keyword_obsolete             = @{ "obsolete" ~ !ASCII_ALPHANUMERIC }
-keyword_on                   = @{ "on" ~ !ASCII_ALPHANUMERIC }
-keyword_public               = @{ "public" ~ !ASCII_ALPHANUMERIC }
-keyword_return               = @{ "return" ~ !ASCII_ALPHANUMERIC }
-keyword_static               = @{ "static" ~ !ASCII_ALPHANUMERIC }
-keyword_switch               = @{ "switch" ~ !ASCII_ALPHANUMERIC }
-keyword_thread               = @{ "thread" ~ !ASCII_ALPHANUMERIC }
-keyword_true                 = @{ "true" ~ !ASCII_ALPHANUMERIC }
-keyword_wait                 = @{ "wait" ~ !ASCII_ALPHANUMERIC }
-keyword_while                = @{ "while" ~ !ASCII_ALPHANUMERIC }
-keyword_new                  = @{ "new" ~ !ASCII_ALPHANUMERIC }
-keyword_secured              = @{ "secured" ~ !ASCII_ALPHANUMERIC }
-keyword_cast                 = @{ "cast" ~ !ASCII_ALPHANUMERIC }
+keyword_break                = @{ "break" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_case                 = @{ "case" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_class                = @{ "class" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_continue             = @{ "continue" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_default              = @{ "default" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_define               = @{ "define" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_else                 = @{ "else" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_false                = @{ "false" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_final                = @{ "final" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_for                  = @{ "for" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_game                 = @{ "game" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_goto                 = @{ "goto" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_if                   = @{ "if" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_include              = @{ "include" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_inherited            = @{ "inherited" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_and                  = @{ "and" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_or                   = @{ "or" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_is_class             = @{ "isclass" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_legacy_compatibility = @{ "legacy_compatibility" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_mandatory            = @{ "mandatory" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_me                   = @{ "me" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_native               = @{ "native" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_null                 = @{ "null" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_obsolete             = @{ "obsolete" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_on                   = @{ "on" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_public               = @{ "public" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_return               = @{ "return" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_static               = @{ "static" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_switch               = @{ "switch" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_thread               = @{ "thread" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_true                 = @{ "true" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_wait                 = @{ "wait" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_while                = @{ "while" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_new                  = @{ "new" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_secured              = @{ "secured" ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword_cast                 = @{ "cast" ~ !(ASCII_ALPHANUMERIC | "_") }
 keyword_boolean              = _{ keyword_false | keyword_true }
 keywords                     = _{
     keyword_break
@@ -466,12 +466,12 @@ obsolete_statement = { keyword_obsolete ~ (paren_open ~ integer ~ paren_close) |
     **********************************************
 */
 
-type_bool   = @{ "bool" ~ !ASCII_ALPHANUMERIC }
-type_int    = @{ "int" ~ !ASCII_ALPHANUMERIC }
-type_float  = @{ "float" ~ !ASCII_ALPHANUMERIC }
-type_object = @{ "object" ~ !ASCII_ALPHANUMERIC }
-type_string = @{ "string" ~ !ASCII_ALPHANUMERIC }
-type_void   = @{ "void" ~ !ASCII_ALPHANUMERIC }
+type_bool   = @{ "bool" ~ !(ASCII_ALPHANUMERIC | "_") }
+type_int    = @{ "int" ~ !(ASCII_ALPHANUMERIC | "_") }
+type_float  = @{ "float" ~ !(ASCII_ALPHANUMERIC | "_") }
+type_object = @{ "object" ~ !(ASCII_ALPHANUMERIC | "_") }
+type_string = @{ "string" ~ !(ASCII_ALPHANUMERIC | "_") }
+type_void   = @{ "void" ~ !(ASCII_ALPHANUMERIC | "_") }
 
 type_identifier = @{ identifier }
 
