@@ -1,13 +1,13 @@
 <svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bg-grad" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#1a1a2e"/>
-      <stop offset="100%" stop-color="#16213e"/>
+      <stop offset="0%" stop-color="#1C0A00"/>
+      <stop offset="100%" stop-color="#3D1A00"/>
     </linearGradient>
     <linearGradient id="icon-grad" x1="10" y1="15" x2="118" y2="115" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#3BEA62"/>
-      <stop offset="50%" stop-color="#3C99CC"/>
-      <stop offset="100%" stop-color="#6B57FF"/>
+      <stop offset="0%" stop-color="#FFD700"/>
+      <stop offset="50%" stop-color="#FF8C00"/>
+      <stop offset="100%" stop-color="#C84B00"/>
     </linearGradient>
   </defs>
   <!-- Background rounded square -->

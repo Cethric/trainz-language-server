@@ -1,13 +1,13 @@
 <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bg-grad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#1a1a2e"/>
-      <stop offset="100%" stop-color="#16213e"/>
+        <stop offset="0%" stop-color="#1C0A00"/>
+        <stop offset="100%" stop-color="#3D1A00"/>
     </linearGradient>
     <linearGradient id="icon-grad" x1="3" y1="5" x2="37" y2="36" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#3BEA62"/>
-      <stop offset="50%" stop-color="#3C99CC"/>
-      <stop offset="100%" stop-color="#6B57FF"/>
+        <stop offset="0%" stop-color="#FFD700"/>
+        <stop offset="50%" stop-color="#FF8C00"/>
+        <stop offset="100%" stop-color="#C84B00"/>
     </linearGradient>
   </defs>
   <rect width="40" height="40" rx="6" fill="url(#bg-grad)"/>
