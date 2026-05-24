@@ -1,31 +1,24 @@
 import * as vscode from 'vscode';
 import { LanguageClient } from 'vscode-languageclient/node';
-import * as utils from '../../utils';
 
-export function parseGsHoverResponse(response: any): vscode.Hover | null {
+export function parseGsHoverResponse(response: any, client?: LanguageClient): vscode.Hover | null {
     if (!response) return null;
-    return new vscode.Hover(response.contents);
+    if (client) {
+        return client.protocol2CodeConverter.asHover(response) ?? null;
+    }
+    const contents = response.contents;
+    if (contents && typeof contents === 'object' && 'value' in contents) {
+        const markdownString = new vscode.MarkdownString(contents.value);
+        markdownString.isTrusted = true;
+        return new vscode.Hover(markdownString);
+    }
+    return new vscode.Hover(contents);
 }
 
 export function registerGsHoverProvider(
-    context: vscode.ExtensionContext,
-    clients: Map<string, LanguageClient>
+    _context: vscode.ExtensionContext,
+    _clients: Map<string, LanguageClient>
 ) {
-    context.subscriptions.push(
-        vscode.languages.registerHoverProvider(
-            [{ scheme: 'file', language: 'game-script' }],
-            {
-                provideHover: async (document, position, token) => {
-                    const client = utils.getClientForDocument(document, clients);
-                    if (!client) return null;
-                    const response = await client.sendRequest<any>('textDocument/hover', {
-                        textDocument: { uri: document.uri.toString() },
-                        position: { line: position.line, character: position.character }
-                    }, token);
-                    
-                    return parseGsHoverResponse(response);
-                }
-            }
-        )
-    );
+    // Hover is handled by the built-in vscode-languageclient HoverFeature.
+    // Registering a separate provider here would cause duplicate hover results.
 }
