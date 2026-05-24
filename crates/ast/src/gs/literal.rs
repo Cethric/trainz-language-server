@@ -45,6 +45,51 @@ pub struct Identifier {
     pub range: crate::Range,
 }
 
+impl Identifier {
+    pub fn is_keyword(&self) -> bool {
+        KEYWORDS.contains(&self.name.as_str())
+    }
+}
+
+const KEYWORDS: &[&str] = &[
+    "break",
+    "case",
+    "class",
+    "continue",
+    "default",
+    "define",
+    "else",
+    "false",
+    "final",
+    "for",
+    "game",
+    "goto",
+    "if",
+    "include",
+    "inherited",
+    "and",
+    "or",
+    "isclass",
+    "legacy_compatibility",
+    "mandatory",
+    "me",
+    "native",
+    "null",
+    "obsolete",
+    "on",
+    "public",
+    "return",
+    "static",
+    "switch",
+    "thread",
+    "true",
+    "wait",
+    "while",
+    "new",
+    "secured",
+    "cast",
+];
+
 impl HasRange for Identifier {
     fn range(&self) -> crate::Range {
         self.range
