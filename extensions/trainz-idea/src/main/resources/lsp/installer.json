@@ -1,0 +1,54 @@
+{
+  "id": "io.github.cethrick.lsp4ij.lsp.trainz-language-server",
+  "name": "Trainz Language Server",
+  "executeOnStartServer": true,
+  "check": {
+    "exec": {
+      "name": "Checking for Trainz Language Server",
+      "command": "${server.command}",
+      "timeout": 2000
+    }
+  },
+  "run": {
+    "download": {
+      "name": "Download Trainz Language Server",
+      "github": {
+        "owner": "Cethric",
+        "repository": "trainz-language-server",
+        "prerelease": true,
+        "asset": {
+          "windows": {
+            "amd64": "Windows-AMD-Language-Server.7z",
+            "arm64": "Windows-ARM-Language-Server.7z"
+          },
+          "unix": {
+            "amd64": "Linux-AMD-Language-Server.tar.gz",
+            "arm64": "Linux-ARM-Language-Server.tar.gz"
+          },
+          "mac": {
+            "amd64": "macOS-Intel-Language-Server.tar.gz",
+            "arm64": "macOS-MSeries-Language-Server.tar.gz"
+          }
+        }
+      },
+      "output": {
+        "dir": "$USER_HOME$/.lsp4ij/lsp/trainz-language-server",
+        "file": {
+          "name": {
+            "windows": "release/trainz-language-server.exe",
+            "unix": "release/trainz-language-server",
+            "mac": "release/trainz-language-server"
+          },
+          "executable": true
+        }
+      },
+      "onSuccess": {
+        "configureServer": {
+          "name": "Configure Trainz Language Server",
+          "command": "${output.dir}/${output.file.name}",
+          "update": true
+        }
+      }
+    }
+  }
+}

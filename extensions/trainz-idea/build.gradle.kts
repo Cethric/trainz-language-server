@@ -2,15 +2,26 @@ plugins {
     id("java")
     alias(libs.plugins.kotlin)
     alias(libs.plugins.intellijPlatform)
-    alias(libs.plugins.compose)
 }
 
 group = "io.github.cethric"
 version = "1.0.0-SNAPSHOT"
 
 // Set the JVM language level used to build the project.
+// Target JVM 17 bytecode for compatibility with IntelliJ IDEA 2024.3 (JBR 21).
 kotlin {
-    jvmToolchain(24)
+    jvmToolchain(23)
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
 
 repositories {
@@ -23,11 +34,11 @@ repositories {
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
     intellijPlatform {
-        intellijIdea(providers.gradleProperty("platformVersion"))
+        intellijIdeaCommunity(providers.gradleProperty("platformVersion"))
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
-        // Add plugin dependencies for compilation here:
-        composeUI()
+        // Add LSP4IJ plugin dependency for LSP integration
+        plugins(providers.gradleProperty("platformPlugins").map { it.split(',').map(String::trim).filter(String::isNotEmpty) })
     }
 }
 

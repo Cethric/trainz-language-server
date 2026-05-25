@@ -5,30 +5,108 @@
 
     <!-- Public plugin name should be written in Title Case.
      Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
-    <name>Trainz-idea</name>
+    <name>Trainz Language</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor url="https://www.yourcompany.com">YourCompany</vendor>
+    <vendor url="https://github.com/Cethric">Cethric</vendor>
 
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
     <description><![CDATA[
-        Enter short description for your plugin here.<br>
-        <em>most HTML tags may be used</em>
+        Provides language support for Trainz Game Script (.gs) and AcsText (.txt) files via the
+        Trainz Language Server and the LSP4IJ plugin.
         ]]></description>
 
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
-    <depends>com.intellij.modules.compose</depends>
-    <depends>com.intellij.modules.lsp</depends>
-
-    <resource-bundle>messages.MyMessageBundle</resource-bundle>
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.redhat.devtools.lsp4ij</depends>
 
     <!-- Extensions defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
+
+        <!-- Register the Trainz language server -->
+        <server id="io.github.cethric.trainz.lsp"
+                name="Trainz Language Server"
+                factoryClass="lsp.TrainzLanguageServerFactory">
+            <description><![CDATA[
+                Language server for Trainz Game Script (.gs) and Config (.txt) files,
+                providing diagnostics, completions, hover, goto-definition and more.
+            ]]></description>
+        </server>
+
+        <!-- Map the GameScript language (*.gs) to the Trainz language server -->
+        <languageMapping language="GameScript"
+                         serverId="io.github.cethric.trainz.lsp"
+                         languageId="game-script"
+                         documentMatcher="lang.GameScriptDocumentMatcher"/>
+        <fileTypeMapping fileType="GameScript"
+                         serverId="io.github.cethric.trainz.lsp"
+                         languageId="game-script"
+                         documentMatcher="lang.GameScriptDocumentMatcher"/>
+        <fileNamePatternMapping patterns="*.gs"
+                                serverId="io.github.cethric.trainz.lsp"
+                                languageId="game-script"
+                                documentMatcher="lang.GameScriptDocumentMatcher"/>
+
+        <!-- Map the TrainzConfig language (config.txt) to the Trainz language server.
+             The documentMatcher restricts activation to files named exactly config.txt. -->
+        <languageMapping language="TrainzConfig"
+                         serverId="io.github.cethric.trainz.lsp"
+                         languageId="acs"
+                         documentMatcher="lang.TrainzConfigDocumentMatcher"/>
+        <fileTypeMapping fileType="TrainzConfig"
+                         serverId="io.github.cethric.trainz.lsp"
+                         languageId="acs"
+                         documentMatcher="lang.TrainzConfigDocumentMatcher"/>
+        <fileNamePatternMapping patterns="*.txt"
+                                serverId="io.github.cethric.trainz.lsp"
+                                languageId="acs"
+                                documentMatcher="lang.TrainzConfigDocumentMatcher"/>
+
+    </extensions>
+
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="MyToolWindow" factoryClass="io.github.cethric.MyToolWindowFactory"
-                    icon="AllIcons.Toolwindows.ToolWindowPalette"/>
+
+        <!-- Persist Trainz Language Server settings across IDE restarts -->
+        <applicationService
+                serviceImplementation="settings.TrainzLanguageServerSettings"/>
+
+        <!-- Settings page under Settings → Languages & Frameworks → Trainz Language Server -->
+        <applicationConfigurable
+                parentId="language"
+                instance="settings.TrainzLanguageServerSettingsConfigurable"
+                id="io.github.cethric.trainz.settings"
+                displayName="Trainz Language Server"/>
+
+        <!-- Register the GameScript file type for *.gs files -->
+        <fileType name="GameScript"
+                  implementationClass="lang.GameScriptFileType"
+                  fieldName="INSTANCE"
+                  language="GameScript"
+                  extensions="gs"/>
+
+        <!-- Register the TrainzConfig file type for config.txt files.
+             The file type covers the .txt extension; the documentMatcher in the
+             languageMapping above further restricts LSP activation to config.txt. -->
+        <fileType name="TrainzConfig"
+                  implementationClass="lang.TrainzConfigFileType"
+                  fieldName="INSTANCE"
+                  language="TrainzConfig"
+                  extensions="txt"/>
+
+        <lang.foldingBuilder language="GameScript"
+                             implementationClass="com.redhat.devtools.lsp4ij.features.foldingRange.LSPFoldingRangeBuilder"
+                             order="first"/>
+
+        <codeInsight.parameterInfo
+                language="GameScript"
+                implementationClass="com.redhat.devtools.lsp4ij.features.signatureHelp.LSPParameterInfoHandler"/>
+
+        <lang.psiStructureViewFactory
+                language="GameScript"
+                implementationClass="com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolStructureViewFactory"/>
     </extensions>
 
 </idea-plugin>
