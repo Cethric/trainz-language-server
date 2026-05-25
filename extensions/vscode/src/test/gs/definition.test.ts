@@ -1,6 +1,6 @@
 import * as assert from 'assert';
-import { parseGsDefinitionResponse } from '../../features/gs/definition';
-import { LanguageClient } from 'vscode-languageclient/node';
+import {parseGsDefinitionResponse} from '../../features/gs/definition';
+import {LanguageClient} from 'vscode-languageclient/node';
 
 suite('GS Definition Test Suite', () => {
     test('parseGsDefinitionResponse parses correctly', () => {
@@ -10,7 +10,10 @@ suite('GS Definition Test Suite', () => {
             }
         } as any as LanguageClient;
 
-        const response = { uri: 'file:///test.gs', range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } } };
+        const response = {
+            uri: 'file:///test.gs',
+            range: {start: {line: 0, character: 0}, end: {line: 0, character: 5}}
+        };
         const result = parseGsDefinitionResponse(mockClient, response);
 
         assert.deepStrictEqual(result, response);

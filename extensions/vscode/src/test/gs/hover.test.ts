@@ -1,10 +1,10 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { parseGsHoverResponse } from '../../features/gs/hover';
+import {parseGsHoverResponse} from '../../features/gs/hover';
 
 suite('GS Hover Test Suite', () => {
     test('parseGsHoverResponse parses MarkupContent correctly', () => {
-        const response = { contents: { kind: 'markdown', value: 'hover content' } };
+        const response = {contents: {kind: 'markdown', value: 'hover content'}};
         const result = parseGsHoverResponse(response);
 
         assert.ok(result instanceof vscode.Hover);
@@ -14,7 +14,7 @@ suite('GS Hover Test Suite', () => {
     });
 
     test('parseGsHoverResponse sets isTrusted on MarkdownString', () => {
-        const response = { contents: { kind: 'markdown', value: 'trusted content' } };
+        const response = {contents: {kind: 'markdown', value: 'trusted content'}};
         const result = parseGsHoverResponse(response);
 
         assert.ok(result instanceof vscode.Hover);
@@ -25,7 +25,7 @@ suite('GS Hover Test Suite', () => {
 
     test('parseGsHoverResponse renders multiline markdown content', () => {
         const multilineValue = '**Method:** `foo(bar: int)`\n\nParameter: `bar` — the bar value';
-        const response = { contents: { kind: 'markdown', value: multilineValue } };
+        const response = {contents: {kind: 'markdown', value: multilineValue}};
         const result = parseGsHoverResponse(response);
 
         assert.ok(result instanceof vscode.Hover);
@@ -35,7 +35,7 @@ suite('GS Hover Test Suite', () => {
     });
 
     test('parseGsHoverResponse handles MarkupContent with plaintext kind', () => {
-        const response = { contents: { kind: 'plaintext', value: 'plain text hover' } };
+        const response = {contents: {kind: 'plaintext', value: 'plain text hover'}};
         const result = parseGsHoverResponse(response);
 
         assert.ok(result instanceof vscode.Hover);
@@ -45,7 +45,7 @@ suite('GS Hover Test Suite', () => {
     });
 
     test('parseGsHoverResponse handles empty string value in MarkupContent', () => {
-        const response = { contents: { kind: 'markdown', value: '' } };
+        const response = {contents: {kind: 'markdown', value: ''}};
         const result = parseGsHoverResponse(response);
 
         assert.ok(result instanceof vscode.Hover);
@@ -55,8 +55,8 @@ suite('GS Hover Test Suite', () => {
     });
 
     test('parseGsHoverResponse handles object contents without value property', () => {
-        const contentsObj = { kind: 'markdown' };
-        const response = { contents: contentsObj };
+        const contentsObj = {kind: 'markdown'};
+        const response = {contents: contentsObj};
         const result = parseGsHoverResponse(response);
 
         assert.ok(result instanceof vscode.Hover);
@@ -64,7 +64,7 @@ suite('GS Hover Test Suite', () => {
     });
 
     test('parseGsHoverResponse falls back for plain string contents', () => {
-        const response = { contents: 'hover content' };
+        const response = {contents: 'hover content'};
         const result = parseGsHoverResponse(response);
 
         assert.ok(result instanceof vscode.Hover);

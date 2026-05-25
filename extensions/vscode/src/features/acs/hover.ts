@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { LanguageClient } from 'vscode-languageclient/node';
+import {LanguageClient} from 'vscode-languageclient/node';
 
 export function registerAcsHoverProvider(
     _context: vscode.ExtensionContext,

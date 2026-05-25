@@ -1,19 +1,19 @@
 import * as vscode from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions } from 'vscode-languageclient/node';
-import { registerGsDocumentSymbols } from './features/gs/symbols';
-import { registerAcsDocumentSymbols } from './features/acs/symbols';
-import { registerGsFoldingRanges } from './features/gs/folding';
-import { registerAcsFoldingRanges } from './features/acs/folding';
-import { registerGsCompletionProvider } from './features/gs/completion';
-import { registerAcsCompletionProvider } from './features/acs/completion';
-import { registerGsHoverProvider } from './features/gs/hover';
-import { registerAcsHoverProvider } from './features/acs/hover';
-import { registerGsSemanticTokens } from './features/gs/semanticTokens';
-import { registerAcsSemanticTokens } from './features/acs/semanticTokens';
-import { registerGsDefinitionProvider } from './features/gs/definition';
-import { registerAcsDefinitionProvider } from './features/acs/definition';
-import { registerGsFormattingProvider } from './features/gs/formatting';
-import { registerAcsFormattingProvider } from './features/acs/formatting';
+import {LanguageClient, LanguageClientOptions, ServerOptions} from 'vscode-languageclient/node';
+import {registerGsDocumentSymbols} from './features/gs/symbols';
+import {registerAcsDocumentSymbols} from './features/acs/symbols';
+import {registerGsFoldingRanges} from './features/gs/folding';
+import {registerAcsFoldingRanges} from './features/acs/folding';
+import {registerGsCompletionProvider} from './features/gs/completion';
+import {registerAcsCompletionProvider} from './features/acs/completion';
+import {registerGsHoverProvider} from './features/gs/hover';
+import {registerAcsHoverProvider} from './features/acs/hover';
+import {registerGsSemanticTokens} from './features/gs/semanticTokens';
+import {registerAcsSemanticTokens} from './features/acs/semanticTokens';
+import {registerGsDefinitionProvider} from './features/gs/definition';
+import {registerAcsDefinitionProvider} from './features/acs/definition';
+import {registerGsFormattingProvider} from './features/gs/formatting';
+import {registerAcsFormattingProvider} from './features/acs/formatting';
 
 const clients: Map<string, LanguageClient> = new Map();
 
@@ -90,8 +90,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
             const clientOptions: LanguageClientOptions = {
                 documentSelector: [
-                    { scheme: 'file', language: 'game-script', pattern: `${folderPattern}` },
-                    { scheme: 'file', language: 'acs', pattern: folderPattern }
+                    {scheme: 'file', language: 'game-script', pattern: `${folderPattern}`},
+                    {scheme: 'file', language: 'acs', pattern: folderPattern}
                 ],
                 workspaceFolder: folder,
                 // The built-in LSP client handles textDocument/didOpen, didChange, didClose
@@ -135,7 +135,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     vscode.workspace.onDidOpenTextDocument(didOpenTextDocument);
     vscode.workspace.textDocuments.forEach(didOpenTextDocument);
-    
+
     console.log('[Trainz LSP] Extension activated.');
 }
 

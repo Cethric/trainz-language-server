@@ -1,10 +1,10 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { gsSemanticTokensProvider } from '../../features/gs/semanticTokens';
-import { acsSemanticTokensProvider } from '../../features/acs/semanticTokens';
-import { getClientForDocument } from '../../utils';
-import { LanguageClient } from 'vscode-languageclient/node';
+import {gsSemanticTokensProvider} from '../../features/gs/semanticTokens';
+import {acsSemanticTokensProvider} from '../../features/acs/semanticTokens';
+import {getClientForDocument} from '../../utils';
+import {LanguageClient} from 'vscode-languageclient/node';
 
 suite('E2E Test Suite', () => {
     suiteSetup(async function () {
@@ -71,8 +71,9 @@ suite('E2E Test Suite', () => {
 
         // Get the live clients map via the cached require of the bundled extension
         // (same module instance that VS Code's extension host loaded)
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const extModule = require(path.resolve(__dirname, '../../../dist/extension.js')) as { getClients: () => Map<string, LanguageClient> };
+        const extModule = require(path.resolve(__dirname, '../../../dist/extension.js')) as {
+            getClients: () => Map<string, LanguageClient>
+        };
         const liveClients = extModule.getClients();
         console.log('[Trainz LSP] GS liveClients size:', liveClients?.size);
 
@@ -101,8 +102,9 @@ suite('E2E Test Suite', () => {
 
         // Get the live clients map via the cached require of the bundled extension
         // (same module instance that VS Code's extension host loaded)
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const extModule = require(path.resolve(__dirname, '../../../dist/extension.js')) as { getClients: () => Map<string, LanguageClient> };
+        const extModule = require(path.resolve(__dirname, '../../../dist/extension.js')) as {
+            getClients: () => Map<string, LanguageClient>
+        };
         const liveClients = extModule.getClients();
         console.log('[Trainz LSP] ACS liveClients size:', liveClients?.size);
 

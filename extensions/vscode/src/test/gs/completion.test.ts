@@ -1,13 +1,12 @@
 import * as assert from 'assert';
-import * as vscode from 'vscode';
-import { parseGsCompletionResponse } from '../../features/gs/completion';
+import {parseGsCompletionResponse} from '../../features/gs/completion';
 
 suite('GS Completion Test Suite', () => {
     test('parseGsCompletionResponse parses correctly', () => {
         const response = {
             items: [
-                { label: 'item1' },
-                { label: 'item2' }
+                {label: 'item1'},
+                {label: 'item2'}
             ]
         };
 

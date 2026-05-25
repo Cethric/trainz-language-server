@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { LanguageClient } from 'vscode-languageclient/node';
+import {LanguageClient} from 'vscode-languageclient/node';
 
 export function parseGsHoverResponse(response: any, client?: LanguageClient): vscode.Hover | null {
     if (!response) return null;
