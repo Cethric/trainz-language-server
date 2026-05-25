@@ -130,7 +130,10 @@ pub struct ACSState {
 impl ACSState {
     pub async fn load_graph(&self) {
         if let Some(validation_path) = &self.validation_path {
-            debug!("load_graph: loading from path={}", validation_path.display());
+            debug!(
+                "load_graph: loading from path={}",
+                validation_path.display()
+            );
             self.load_graph_from_path(validation_path).await;
         } else {
             warn!("No validation path specified");
@@ -138,7 +141,10 @@ impl ACSState {
     }
 
     pub async fn load_graph_from_path(&self, validation_path: &PathBuf) {
-        debug!("load_graph_from_path: validation_path={}", validation_path.display());
+        debug!(
+            "load_graph_from_path: validation_path={}",
+            validation_path.display()
+        );
         let extension_overrides_path =
             if let Some(extensions_overrides_path) = &self.extensions_overrides_path {
                 Some(extensions_overrides_path.as_path())
@@ -155,7 +161,11 @@ impl ACSState {
             );
             guard.replace(graph);
         } else if let Err(err) = graph {
-            error!("Failed to load validators from {}: {}", validation_path.display(), err)
+            error!(
+                "Failed to load validators from {}: {}",
+                validation_path.display(),
+                err
+            )
         }
     }
 }

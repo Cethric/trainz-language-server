@@ -2,10 +2,10 @@ use rayon::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
 use tower_lsp_server::ls_types::{Hover, HoverContents, HoverParams, MarkedString};
+use tracing::debug;
 use trainz_acs_text_validators::text_util::{get_kind_from_text, get_trainz_build_from_text};
 use trainz_acs_text_validators::{RuleNode, RulesRoot};
 use trainz_ast::acs_text::{AcsText, KeyValuePair};
-use tracing::debug;
 
 #[tracing::instrument(skip(acs_text, graph, params, _base_path, _script_resolver))]
 pub fn acs_text_hover(
@@ -29,7 +29,11 @@ pub fn acs_text_hover(
         && let Some((found, chain)) = graph.get_rule_from_path(&kind, &container_path)
     {
         let trainz_build = get_trainz_build_from_text(acs_text);
-        debug!("acs_text_hover: rule found={} chain_len={}", found, chain.len());
+        debug!(
+            "acs_text_hover: rule found={} chain_len={}",
+            found,
+            chain.len()
+        );
 
         if found && let Some(rule) = chain.last() {
             build_hover_item(last_item, rule, trainz_build)
