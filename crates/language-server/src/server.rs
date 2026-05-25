@@ -481,14 +481,14 @@ impl LanguageServer for TrainzLanguageServer {
                 // The LSP didOpen/didChange notifications already provide the authoritative
                 // in-memory content, so reading from disk here would clobber it with stale
                 // (or differently-encoded) on-disk content.
-                if let Some(count) = self.counts.get(&path) {
-                    if count.load(std::sync::atomic::Ordering::SeqCst) > 0 {
-                        trace!(
-                            "did_change_watched_files: skipping open file {:?}",
-                            document_path
-                        );
-                        continue;
-                    }
+                if let Some(count) = self.counts.get(&path)
+                    && count.load(std::sync::atomic::Ordering::SeqCst) > 0
+                {
+                    trace!(
+                        "did_change_watched_files: skipping open file {:?}",
+                        document_path
+                    );
+                    continue;
                 }
 
                 let _permit = self.processing_semaphore.acquire().await.ok();
@@ -1333,17 +1333,16 @@ impl LanguageServer for TrainzLanguageServer {
             debug!("Hover: could not resolve document path from URI");
         }
 
-        if let Some(path) = &document_path {
-            if self
+        if let Some(path) = &document_path
+            && self
                 .parsed_files
                 .get(&path.to_string_lossy().to_string())
                 .is_none()
-            {
-                debug!(
-                    "Hover: document not found in parsed_files for path={}",
-                    path.display()
-                );
-            }
+        {
+            debug!(
+                "Hover: document not found in parsed_files for path={}",
+                path.display()
+            );
         }
 
         if let Some(path) = &document_path

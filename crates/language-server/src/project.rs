@@ -47,7 +47,7 @@ impl TrainzLanguageServer {
             }
         }
 
-        futures::stream::iter(all_project_roots.into_iter())
+        futures::stream::iter(all_project_roots)
             .for_each_concurrent(None, |project_root| async move {
                 if !self.projects.contains_key(&project_root) {
                     info!("Found new project at {:?}", project_root);

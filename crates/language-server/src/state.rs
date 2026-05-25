@@ -1,6 +1,6 @@
 use dashmap::{DashMap, DashSet};
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{RwLock, Semaphore};
@@ -140,17 +140,12 @@ impl ACSState {
         }
     }
 
-    pub async fn load_graph_from_path(&self, validation_path: &PathBuf) {
+    pub async fn load_graph_from_path(&self, validation_path: &Path) {
         debug!(
             "load_graph_from_path: validation_path={}",
             validation_path.display()
         );
-        let extension_overrides_path =
-            if let Some(extensions_overrides_path) = &self.extensions_overrides_path {
-                Some(extensions_overrides_path.as_path())
-            } else {
-                None
-            };
+        let extension_overrides_path = self.extensions_overrides_path.as_deref();
         let graph = load_validators(validation_path, extension_overrides_path).await;
         if let Ok(graph) = graph {
             let mut guard = self.graph.write().await;

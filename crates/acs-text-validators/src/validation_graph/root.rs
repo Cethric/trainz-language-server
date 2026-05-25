@@ -270,7 +270,7 @@ impl RulesRoot {
                     {
                         if let Some(kind) = element.kind() {
                             debug!("Found kind: {:?}", kind);
-                            process_kind(&element, kind, &search_path, matched)
+                            process_kind(&element, kind, search_path, matched)
                         } else {
                             (Some(node_inheritance(&element)), None)
                         }
@@ -289,12 +289,7 @@ impl RulesRoot {
                                 Some(node_inheritance(&tag_array)),
                                 if let Some((dropped, paths)) = search_path.split_first() {
                                     debug!("Dropped path {}", dropped.key);
-                                    Some(
-                                        paths
-                                            .iter()
-                                            .map(|x| x.clone())
-                                            .collect::<Vec<KeyValuePair>>(),
-                                    )
+                                    Some(paths.to_vec())
                                 } else {
                                     None
                                 },
@@ -314,12 +309,7 @@ impl RulesRoot {
                                 ),
                                 if let Some((dropped, paths)) = search_path.split_first() {
                                     debug!("Dropped path {}", dropped.key);
-                                    Some(
-                                        paths
-                                            .iter()
-                                            .map(|x| x.clone())
-                                            .collect::<Vec<KeyValuePair>>(),
-                                    )
+                                    Some(paths.to_vec())
                                 } else {
                                     None
                                 },

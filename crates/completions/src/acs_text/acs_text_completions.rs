@@ -1,5 +1,4 @@
 use rayon::prelude::*;
-use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tower_lsp_server::ls_types::{

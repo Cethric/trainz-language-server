@@ -182,10 +182,8 @@ impl AcsText {
 
     fn find_kuid_at_value(&self, value: &Value, pos: Position) -> Option<Kuid> {
         match value {
-            Value::Kuid(kuid, range) => {
-                if position_in_range(pos, *range) {
-                    return Some(kuid.clone());
-                }
+            Value::Kuid(kuid, range) if position_in_range(pos, *range) => {
+                return Some(kuid.clone());
             }
             Value::Container(kvps, _, _) => {
                 for kvp in kvps {

@@ -60,7 +60,7 @@ pub(crate) fn validate_node_element(
 
         let diagnostics = rules
             .par_iter()
-            .filter_map(|rule| validate_rule_node(&rule, key_value_pair, trainz_build, base_path))
+            .filter_map(|rule| validate_rule_node(rule, key_value_pair, trainz_build, base_path))
             .flatten()
             .collect::<Vec<Diagnostic>>();
         if diagnostics.is_empty() {

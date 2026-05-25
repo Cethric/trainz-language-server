@@ -149,24 +149,18 @@ fn find_postfix_in_expr(expr: &Expr, pos: Position) -> Option<(&Expr, usize)> {
 
             ops.par_iter().enumerate().find_map_first(|(idx, op)| {
                 match op {
-                    PostfixOp::Deref(id) => {
-                        if position_in_range(pos, id.range) {
-                            return Some((expr, idx));
-                        }
+                    PostfixOp::Deref(id) if position_in_range(pos, id.range) => {
+                        return Some((expr, idx));
                     }
-                    PostfixOp::Call(args, range) => {
-                        if position_in_range(pos, *range) {
-                            return args
-                                .par_iter()
-                                .find_map_first(|arg| find_postfix_in_expr(arg, pos));
-                        }
+                    PostfixOp::Call(args, range) if position_in_range(pos, *range) => {
+                        return args
+                            .par_iter()
+                            .find_map_first(|arg| find_postfix_in_expr(arg, pos));
                     }
-                    PostfixOp::Index(args, range) => {
-                        if position_in_range(pos, *range) {
-                            return args
-                                .par_iter()
-                                .find_map_first(|arg| find_postfix_in_expr(arg, pos));
-                        }
+                    PostfixOp::Index(args, range) if position_in_range(pos, *range) => {
+                        return args
+                            .par_iter()
+                            .find_map_first(|arg| find_postfix_in_expr(arg, pos));
                     }
                     _ => {}
                 }

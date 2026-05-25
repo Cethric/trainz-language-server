@@ -356,13 +356,11 @@ fn find_references_in_expr(expr: &Expr, target: &str, uri: &Uri) -> Vec<Location
 fn find_references_in_type(ty: &Type, target: &str, uri: &Uri) -> Vec<Location> {
     let mut locations = vec![];
     match ty {
-        Type::Named(id) => {
-            if id.name == target {
-                locations.push(Location {
-                    uri: uri.clone(),
-                    range: id.range,
-                });
-            }
+        Type::Named(id) if id.name == target => {
+            locations.push(Location {
+                uri: uri.clone(),
+                range: id.range,
+            });
         }
         Type::Array(inner, _) => {
             locations.extend(find_references_in_type(inner, target, uri));
