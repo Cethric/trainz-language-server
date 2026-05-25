@@ -23,8 +23,7 @@ const crates = [
     'completions',
     'folding',
     'hover',
-    'definition',
-    'soup-validators'
+    'definition'
 ];
 
 const scriptPath = path.join(__dirname, 'update-crate-version.js');
