@@ -573,11 +573,7 @@ impl RuleNodeValueComboBox {
     fn build_options(key_value_pairs: Vec<KeyValuePair>) -> HashMap<String, Option<String>> {
         let mut options: HashMap<String, Option<String>> = HashMap::new();
         for entry in key_value_pairs {
-            let description = if let Some(value) = parse_as_string(&entry) {
-                Some(value)
-            } else {
-                None
-            };
+            let description = parse_as_string(&entry);
             options.insert(entry.key.clone(), description);
         }
 
@@ -952,8 +948,8 @@ impl RuleNodeValueKuid {
 #[derive(Debug, Clone)]
 pub struct RuleNodeValueKuidBrowser {
     default: Option<(i32, i32, Option<u8>)>,
-    filter: Option<String>,
-    categories: Option<Vec<String>>,
+    _filter: Option<String>,
+    _categories: Option<Vec<String>>,
 }
 
 impl RuleNodeValueKuidBrowser {
@@ -993,8 +989,8 @@ impl RuleNodeValueKuidBrowser {
 
         Self {
             default,
-            filter,
-            categories,
+            _filter: filter,
+            _categories: categories,
         }
     }
 }

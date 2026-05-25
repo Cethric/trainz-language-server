@@ -25,7 +25,7 @@ pub struct RuleNode {
     obsolete: Option<f64>,
     compulsory: Option<f64>,
     minimum_version: Option<f64>,
-    parent: Option<Weak<RuleNode>>,
+    _parent: Option<Weak<RuleNode>>,
     kind: Option<RuleNodeKind>,
     validators: Vec<Validator>,
     dependencies: HashMap<String, String>,
@@ -116,7 +116,7 @@ impl RuleNode {
             obsolete,
             compulsory,
             minimum_version,
-            parent,
+            _parent: parent,
             kind,
             validators: vec![],
             dependencies: HashMap::new(),
@@ -456,7 +456,18 @@ impl RuleNode {
     #[tracing::instrument(skip(self))]
     pub fn description(&self) -> Option<String> {
         if let Some(kind) = &self.kind {
-            kind.description()
+            let mut description: Vec<String> = vec![];
+            if let Some(desc) = self.description.as_ref() {
+                description.push(desc.to_string());
+            }
+            if let Some(kind_description) = kind.description() {
+                description.push(kind_description);
+            }
+            if !description.is_empty() {
+                None
+            } else {
+                Some(description.join("\n"))
+            }
         } else {
             None
         }
@@ -527,7 +538,6 @@ impl RuleNode {
                     .filter_map(|validator| {
                         match validator {
                             Validator::Unknown(name, _) => Some(format!("- {}", name)),
-                            _ => None,
                         }
                     })
                     .collect::<Vec<String>>()
