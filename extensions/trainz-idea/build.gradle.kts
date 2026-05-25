@@ -10,7 +10,7 @@ version = "1.0.0-SNAPSHOT"
 // Set the JVM language level used to build the project.
 // Target JVM 17 bytecode for compatibility with IntelliJ IDEA 2024.3 (JBR 21).
 kotlin {
-    jvmToolchain(23)
+    jvmToolchain(24)
 }
 
 java {
